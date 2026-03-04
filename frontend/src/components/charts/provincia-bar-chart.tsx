@@ -6,7 +6,7 @@ import { BarChart3 } from "lucide-react"
 const COLORS = ["#6366f1", "#f5eb4a", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ec4899", "#3b82f6", "#f97316", "#14b8a6"]
 
 interface ProvinciaBarChartProps {
-  data: Array<{ nombre: string; cantidad: number }>
+  data: Array<{ nombre: string; cantidad: number  }>
 }
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
