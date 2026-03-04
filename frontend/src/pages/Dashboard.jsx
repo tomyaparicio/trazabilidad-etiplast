@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import {
   Users,
@@ -49,7 +49,6 @@ const CustomTooltip = ({ active, payload, label }) => {
 }
 
 export default function Dashboard() {
-  const { session } = useAuth()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -59,10 +58,8 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch('/api/dashboard/stats', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      const data = await res.json()
+      const { data, error } = await supabase.rpc('get_dashboard_stats')
+      if (error) throw error
       setStats(data)
     } catch (err) {
       console.error('Error cargando estadísticas:', err)

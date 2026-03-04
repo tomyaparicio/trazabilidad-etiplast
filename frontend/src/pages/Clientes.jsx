@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 
 const RUBRO_COLORS = {
   'Agua': 'bg-cyan-50 text-cyan-700',
@@ -41,8 +41,13 @@ const GROUP_LABELS = {
   extra: 'Observaciones',
 }
 
+const CAMPOS_EDITABLES = [
+  'numero_cliente', 'marca', 'rubro', 'razon_social', 'domicilio', 'localidad', 'provincia', 'pais',
+  'cuit', 'telefono', 'producto', 'lamina', 'muestra', 'alto', 'cilindro', 'cierre', 'envase',
+  'lamina_2', 'cilindro_2', 'observaciones',
+]
+
 export default function Clientes() {
-  const { session } = useAuth()
   const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -63,26 +68,41 @@ export default function Clientes() {
 
   const fetchFiltros = async () => {
     try {
-      const res = await fetch('/api/filtros', { headers: { Authorization: `Bearer ${session.access_token}` } })
-      setFiltros(await res.json())
+      const { data, error } = await supabase.rpc('get_filtros')
+      if (error) throw error
+      setFiltros(data)
     } catch (err) { console.error(err) }
   }
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ page, per_page: 20 })
-      if (search) params.set('search', search)
-      if (rubro) params.set('rubro', rubro)
-      if (provincia) params.set('provincia', provincia)
-      const res = await fetch(`/api/clientes?${params}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
-      const data = await res.json()
-      setClientes(data.data)
-      setTotalPages(data.total_pages)
-      setTotal(data.total)
+      const perPage = 20
+      const from = (page - 1) * perPage
+      const to = from + perPage - 1
+
+      let query = supabase
+        .from('clientes')
+        .select('*', { count: 'exact' })
+        .order('numero_cliente')
+        .range(from, to)
+
+      if (search) {
+        const term = `%${search}%`
+        query = query.or(`marca.ilike.${term},razon_social.ilike.${term},localidad.ilike.${term},producto.ilike.${term}`)
+      }
+      if (rubro) query = query.eq('rubro', rubro)
+      if (provincia) query = query.eq('provincia', provincia)
+
+      const { data, count, error } = await query
+      if (error) throw error
+
+      setClientes(data || [])
+      setTotal(count || 0)
+      setTotalPages(count ? Math.ceil(count / perPage) : 0)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
-  }, [page, search, rubro, provincia, session])
+  }, [page, search, rubro, provincia])
 
   const openDetail = (cliente) => {
     setSelectedCliente(cliente)
@@ -102,16 +122,22 @@ export default function Clientes() {
     setSaving(true)
     setSaveMsg('')
     try {
-      const res = await fetch(`/api/clientes/${selectedCliente.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(editData),
+      const numericFields = ['numero_cliente', 'alto', 'cilindro', 'cilindro_2']
+      const updates = {}
+      CAMPOS_EDITABLES.forEach(campo => {
+        if (campo in editData) {
+          let val = editData[campo] || null
+          if (val !== null && numericFields.includes(campo)) val = Number(val)
+          updates[campo] = val
+        }
       })
-      if (!res.ok) throw new Error('Error al guardar')
-      const updated = await res.json()
+      const { data: updated, error } = await supabase
+        .from('clientes')
+        .update(updates)
+        .eq('id', selectedCliente.id)
+        .select()
+        .single()
+      if (error) throw error
       setSelectedCliente(updated)
       setEditData({ ...updated })
       setEditing(false)
