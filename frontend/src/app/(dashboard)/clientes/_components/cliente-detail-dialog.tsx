@@ -1,0 +1,324 @@
+"use client"
+
+import { useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { Cliente } from "@/types/database"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Pencil, Check, Loader2, AlertCircle, CheckCircle2, X,
+  Building2, MapPin, Phone, Package, FileText,
+  type LucideIcon,
+} from "lucide-react"
+
+interface FieldDef {
+  key: string
+  label: string
+  type?: string
+  group: string
+  span?: boolean   // full row
+}
+
+const FIELDS: FieldDef[] = [
+  { key: "numero_cliente", label: "N. Cliente",    type: "number", group: "general" },
+  { key: "marca",          label: "Marca",                         group: "general" },
+  { key: "rubro",          label: "Rubro",                         group: "general" },
+  { key: "razon_social",   label: "Razón Social",  span: true,     group: "general" },
+  { key: "domicilio",      label: "Domicilio",     span: true,     group: "ubicacion" },
+  { key: "localidad",      label: "Localidad",                     group: "ubicacion" },
+  { key: "provincia",      label: "Provincia",                     group: "ubicacion" },
+  { key: "pais",           label: "País",                          group: "ubicacion" },
+  { key: "cuit",           label: "CUIT",                          group: "contacto" },
+  { key: "telefono",       label: "Teléfono",                      group: "contacto" },
+  { key: "producto",       label: "Producto",      span: true,     group: "producto" },
+  { key: "lamina",         label: "Lámina",                        group: "producto" },
+  { key: "muestra",        label: "Muestra",                       group: "producto" },
+  { key: "alto",           label: "Alto",          type: "number", group: "producto" },
+  { key: "cilindro",       label: "Cilindro",      type: "number", group: "producto" },
+  { key: "cierre",         label: "Cierre",                        group: "producto" },
+  { key: "envase",         label: "Envase",                        group: "producto" },
+  { key: "lamina_2",       label: "Lámina 2",                      group: "producto" },
+  { key: "cilindro_2",     label: "Cilindro 2",    type: "number", group: "producto" },
+  { key: "observaciones",  label: "Observaciones", span: true,     group: "extra" },
+]
+
+const GROUP_CONFIG: Record<string, { label: string; icon: LucideIcon; description: string }> = {
+  general:   { label: "General",     icon: Building2, description: "Datos básicos del cliente" },
+  ubicacion: { label: "Ubicación",   icon: MapPin,    description: "Domicilio y localización" },
+  contacto:  { label: "Contacto",    icon: Phone,     description: "CUIT y datos de contacto" },
+  producto:  { label: "Producto",    icon: Package,   description: "Especificaciones técnicas" },
+  extra:     { label: "Notas",       icon: FileText,  description: "Observaciones adicionales" },
+}
+
+const CAMPOS_EDITABLES = [
+  "numero_cliente","marca","rubro","razon_social","domicilio","localidad","provincia","pais",
+  "cuit","telefono","producto","lamina","muestra","alto","cilindro","cierre","envase","lamina_2","cilindro_2","observaciones",
+]
+
+const RUBRO_AVATAR: Record<string, { from: string; to: string }> = {
+  Agua:             { from: "#0e7490", to: "#22d3ee" },
+  "Jugos-Gaseosas": { from: "#c2410c", to: "#f97316" },
+  Limpieza:         { from: "#065f46", to: "#34d399" },
+  Agroquimicos:     { from: "#991b1b", to: "#f87171" },
+  Aceite:           { from: "#92400e", to: "#fbbf24" },
+}
+function getAvatarGrad(rubro?: string | null) {
+  return RUBRO_AVATAR[rubro ?? ""] ?? { from: "#1a1866", to: "#292d96" }
+}
+
+interface ClienteDetailDialogProps {
+  cliente: Cliente | null
+  onClose: () => void
+  onUpdate: (updated: Cliente) => void
+}
+
+export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetailDialogProps) {
+  const supabase = createClient()
+  const [activeGroup, setActiveGroup] = useState("general")
+  const [editing, setEditing] = useState(false)
+  const [editData, setEditData] = useState<Record<string, unknown>>({})
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<"success" | "error" | "">("")
+
+  const handleOpen = (open: boolean) => {
+    if (!open) {
+      onClose()
+      setEditing(false)
+      setSaveMsg("")
+      setActiveGroup("general")
+    }
+  }
+
+  const startEditing = () => {
+    if (cliente) { setEditData({ ...cliente }); setEditing(true); setSaveMsg("") }
+  }
+
+  const cancelEditing = () => {
+    setEditing(false)
+    if (cliente) setEditData({ ...cliente })
+  }
+
+  const handleSave = async () => {
+    if (!cliente) return
+    setSaving(true); setSaveMsg("")
+    try {
+      const numericFields = ["numero_cliente", "alto", "cilindro", "cilindro_2"]
+      const updates: Record<string, unknown> = {}
+      CAMPOS_EDITABLES.forEach((campo) => {
+        if (campo in editData) {
+          let val = editData[campo] || null
+          if (val !== null && numericFields.includes(campo)) val = Number(val)
+          updates[campo] = val
+        }
+      })
+      const { data: updated, error } = await supabase
+        .from("clientes").update(updates).eq("id", cliente.id).select().single()
+      if (error) throw error
+      onUpdate(updated as Cliente)
+      setEditData({ ...updated }); setEditing(false); setSaveMsg("success")
+      setTimeout(() => setSaveMsg(""), 3000)
+    } catch {
+      setSaveMsg("error")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const displayCliente = editing ? editData : (cliente as Record<string, unknown> | null)
+  const grad = getAvatarGrad(cliente?.rubro)
+  const activeFields = FIELDS.filter(f => f.group === activeGroup)
+  const { label: activeLabel, icon: ActiveIcon, description: activeDesc } = GROUP_CONFIG[activeGroup]
+
+  return (
+    <Dialog open={!!cliente} onOpenChange={handleOpen}>
+      <DialogContent showCloseButton={false} className="w-[95vw] max-w-[1400px] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0 bg-[#0d0d1a] border-white/[0.08] shadow-[0_0_100px_rgba(0,0,0,0.7)]">
+
+        {/* ── Top header ── */}
+        <DialogHeader className="px-6 py-4 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base border border-white/10 shrink-0 shadow-md"
+                style={{ background: `linear-gradient(135deg, ${grad.from}, ${grad.to})` }}
+              >
+                {(String(displayCliente?.marca || ""))?.[0]?.toUpperCase() || "?"}
+              </div>
+              <div>
+                <DialogTitle className="text-[15px] text-white font-semibold leading-tight">
+                  {String(displayCliente?.marca || "—")}
+                </DialogTitle>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <DialogDescription className="text-[#6b6b8a] text-xs">
+                    Cliente #{cliente?.numero_cliente}
+                  </DialogDescription>
+                  {cliente?.rubro && (
+                    <span className="text-[10px] font-semibold text-[#6b6b8a] bg-white/[0.05] border border-white/[0.07] px-2 py-0.5 rounded-md">
+                      {cliente.rubro}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {!editing ? (
+                <Button
+                  size="sm" onClick={startEditing}
+                  className="bg-white/[0.05] hover:bg-white/[0.08] text-[#c8c8d8] border border-white/[0.08] text-xs h-8 rounded-lg gap-1.5"
+                >
+                  <Pencil className="w-3.5 h-3.5" />Editar
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline" size="sm" onClick={cancelEditing}
+                    className="bg-transparent border-white/[0.08] text-[#6b6b8a] hover:bg-white/[0.05] hover:text-white text-xs h-8 rounded-lg"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm" onClick={handleSave} disabled={saving}
+                    className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs h-8 rounded-lg gap-1.5"
+                  >
+                    {saving
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Check className="w-3.5 h-3.5" />
+                    }
+                    Guardar
+                  </Button>
+                </>
+              )}
+              {/* Divider + close */}
+              <div className="w-px h-5 bg-white/[0.08] mx-1" />
+              <button
+                type="button"
+                onClick={() => handleOpen(false)}
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-[#4a4a6a] hover:text-white hover:bg-white/[0.06] transition-colors"
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {/* ── Two-column body ── */}
+        <div className="flex flex-1 overflow-hidden min-h-0">
+
+          {/* Left nav */}
+          <nav className="w-[230px] shrink-0 border-r border-white/[0.06] bg-black/25 flex flex-col py-2 overflow-y-auto">
+            {Object.entries(GROUP_CONFIG).map(([key, { label, icon: Icon }]) => {
+              const isActive = activeGroup === key
+              // Count filled fields for this group
+              const groupFields = FIELDS.filter(f => f.group === key)
+              const filledCount = groupFields.filter(f => {
+                const val = displayCliente?.[f.key]
+                return val != null && String(val).trim() !== ""
+              }).length
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveGroup(key)}
+                  className={`relative flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 group ${
+                    isActive
+                      ? "text-[#f5eb4a]"
+                      : "text-[#6b6b8a] hover:text-[#c8c8d8]"
+                  }`}
+                >
+                  {/* Right active indicator */}
+                  {isActive && (
+                    <span className="absolute right-0 top-2 bottom-2 w-[2px] bg-[#f5eb4a] rounded-l-full" />
+                  )}
+                  {/* Active bg */}
+                  {isActive && (
+                    <span className="absolute inset-0 bg-[#f5eb4a]/6 rounded-none" />
+                  )}
+
+                  <div className={`relative rounded-lg p-1.5 shrink-0 border transition-colors ${
+                    isActive
+                      ? "bg-[#f5eb4a]/10 border-[#f5eb4a]/25"
+                      : "bg-white/[0.04] border-white/[0.06] group-hover:border-white/[0.1]"
+                  }`}>
+                    <Icon className={`w-3.5 h-3.5 ${isActive ? "text-[#f5eb4a]" : "text-[#6b6b8a] group-hover:text-[#c8c8d8]"}`} strokeWidth={1.5} />
+                  </div>
+
+                  <div className="relative flex-1 min-w-0">
+                    <p className="text-xs font-medium leading-none truncate">{label}</p>
+                    <p className={`text-[10px] mt-1 tabular-nums ${isActive ? "text-[#f5eb4a]/60" : "text-[#4a4a6a]"}`}>
+                      {filledCount}/{groupFields.length} campos
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* Right content */}
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+
+            {/* Section sub-header */}
+            <div className="px-7 py-4 border-b border-white/[0.04] bg-white/[0.01] shrink-0">
+              <div className="flex items-center gap-2.5">
+                <ActiveIcon className="w-4 h-4 text-[#6b6b8a]" strokeWidth={1.5} />
+                <div>
+                  <h3 className="text-sm font-semibold text-white leading-none">{activeLabel}</h3>
+                  <p className="text-[11px] text-[#4a4a6a] mt-0.5">{activeDesc}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable fields */}
+            <div className="flex-1 overflow-y-auto px-7 py-6">
+
+              {/* Feedback banners */}
+              {saveMsg === "success" && (
+                <div className="flex items-center gap-2.5 p-3.5 mb-5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />Cliente actualizado correctamente
+                </div>
+              )}
+              {saveMsg === "error" && (
+                <div className="flex items-center gap-2.5 p-3.5 mb-5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0" />Error al guardar. Verifica los datos e intenta de nuevo.
+                </div>
+              )}
+
+              {/* Fields grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
+                {activeFields.map((field) => (
+                  <div key={field.key} className={field.span ? "sm:col-span-2 lg:col-span-3" : ""}>
+                    <label
+                      htmlFor={`modal-${field.key}`}
+                      className="block text-xs font-medium text-[#4a4a6a] mb-1.5"
+                    >
+                      {field.label}
+                    </label>
+                    {editing ? (
+                      <Input
+                        id={`modal-${field.key}`}
+                        type={field.type || "text"}
+                        inputMode={field.type === "number" ? "numeric" : undefined}
+                        autoComplete="off"
+                        value={String(editData[field.key] ?? "")}
+                        onChange={(e) => setEditData((prev) => ({ ...prev, [field.key]: e.target.value || null }))}
+                        className="h-10 rounded-lg bg-white/[0.04] border-white/[0.07] text-white placeholder:text-[#4a4a6a] focus-visible:border-[#f5eb4a]/40 focus-visible:ring-[#f5eb4a]/10 text-sm"
+                      />
+                    ) : (
+                      <div className="h-10 flex items-center px-3.5 bg-white/[0.025] border border-white/[0.05] rounded-lg">
+                        {displayCliente?.[field.key] != null && String(displayCliente[field.key]).trim() !== ""
+                          ? <span className="text-sm text-[#c8c8d8] truncate">{String(displayCliente[field.key])}</span>
+                          : <span className="text-sm text-[#3a3a5a]">—</span>
+                        }
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
