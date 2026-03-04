@@ -1,33 +1,31 @@
 "use client"
 
-import { usePathname } from "next/navigation"
-
-const PAGE_TITLES: Record<string, string> = {
-  "/": "Panel de Control",
-  "/clientes": "Clientes",
-}
+import { useEffect, useState } from "react"
 
 export function Header() {
-  const pathname = usePathname()
-  const pageTitle = PAGE_TITLES[pathname] || "Panel de Control"
+  const [dateInfo, setDateInfo] = useState<{ str: string; iso: string } | null>(null)
 
-  const now = new Date()
-  const dateStr = new Intl.DateTimeFormat("es-AR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(now)
+  useEffect(() => {
+    const now = new Date()
+    setDateInfo({
+      str: new Intl.DateTimeFormat("es-AR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(now),
+      iso: now.toISOString(),
+    })
+  }, [])
 
   return (
     <header className="h-16 bg-[#08080f]/80 backdrop-blur-xl border-b border-white/[0.06] flex items-center justify-between px-6 shrink-0">
-      <div className="flex items-center gap-4">
-        <div className="w-10 lg:hidden" />
-        <h1 className="text-base font-semibold text-white">{pageTitle}</h1>
-      </div>
-      <time className="text-xs text-[#6b6b8a] hidden sm:block capitalize" dateTime={now.toISOString()}>
-        {dateStr}
-      </time>
+      <div className="w-10 lg:hidden" />
+      {dateInfo && (
+        <time className="text-xs text-[#6b6b8a] hidden sm:block capitalize" dateTime={dateInfo.iso}>
+          {dateInfo.str}
+        </time>
+      )}
     </header>
   )
 }
