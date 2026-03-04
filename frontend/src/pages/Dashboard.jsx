@@ -51,22 +51,26 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchStats()
-  }, [])
+  const [error, setError] = useState(null)
 
   const fetchStats = async () => {
+    setError(null)
+    setLoading(true)
     try {
-      const { data, error } = await supabase.rpc('get_dashboard_stats')
-      if (error) throw error
+      const { data, error: err } = await supabase.rpc('get_dashboard_stats')
+      if (err) throw err
       setStats(data)
     } catch (err) {
       console.error('Error cargando estadísticas:', err)
+      setError(err?.message || err?.error_description || String(err))
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchStats()
+  }, [])
 
   if (loading) {
     return (
@@ -84,13 +88,28 @@ export default function Dashboard() {
 
   if (!stats) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 p-6">
         <div className="rounded-full bg-error/10 p-4">
           <BarChart3 className="size-10 text-error" aria-hidden />
         </div>
         <p className="text-error font-medium text-center" role="alert">
-          Error al cargar las estadísticas. Recarga la página e intenta de nuevo.
+          Error al cargar las estadísticas.
         </p>
+        {error && (
+          <div className="bg-base-200 rounded-lg p-4 max-w-md text-left">
+            <p className="text-sm font-mono text-base-content/80 break-all">{error}</p>
+            <p className="text-xs text-base-content/60 mt-2">
+              ¿Ejecutaste el archivo supabase_setup.sql en Supabase (SQL Editor)?
+            </p>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={fetchStats}
+          className="btn btn-primary btn-sm"
+        >
+          Reintentar
+        </button>
       </div>
     )
   }
