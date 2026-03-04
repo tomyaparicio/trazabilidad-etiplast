@@ -23,7 +23,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 
 export function ProvinciaBarChart({ data }: ProvinciaBarChartProps) {
   return (
-    <div className="bg-[#0f0f1a]/80 border border-white/[0.06] rounded-2xl p-6">
+    <div className="bg-[#0f0f1a]/80 border border-white/[0.06] rounded-2xl p-6 ">
       <div className="flex items-center gap-3 mb-6 ">
         <div className="rounded-xl bg-[#f5eb4a]/10 border border-[#f5eb4a]/20 p-2.5">
           <BarChart3 className="w-5 h-5 text-[#f5eb4a]" strokeWidth={1.5} />
