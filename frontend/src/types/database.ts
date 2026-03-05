@@ -1,6 +1,6 @@
 export interface Cliente {
   id: number
-  numero_cliente: number | null
+  id_cliente: number | null
   marca: string | null
   rubro: string | null
   razon_social: string | null
@@ -11,15 +11,16 @@ export interface Cliente {
   cuit: string | null
   telefono: string | null
   producto: string | null
+  volumen_cantidad: number | null
+  volumen_unidad: string | null
   lamina: string | null
   muestra: string | null
   alto: number | null
   cilindro: number | null
-  cierre: string | null
+  cierre: number | null
   envase: string | null
-  lamina_2: string | null
-  cilindro_2: number | null
   observaciones: string | null
+  transporte: string | null
   created_at: string | null
 }
 

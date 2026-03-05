@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Pencil, Check, Loader2, AlertCircle, CheckCircle2, X,
-  Building2, MapPin, Phone, Package, FileText,
+  Building2, MapPin, Phone, Package, FileText, Truck,
   type LucideIcon,
 } from "lucide-react"
 
@@ -21,39 +21,41 @@ interface FieldDef {
 }
 
 const FIELDS: FieldDef[] = [
-  { key: "numero_cliente", label: "N. Cliente",    type: "number", group: "general" },
-  { key: "marca",          label: "Marca",                         group: "general" },
-  { key: "rubro",          label: "Rubro",                         group: "general" },
-  { key: "razon_social",   label: "Razón Social",  span: true,     group: "general" },
-  { key: "domicilio",      label: "Domicilio",     span: true,     group: "ubicacion" },
-  { key: "localidad",      label: "Localidad",                     group: "ubicacion" },
-  { key: "provincia",      label: "Provincia",                     group: "ubicacion" },
-  { key: "pais",           label: "País",                          group: "ubicacion" },
-  { key: "cuit",           label: "CUIT",                          group: "contacto" },
-  { key: "telefono",       label: "Teléfono",                      group: "contacto" },
-  { key: "producto",       label: "Producto",      span: true,     group: "producto" },
-  { key: "lamina",         label: "Lámina",                        group: "producto" },
-  { key: "muestra",        label: "Muestra",                       group: "producto" },
-  { key: "alto",           label: "Alto",          type: "number", group: "producto" },
-  { key: "cilindro",       label: "Cilindro",      type: "number", group: "producto" },
-  { key: "cierre",         label: "Cierre",                        group: "producto" },
-  { key: "envase",         label: "Envase",                        group: "producto" },
-  { key: "lamina_2",       label: "Lámina 2",                      group: "producto" },
-  { key: "cilindro_2",     label: "Cilindro 2",    type: "number", group: "producto" },
-  { key: "observaciones",  label: "Observaciones", span: true,     group: "extra" },
+  { key: "id_cliente",       label: "N. Cliente",      type: "number", group: "general" },
+  { key: "marca",            label: "Marca",                           group: "general" },
+  { key: "rubro",            label: "Rubro",                           group: "general" },
+  { key: "razon_social",     label: "Razón Social",    span: true,     group: "general" },
+  { key: "domicilio",        label: "Domicilio",       span: true,     group: "ubicacion" },
+  { key: "localidad",        label: "Localidad",                       group: "ubicacion" },
+  { key: "provincia",        label: "Provincia",                       group: "ubicacion" },
+  { key: "pais",             label: "País",                            group: "ubicacion" },
+  { key: "cuit",             label: "CUIT",                            group: "contacto" },
+  { key: "telefono",         label: "Teléfono",                        group: "contacto" },
+  { key: "producto",         label: "Producto",        span: true,     group: "producto" },
+  { key: "volumen_cantidad", label: "Volumen",         type: "number", group: "producto" },
+  { key: "volumen_unidad",   label: "Unidad",                          group: "producto" },
+  { key: "lamina",           label: "Lámina",                          group: "producto" },
+  { key: "muestra",          label: "Muestra",                         group: "producto" },
+  { key: "alto",             label: "Alto",            type: "number", group: "producto" },
+  { key: "cilindro",         label: "Cilindro",        type: "number", group: "producto" },
+  { key: "cierre",           label: "Cierre",          type: "number", group: "producto" },
+  { key: "envase",           label: "Envase",                          group: "producto" },
+  { key: "observaciones",    label: "Observaciones",   span: true,     group: "extra" },
+  { key: "transporte",       label: "Transporte",      span: true,     group: "transporte" },
 ]
 
 const GROUP_CONFIG: Record<string, { label: string; icon: LucideIcon; description: string }> = {
   general:   { label: "General",     icon: Building2, description: "Datos básicos del cliente" },
   ubicacion: { label: "Ubicación",   icon: MapPin,    description: "Domicilio y localización" },
   contacto:  { label: "Contacto",    icon: Phone,     description: "CUIT y datos de contacto" },
-  producto:  { label: "Producto",    icon: Package,   description: "Especificaciones técnicas" },
-  extra:     { label: "Notas",       icon: FileText,  description: "Observaciones adicionales" },
+  producto:  { label: "Producto",   icon: Package,   description: "Especificaciones técnicas" },
+  transporte: { label: "Transporte", icon: Truck,     description: "Qué transporta usa el cliente" },
+  extra:     { label: "Notas",      icon: FileText,  description: "Observaciones adicionales" },
 }
 
 const CAMPOS_EDITABLES = [
-  "numero_cliente","marca","rubro","razon_social","domicilio","localidad","provincia","pais",
-  "cuit","telefono","producto","lamina","muestra","alto","cilindro","cierre","envase","lamina_2","cilindro_2","observaciones",
+  "id_cliente","marca","rubro","razon_social","domicilio","localidad","provincia","pais",
+  "cuit","telefono","producto","volumen_cantidad","volumen_unidad","lamina","muestra","alto","cilindro","cierre","envase","observaciones","transporte",
 ]
 
 const RUBRO_AVATAR: Record<string, { from: string; to: string }> = {
@@ -91,7 +93,15 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
   }
 
   const startEditing = () => {
-    if (cliente) { setEditData({ ...cliente }); setEditing(true); setSaveMsg("") }
+    if (cliente) {
+      const base: Record<string, unknown> = { ...cliente }
+      CAMPOS_EDITABLES.forEach((c) => {
+        if (!(c in base)) base[c] = null
+      })
+      setEditData(base)
+      setEditing(true)
+      setSaveMsg("")
+    }
   }
 
   const cancelEditing = () => {
@@ -103,14 +113,13 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
     if (!cliente) return
     setSaving(true); setSaveMsg("")
     try {
-      const numericFields = ["numero_cliente", "alto", "cilindro", "cilindro_2"]
+      const numericFields = ["id_cliente", "alto", "cilindro", "cierre", "volumen_cantidad"]
       const updates: Record<string, unknown> = {}
       CAMPOS_EDITABLES.forEach((campo) => {
-        if (campo in editData) {
-          let val = editData[campo] || null
-          if (val !== null && numericFields.includes(campo)) val = Number(val)
-          updates[campo] = val
-        }
+        const rawVal = editData[campo]
+        let val = rawVal === undefined || rawVal === "" ? null : rawVal
+        if (val !== null && numericFields.includes(campo)) val = Number(val)
+        updates[campo] = val
       })
       const { data: updated, error } = await supabase
         .from("clientes").update(updates).eq("id", cliente.id).select().single()
@@ -150,7 +159,7 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
                 </DialogTitle>
                 <div className="flex items-center gap-2 mt-0.5">
                   <DialogDescription className="text-[#6b6b8a] text-xs">
-                    Cliente #{cliente?.numero_cliente}
+                    Cliente #{cliente?.id_cliente}
                   </DialogDescription>
                   {cliente?.rubro && (
                     <span className="text-[10px] font-semibold text-[#6b6b8a] bg-white/[0.05] border border-white/[0.07] px-2 py-0.5 rounded-md">

@@ -10,7 +10,7 @@ export default async function ClientesPage() {
     supabase
       .from("clientes")
       .select("*", { count: "exact" })
-      .order("numero_cliente")
+      .order("id_cliente")
       .range(0, 19),
   ])
 

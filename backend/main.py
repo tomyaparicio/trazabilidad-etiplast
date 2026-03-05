@@ -170,6 +170,65 @@ async def obtener_filtros(
     return {"rubros": rubros, "provincias": provincias}
 
 
+@app.post("/api/clientes")
+async def crear_cliente(
+    authorization: str = Header(...),
+    db: Session = Depends(get_db),
+    datos: Dict[str, Any] = Body(...),
+):
+    """Crea un nuevo cliente."""
+    await verify_token(authorization)
+
+    # Auto-generar id_cliente si no se proporciona
+    id_cliente = datos.get("id_cliente")
+    if id_cliente is None:
+        max_id = db.query(func.max(Cliente.id_cliente)).scalar()
+        id_cliente = (max_id or 0) + 1
+    else:
+        # Verificar que id_cliente no exista ya
+        existente = db.query(Cliente).filter(Cliente.id_cliente == id_cliente).first()
+        if existente:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya existe un cliente con id_cliente {id_cliente}",
+            )
+
+    campos_permitidos = [
+        "id_cliente", "marca", "rubro", "razon_social", "domicilio",
+        "localidad", "provincia", "pais", "cuit", "telefono", "producto",
+        "volumen_cantidad", "volumen_unidad", "lamina", "muestra",
+        "alto", "cilindro", "cierre", "envase", "observaciones", "transporte",
+    ]
+
+    # Construir datos para el nuevo cliente
+    campos_numericos = {"id_cliente", "volumen_cantidad", "alto", "cilindro", "cierre"}
+
+    def _normalizar_valor(campo: str, valor: Any) -> Any:
+        if valor is None:
+            return None
+        if campo in campos_numericos and valor != "":
+            try:
+                return float(valor) if campo != "id_cliente" else int(valor)
+            except (ValueError, TypeError):
+                return None
+        return valor
+
+    cliente_data: Dict[str, Any] = {"id_cliente": id_cliente}
+    for campo in campos_permitidos:
+        if campo == "id_cliente":
+            continue
+        if campo in datos:
+            cliente_data[campo] = _normalizar_valor(campo, datos[campo])
+        elif campo == "pais":
+            cliente_data[campo] = datos.get("pais", "Argentina")
+
+    cliente = Cliente(**cliente_data)
+    db.add(cliente)
+    db.commit()
+    db.refresh(cliente)
+    return cliente.to_dict()
+
+
 @app.put("/api/clientes/{cliente_id}")
 async def actualizar_cliente(
     cliente_id: int,
@@ -187,7 +246,7 @@ async def actualizar_cliente(
         "id_cliente", "marca", "rubro", "razon_social", "domicilio",
         "localidad", "provincia", "pais", "cuit", "telefono", "producto",
         "volumen_cantidad", "volumen_unidad", "lamina", "muestra",
-        "alto", "cilindro", "cierre", "envase", "observaciones",
+        "alto", "cilindro", "cierre", "envase", "observaciones", "transporte",
     ]
 
     for campo in campos_permitidos:

@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/client"
 import type { Cliente, Filtros } from "@/types/database"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, ChevronLeft, ChevronRight, X, SearchX } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, X, SearchX, Plus } from "lucide-react"
 import { ClienteDetailDialog } from "./cliente-detail-dialog"
+import { ClienteNuevoDialog } from "./cliente-nuevo-dialog"
 
 const RUBRO_STYLES: Record<string, { dot: string; text: string; bg: string; border: string }> = {
   Agua:             { dot: "#22d3ee", text: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-500/20" },
@@ -51,6 +52,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(initialTotal)
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
+  const [nuevoDialogOpen, setNuevoDialogOpen] = useState(false)
 
   const perPage = 20
   const totalPages = Math.ceil(total / perPage)
@@ -61,7 +63,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
     try {
       const from = (page - 1) * perPage
       const to = from + perPage - 1
-      let query = supabase.from("clientes").select("*", { count: "exact" }).order("numero_cliente").range(from, to)
+      let query = supabase.from("clientes").select("*", { count: "exact" }).order("id_cliente").range(from, to)
       if (search) {
         const term = `%${search}%`
         query = query.or(`marca.ilike.${term},razon_social.ilike.${term},localidad.ilike.${term},producto.ilike.${term}`)
@@ -87,6 +89,12 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
 
   const handleClienteUpdate = (updated: Cliente) => {
     setClientes((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+    setSelectedCliente((prev) => (prev?.id === updated.id ? updated : prev))
+  }
+
+  const handleClienteCreated = (created: Cliente) => {
+    setClientes((prev) => [created, ...prev])
+    setTotal((t) => t + 1)
   }
 
   return (
@@ -101,6 +109,13 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
             <p className="text-[#6b6b8a] text-sm">{nf.format(total)} registros encontrados</p>
           </div>
         </div>
+        <Button
+          onClick={() => setNuevoDialogOpen(true)}
+          className="h-10 px-4 rounded-xl bg-[#f5eb4a]/10 hover:bg-[#f5eb4a]/20 text-[#f5eb4a] border border-[#f5eb4a]/25 text-sm font-medium gap-2 shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          Nuevo cliente
+        </Button>
         {(rubro || provincia) && (
           <div className="flex flex-wrap items-center gap-2">
             {rubro && (
@@ -220,7 +235,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
                       tabIndex={0}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedCliente(c) } }}
                     >
-                      <td className="px-5 py-3.5 text-xs font-mono text-[#4a4a6a] tabular-nums">{c.numero_cliente}</td>
+                      <td className="px-5 py-3.5 text-xs font-mono text-[#4a4a6a] tabular-nums">{c.id_cliente}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <div
@@ -307,6 +322,12 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
         cliente={selectedCliente}
         onClose={() => setSelectedCliente(null)}
         onUpdate={handleClienteUpdate}
+      />
+      <ClienteNuevoDialog
+        open={nuevoDialogOpen}
+        onClose={() => setNuevoDialogOpen(false)}
+        onCreated={handleClienteCreated}
+        filtros={filtros}
       />
     </div>
   )

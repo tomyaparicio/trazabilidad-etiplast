@@ -26,6 +26,7 @@ class Cliente(Base):
     cierre = Column(Numeric)
     envase = Column(String)
     observaciones = Column(String)
+    transporte = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def to_dict(self):
@@ -51,4 +52,5 @@ class Cliente(Base):
             "cierre": float(self.cierre) if self.cierre else None,
             "envase": self.envase,
             "observaciones": self.observaciones,
+            "transporte": self.transporte,
         }

@@ -54,6 +54,11 @@ DROP POLICY IF EXISTS "Allow authenticated update clientes" ON clientes;
 CREATE POLICY "Allow authenticated update clientes" ON clientes
   FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
+-- Permitir inserción a usuarios autenticados
+DROP POLICY IF EXISTS "Allow authenticated insert clientes" ON clientes;
+CREATE POLICY "Allow authenticated insert clientes" ON clientes
+  FOR INSERT TO authenticated WITH CHECK (true);
+
 -- 3. Función para obtener filtros (rubros y provincias)
 CREATE OR REPLACE FUNCTION public.get_filtros()
 RETURNS json
@@ -74,3 +79,6 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_filtros() TO authenticated;
+
+-- 4. Migración: agregar columna transporte (qué transporta usa el cliente)
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS transporte TEXT;
