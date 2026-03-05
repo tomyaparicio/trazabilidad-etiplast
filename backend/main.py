@@ -16,9 +16,16 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 app = FastAPI(title="ERP Etiplast API", version="1.0.0")
 
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,7 +86,7 @@ async def listar_clientes(
 
     total = query.count()
     offset = (page - 1) * per_page
-    clientes = query.order_by(Cliente.numero_cliente).offset(offset).limit(per_page).all()
+    clientes = query.order_by(Cliente.id_cliente).offset(offset).limit(per_page).all()
 
     return {
         "data": [c.to_dict() for c in clientes],
@@ -177,10 +184,10 @@ async def actualizar_cliente(
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     campos_permitidos = [
-        "numero_cliente", "marca", "rubro", "razon_social", "domicilio",
+        "id_cliente", "marca", "rubro", "razon_social", "domicilio",
         "localidad", "provincia", "pais", "cuit", "telefono", "producto",
-        "lamina", "muestra", "alto", "cilindro", "cierre", "envase",
-        "lamina_2", "cilindro_2", "observaciones",
+        "volumen_cantidad", "volumen_unidad", "lamina", "muestra",
+        "alto", "cilindro", "cierre", "envase", "observaciones",
     ]
 
     for campo in campos_permitidos:
