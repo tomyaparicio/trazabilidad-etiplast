@@ -1,24 +1,18 @@
-import { createClient } from "@/lib/supabase/server"
+import { apiFetchServer } from "@/lib/api/server"
 import type { Filtros, Cliente } from "@/types/database"
 import { ClientesTable } from "./_components/clientes-table"
 
 export default async function ClientesPage() {
-  const supabase = await createClient()
-
   const [filtrosResult, clientesResult] = await Promise.all([
-    supabase.rpc("get_filtros"),
-    supabase
-      .from("clientes")
-      .select("*", { count: "exact" })
-      .order("id_cliente")
-      .range(0, 19),
+    apiFetchServer<Filtros>("/api/filtros"),
+    apiFetchServer<{ data: Cliente[]; total: number }>("/api/clientes?page=1&per_page=20"),
   ])
 
   return (
     <ClientesTable
-      initialClientes={(clientesResult.data as Cliente[]) ?? []}
-      initialTotal={clientesResult.count ?? 0}
-      filtros={(filtrosResult.data as Filtros) ?? { rubros: [], provincias: [] }}
+      initialClientes={clientesResult.data ?? []}
+      initialTotal={clientesResult.total ?? 0}
+      filtros={filtrosResult ?? { rubros: [], provincias: [] }}
     />
   )
 }

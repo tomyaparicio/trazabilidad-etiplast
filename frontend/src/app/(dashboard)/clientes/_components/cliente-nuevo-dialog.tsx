@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { api } from "@/lib/api/client"
 import type { Cliente, Filtros } from "@/types/database"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -101,7 +101,6 @@ const INITIAL_FORM: Record<string, string | number | null> = {
 }
 
 export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: ClienteNuevoDialogProps) {
-  const supabase = createClient()
   const [activeGroup, setActiveGroup] = useState("general")
   const [formData, setFormData] = useState<Record<string, string | number | null>>(INITIAL_FORM)
   const [saving, setSaving] = useState(false)
@@ -120,37 +119,24 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
     setSaving(true)
     setSaveMsg("")
     try {
-      let idCliente = formData.id_cliente
-      if (idCliente === "" || idCliente === null) {
-        const { data: maxRow } = await supabase
-          .from("clientes")
-          .select("id_cliente")
-          .order("id_cliente", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        idCliente = (maxRow?.id_cliente ?? 0) + 1
-      } else {
-        idCliente = Number(idCliente)
-      }
-
       const numericFields = ["id_cliente", "alto", "cilindro", "cierre", "volumen_cantidad"]
-      const insert: Record<string, unknown> = { id_cliente: idCliente }
+      const insert: Record<string, unknown> = {}
 
       CAMPOS_INSERT.forEach((campo) => {
-        if (campo === "id_cliente") return
         let val = formData[campo] ?? null
-        if (val && val !== "" && numericFields.includes(campo)) val = Number(val)
-        if (val && val !== "") insert[campo] = val
-        else if (campo === "pais") insert[campo] = "Argentina"
+        if (val === "" || val === null) {
+          if (campo === "pais") insert[campo] = "Argentina"
+          return
+        }
+        if (numericFields.includes(campo)) val = Number(val)
+        insert[campo] = val
       })
+      // id_cliente vacío = backend lo auto-genera
+      if (!("id_cliente" in insert) || insert.id_cliente === "") {
+        delete insert.id_cliente
+      }
 
-      const { data: created, error } = await supabase
-        .from("clientes")
-        .insert(insert)
-        .select()
-        .single()
-
-      if (error) throw error
+      const created = await api.clientes.create(insert)
       onCreated(created as Cliente)
       setSaveMsg("success")
       setTimeout(() => {
@@ -169,23 +155,23 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent showCloseButton={false} className="w-[95vw] max-w-[1400px] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0 bg-[#0d0d1a] border-white/[0.08] shadow-[0_0_100px_rgba(0,0,0,0.7)]">
+      <DialogContent showCloseButton={false} className="w-[95vw] max-w-[1400px] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0 bg-card border-border shadow-2xl">
 
         {/* ── Top header ── */}
-        <DialogHeader className="px-6 py-4 border-b border-white/[0.06] shrink-0">
+        <DialogHeader className="px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base border border-white/10 shrink-0 shadow-md"
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-primary-foreground font-bold text-base border border-border shrink-0 shadow-md"
                 style={{ background: `linear-gradient(135deg, ${grad.from}, ${grad.to})` }}
               >
                 <Plus className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-[15px] text-white font-semibold leading-tight">
+                <DialogTitle className="text-[15px] text-foreground font-semibold leading-tight">
                   Nuevo cliente
                 </DialogTitle>
-                <DialogDescription className="text-[#6b6b8a] text-xs mt-0.5">
+                <DialogDescription className="text-muted-foreground text-xs mt-0.5">
                   Completa los datos para dar de alta un cliente
                 </DialogDescription>
               </div>
@@ -204,11 +190,11 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                 )}
                 Crear cliente
               </Button>
-              <div className="w-px h-5 bg-white/[0.08] mx-1" />
+              <div className="w-px h-5 bg-border mx-1" />
               <button
                 type="button"
                 onClick={() => handleOpen(false)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-[#4a4a6a] hover:text-white hover:bg-white/[0.06] transition-colors"
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                 aria-label="Cerrar"
               >
                 <X className="w-4 h-4" />
@@ -220,7 +206,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
         {/* ── Two-column body ── */}
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* Left nav */}
-          <nav className="w-[230px] shrink-0 border-r border-white/[0.06] bg-black/25 flex flex-col py-2 overflow-y-auto">
+          <nav className="w-[230px] shrink-0 border-r border-border bg-muted/20 flex flex-col py-2 overflow-y-auto">
             {Object.entries(GROUP_CONFIG).map(([key, { label, icon: Icon }]) => {
               const isActive = activeGroup === key
               const groupFields = FIELDS.filter((f) => f.group === key)
@@ -234,26 +220,26 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                   type="button"
                   onClick={() => setActiveGroup(key)}
                   className={`relative flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 group ${
-                    isActive ? "text-[#f5eb4a]" : "text-[#6b6b8a] hover:text-[#c8c8d8]"
+                    isActive ? "text-gold" : "text-muted-foreground hover:text-secondary-foreground"
                   }`}
                 >
-                  {isActive && <span className="absolute right-0 top-2 bottom-2 w-[2px] bg-[#f5eb4a] rounded-l-full" />}
-                  {isActive && <span className="absolute inset-0 bg-[#f5eb4a]/6 rounded-none" />}
+                  {isActive && <span className="absolute right-0 top-2 bottom-2 w-[2px] bg-gold rounded-l-full" />}
+                  {isActive && <span className="absolute inset-0 bg-gold/6 rounded-none" />}
                   <div
                     className={`relative rounded-lg p-1.5 shrink-0 border transition-colors ${
                       isActive
-                        ? "bg-[#f5eb4a]/10 border-[#f5eb4a]/25"
-                        : "bg-white/[0.04] border-white/[0.06] group-hover:border-white/[0.1]"
+                        ? "bg-gold/10 border-gold/25"
+                        : "bg-muted/30 border-border group-hover:border-border"
                     }`}
                   >
                     <Icon
-                      className={`w-3.5 h-3.5 ${isActive ? "text-[#f5eb4a]" : "text-[#6b6b8a] group-hover:text-[#c8c8d8]"}`}
+                      className={`w-3.5 h-3.5 ${isActive ? "text-gold" : "text-muted-foreground group-hover:text-secondary-foreground"}`}
                       strokeWidth={1.5}
                     />
                   </div>
                   <div className="relative flex-1 min-w-0">
                     <p className="text-xs font-medium leading-none truncate">{label}</p>
-                    <p className={`text-[10px] mt-1 tabular-nums ${isActive ? "text-[#f5eb4a]/60" : "text-[#4a4a6a]"}`}>
+                    <p className={`text-[10px] mt-1 tabular-nums ${isActive ? "text-gold/60" : "text-muted-foreground"}`}>
                       {filledCount}/{groupFields.length} campos
                     </p>
                   </div>
@@ -264,12 +250,12 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
 
           {/* Right content */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <div className="px-7 py-4 border-b border-white/[0.04] bg-white/[0.01] shrink-0">
+            <div className="px-7 py-4 border-b border-border bg-muted/20 shrink-0">
               <div className="flex items-center gap-2.5">
-                <ActiveIcon className="w-4 h-4 text-[#6b6b8a]" strokeWidth={1.5} />
+                <ActiveIcon className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
                 <div>
-                  <h3 className="text-sm font-semibold text-white leading-none">{activeLabel}</h3>
-                  <p className="text-[11px] text-[#4a4a6a] mt-0.5">{activeDesc}</p>
+                  <h3 className="text-sm font-semibold text-foreground leading-none">{activeLabel}</h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{activeDesc}</p>
                 </div>
               </div>
             </div>
@@ -291,16 +277,16 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                   <div key={field.key} className={field.span ? "sm:col-span-2 lg:col-span-3" : ""}>
                     <label
                       htmlFor={`nuevo-${field.key}`}
-                      className="block text-xs font-medium text-[#4a4a6a] mb-1.5"
+                      className="block text-xs font-medium text-muted-foreground mb-1.5"
                     >
                       {field.label}
                       {field.key === "id_cliente" && (
-                        <span className="text-[10px] font-normal text-[#3a3a5a] ml-1.5">
+                        <span className="text-[10px] font-normal text-muted-foreground ml-1.5">
                           (vacío = auto)
                         </span>
                       )}
                       {field.key === "rubro" && filtros.rubros.length > 0 && (
-                        <span className="text-[10px] font-normal text-[#3a3a5a] ml-1.5">
+                        <span className="text-[10px] font-normal text-muted-foreground ml-1.5">
                           o sugerir
                         </span>
                       )}
@@ -316,7 +302,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                           onChange={(e) =>
                             setFormData((prev) => ({ ...prev, [field.key]: e.target.value || null }))
                           }
-                          className="h-10 rounded-lg bg-white/[0.04] border-white/[0.07] text-white placeholder:text-[#4a4a6a] focus-visible:border-[#f5eb4a]/40 focus-visible:ring-[#f5eb4a]/10 text-sm"
+                          className="h-10 rounded-lg bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/10 text-sm"
                         />
                         <datalist id="rubros-list">
                           {filtros.rubros.map((r) => (
@@ -335,7 +321,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                           onChange={(e) =>
                             setFormData((prev) => ({ ...prev, [field.key]: e.target.value || null }))
                           }
-                          className="h-10 rounded-lg bg-white/[0.04] border-white/[0.07] text-white placeholder:text-[#4a4a6a] focus-visible:border-[#f5eb4a]/40 focus-visible:ring-[#f5eb4a]/10 text-sm"
+                          className="h-10 rounded-lg bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/10 text-sm"
                         />
                         <datalist id="provincias-list">
                           {filtros.provincias.map((p) => (

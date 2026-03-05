@@ -13,9 +13,9 @@ interface RubroPieChartProps {
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number }> }) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-[#0d0d1a] border border-white/[0.08] text-sm px-4 py-3 rounded-xl shadow-2xl">
-        <p className="font-semibold text-white">{payload[0]?.name}</p>
-        <p className="text-[#f5eb4a] mt-0.5">{new Intl.NumberFormat("es-AR").format(payload[0]?.value)} clientes</p>
+      <div className="bg-popover border border-border text-sm px-4 py-3 rounded-xl shadow-2xl">
+        <p className="font-semibold text-foreground">{payload[0]?.name}</p>
+        <p className="text-gold mt-0.5">{new Intl.NumberFormat("es-AR").format(payload[0]?.value)} clientes</p>
       </div>
     )
   }
@@ -26,14 +26,14 @@ export function RubroPieChart({ data, total }: RubroPieChartProps) {
   const nf = new Intl.NumberFormat("es-AR")
 
   return (
-    <div className="bg-[#0f0f1a]/80 border border-white/[0.06] rounded-2xl p-6 h-full">
+    <div className="bg-card/80 border border-border rounded-2xl p-6 h-full">
       <div className="flex items-center gap-3 mb-6">
-        <div className="rounded-xl bg-[#6366f1]/10 border border-[#6366f1]/20 p-2.5">
-          <PieChartIcon className="w-5 h-5 text-[#6366f1]" strokeWidth={1.5} />
+        <div className="rounded-xl bg-chart-1/10 border border-chart-1/20 p-2.5">
+          <PieChartIcon className="w-5 h-5 text-chart-1" strokeWidth={1.5} />
         </div>
         <div>
-          <h3 className="text-base font-semibold text-white">Distribución por Rubro</h3>
-          <p className="text-sm text-[#6b6b8a]">{nf.format(data.length)} categorías activas</p>
+          <h3 className="text-base font-semibold text-foreground">Distribución por Rubro</h3>
+          <p className="text-sm text-muted-foreground">{nf.format(data.length)} categorías activas</p>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={300}>
@@ -61,7 +61,7 @@ export function RubroPieChart({ data, total }: RubroPieChartProps) {
                       <text
                         x={cx} y={cy - 7}
                         textAnchor="middle"
-                        fill="#f0f0f5"
+                        fill="var(--foreground)"
                         fontSize={26}
                         fontWeight={700}
                       >
@@ -70,7 +70,7 @@ export function RubroPieChart({ data, total }: RubroPieChartProps) {
                       <text
                         x={cx} y={cy + 12}
                         textAnchor="middle"
-                        fill="#6b6b8a"
+                        fill="var(--muted-foreground)"
                         fontSize={10}
                         letterSpacing={1}
                       >
@@ -85,7 +85,7 @@ export function RubroPieChart({ data, total }: RubroPieChartProps) {
           <Tooltip content={<CustomTooltip />} />
           <Legend
             wrapperStyle={{ fontSize: "12px", paddingTop: "16px" }}
-            formatter={(value: string) => <span style={{ color: "#6b6b8a" }}>{value}</span>}
+            formatter={(value: string) => <span className="text-muted-foreground">{value}</span>}
           />
         </PieChart>
       </ResponsiveContainer>

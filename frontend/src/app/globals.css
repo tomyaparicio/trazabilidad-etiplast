@@ -50,7 +50,11 @@
 
 :root {
   --radius: 0.75rem;
-  /* Dark premium palette inspired by etiplast.vercel.app */
+}
+
+/* Modo oscuro (por defecto) */
+:root,
+[data-theme="dark"] {
   --background: #08080f;
   --foreground: #f0f0f5;
   --card: #0f0f1a;
@@ -69,16 +73,13 @@
   --border: rgba(255, 255, 255, 0.08);
   --input: rgba(255, 255, 255, 0.08);
   --ring: #f5eb4a;
-  /* Gold accent from Etiplast brand */
   --gold: #f5eb4a;
   --gold-foreground: #08080f;
-  /* Charts - vibrant on dark */
   --chart-1: #6366f1;
   --chart-2: #8b5cf6;
   --chart-3: #f5eb4a;
   --chart-4: #06b6d4;
   --chart-5: #10b981;
-  /* Sidebar */
   --sidebar: #06060c;
   --sidebar-foreground: #f0f0f5;
   --sidebar-primary: #f5eb4a;
@@ -87,6 +88,43 @@
   --sidebar-accent-foreground: #f0f0f5;
   --sidebar-border: rgba(255, 255, 255, 0.06);
   --sidebar-ring: #f5eb4a;
+}
+
+/* Modo claro */
+[data-theme="light"] {
+  --background: #f8f9fc;
+  --foreground: #0f0f1a;
+  --card: #ffffff;
+  --card-foreground: #0f0f1a;
+  --popover: #ffffff;
+  --popover-foreground: #0f0f1a;
+  --primary: #292d96;
+  --primary-foreground: #ffffff;
+  --secondary: #e8e9f0;
+  --secondary-foreground: #2d2d4a;
+  --muted: #e8e9f0;
+  --muted-foreground: #5a5a7a;
+  --accent: #e8e4b8;
+  --accent-foreground: #1a1866;
+  --destructive: #dc2626;
+  --border: rgba(0, 0, 0, 0.08);
+  --input: rgba(0, 0, 0, 0.08);
+  --ring: #c9a500;
+  --gold: #c9a500;
+  --gold-foreground: #0f0f1a;
+  --chart-1: #4f46e5;
+  --chart-2: #7c3aed;
+  --chart-3: #c9a500;
+  --chart-4: #0891b2;
+  --chart-5: #059669;
+  --sidebar: #f0f1f8;
+  --sidebar-foreground: #0f0f1a;
+  --sidebar-primary: #c9a500;
+  --sidebar-primary-foreground: #0f0f1a;
+  --sidebar-accent: rgba(0, 0, 0, 0.04);
+  --sidebar-accent-foreground: #0f0f1a;
+  --sidebar-border: rgba(0, 0, 0, 0.06);
+  --sidebar-ring: #c9a500;
 }
 
 @layer base {
@@ -101,7 +139,7 @@
   }
 }
 
-/* Custom scrollbar for dark theme */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -109,12 +147,21 @@
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-::-webkit-scrollbar-thumb {
+[data-theme="dark"] ::-webkit-scrollbar-thumb,
+:root:not([data-theme="light"]) ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover,
+:root:not([data-theme="light"]) ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -39,7 +40,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#08080f] relative overflow-hidden">
+    <div className="min-h-screen flex bg-background relative overflow-hidden">
+      {/* Theme toggle */}
+      <div className="absolute top-6 right-6 z-20">
+        <ThemeToggle />
+      </div>
       {/* Ambient glows */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden>
         <div className="absolute top-[-10%] left-[20%] w-[700px] h-[700px] bg-[#1a1866]/25 rounded-full blur-[160px]" />
@@ -53,7 +58,7 @@ export default function LoginPage() {
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
             backgroundSize: "60px 60px",
           }}
         />
@@ -75,20 +80,20 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-6xl font-bold tracking-tight mb-3">
-            <span className="text-white">eti</span>
-            <span className="text-[#f5eb4a]">plast</span>
+            <span className="text-foreground">eti</span>
+            <span className="text-gold">plast</span>
           </h1>
-          <p className="text-[#6b6b8a] text-xs uppercase tracking-[0.3em] mb-10">
+          <p className="text-muted-foreground text-xs uppercase tracking-[0.3em] mb-10">
             Etiquetas y Envases
           </p>
 
           <div className="flex items-center gap-4 mb-10">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent to-[#f5eb4a]/40" />
-            <div className="w-1.5 h-1.5 rounded-full bg-[#f5eb4a]/60" />
-            <div className="flex-1 h-px bg-gradient-to-l from-transparent to-[#f5eb4a]/40" />
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent to-gold/40" />
+            <div className="w-1.5 h-1.5 rounded-full bg-gold/60" />
+            <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gold/40" />
           </div>
 
-          <p className="text-[#6b6b8a] text-sm max-w-[280px] leading-relaxed">
+          <p className="text-muted-foreground text-sm max-w-[280px] leading-relaxed">
             Sistema de gestión empresarial para la industria del packaging
           </p>
 
@@ -100,8 +105,8 @@ export default function LoginPage() {
               { value: "AR", label: "Argentina" },
             ].map((s) => (
               <div key={s.label} className="text-center">
-                <p className="text-[#f5eb4a] text-xl font-bold">{s.value}</p>
-                <p className="text-[#6b6b8a] text-xs mt-0.5">{s.label}</p>
+                <p className="text-gold text-xl font-bold">{s.value}</p>
+                <p className="text-muted-foreground text-xs mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
@@ -113,21 +118,21 @@ export default function LoginPage() {
         <div className="w-full max-w-[420px]">
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#100f3a] to-[#1a1866] border border-white/10 mb-5 overflow-hidden">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent border border-border mb-5 overflow-hidden">
               <Image src="/logoSOLO.png" alt="Etiplast" width={44} height={44} className="object-contain" />
             </div>
-            <h1 className="text-2xl font-bold text-white">
-              eti<span className="text-[#f5eb4a]">plast</span>
+            <h1 className="text-2xl font-bold text-foreground">
+              eti<span className="text-gold">plast</span>
             </h1>
           </div>
 
           {/* Card */}
-          <div className="bg-[#0d0d1a]/90 backdrop-blur-2xl border border-white/[0.07] rounded-2xl p-8 shadow-[0_0_60px_rgba(0,0,0,0.5)]">
+          <div className="bg-card/90 backdrop-blur-2xl border border-border rounded-2xl p-8 shadow-xl">
             <div className="mb-8">
-              <h2 className="text-[22px] font-semibold text-white mb-1.5">
+              <h2 className="text-[22px] font-semibold text-foreground mb-1.5">
                 Bienvenido de vuelta
               </h2>
-              <p className="text-[#6b6b8a] text-sm">
+              <p className="text-muted-foreground text-sm">
                 Ingresá tus credenciales para continuar
               </p>
             </div>
@@ -141,7 +146,7 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               <div className="space-y-2">
-                <label htmlFor="login-email" className="block text-sm font-medium text-[#a0a0b8]">
+                <label htmlFor="login-email" className="block text-sm font-medium text-secondary-foreground">
                   Email
                 </label>
                 <Input
@@ -154,12 +159,12 @@ export default function LoginPage() {
                   required
                   spellCheck={false}
                   placeholder="usuario@etiplast.com"
-                  className="h-12 rounded-xl bg-white/[0.04] border-white/[0.08] text-white placeholder:text-[#4a4a6a] focus-visible:border-[#f5eb4a]/40 focus-visible:ring-[#f5eb4a]/20 transition-colors"
+                  className="h-12 rounded-xl bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/20 transition-colors"
                 />
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="login-password" className="block text-sm font-medium text-[#a0a0b8]">
+                <label htmlFor="login-password" className="block text-sm font-medium text-secondary-foreground">
                   Contraseña
                 </label>
                 <div className="relative">
@@ -172,13 +177,13 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className="h-12 rounded-xl pr-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-[#4a4a6a] focus-visible:border-[#f5eb4a]/40 focus-visible:ring-[#f5eb4a]/20 transition-colors"
+                    className="h-12 rounded-xl pr-12 bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/20 transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#4a4a6a] hover:text-[#a0a0b8] transition-colors"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-secondary-foreground transition-colors"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -211,7 +216,7 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <p className="text-center text-[#6b6b8a]/50 text-xs mt-7">
+          <p className="text-center text-muted-foreground/70 text-xs mt-7">
             Etiplast ERP · © {new Date().getFullYear()} Todos los derechos reservados
           </p>
         </div>
