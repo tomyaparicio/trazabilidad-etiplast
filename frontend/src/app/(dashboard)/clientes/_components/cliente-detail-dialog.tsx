@@ -118,7 +118,10 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
       CAMPOS_EDITABLES.forEach((campo) => {
         const rawVal = editData[campo]
         let val = rawVal === undefined || rawVal === "" ? null : rawVal
-        if (val !== null && numericFields.includes(campo)) val = Number(val)
+        if (val !== null && numericFields.includes(campo)) {
+          const num = Number(val)
+          val = Number.isNaN(num) ? null : num
+        }
         updates[campo] = val
       })
       const { data: updated, error } = await supabase
@@ -127,7 +130,8 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
       onUpdate(updated as Cliente)
       setEditData({ ...updated }); setEditing(false); setSaveMsg("success")
       setTimeout(() => setSaveMsg(""), 3000)
-    } catch {
+    } catch (err) {
+      console.error("Error al guardar cliente:", err)
       setSaveMsg("error")
     } finally {
       setSaving(false)
