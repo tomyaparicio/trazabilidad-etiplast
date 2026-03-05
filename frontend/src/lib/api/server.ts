@@ -21,7 +21,7 @@ export async function getServerAuthHeaders(): Promise<HeadersInit> {
 
 export async function apiFetchServer<T>(
   path: string,
-  options?: RequestInit & { method?: string; body?: object }
+  options?: Omit<RequestInit, "body"> & { method?: string; body?: object }
 ): Promise<T> {
   const headers = await getServerAuthHeaders()
   const { method = "GET", body, ...rest } = options || {}
@@ -29,7 +29,7 @@ export async function apiFetchServer<T>(
     ...rest,
     method,
     headers: { ...headers, ...rest.headers },
-    body: body ? JSON.stringify(body) : rest.body,
+    ...(body !== undefined && { body: JSON.stringify(body) }),
     cache: "no-store",
   })
   if (!res.ok) {
