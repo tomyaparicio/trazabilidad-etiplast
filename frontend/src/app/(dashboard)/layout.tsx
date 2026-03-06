@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { getServerUser } from "@/lib/api/server"
 import { DashboardShell } from "@/components/dashboard-shell"
 
 export default async function DashboardLayout({
@@ -6,15 +6,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const fullName = (user?.user_metadata?.full_name as string) || undefined
+  const user = await getServerUser()
 
   return (
-    <DashboardShell userEmail={user?.email} userName={fullName}>
+    <DashboardShell userEmail={user?.email} userName={user?.full_name ?? undefined}>
       {children}
     </DashboardShell>
   )

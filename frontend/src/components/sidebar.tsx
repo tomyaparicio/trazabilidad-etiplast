@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
-import { LayoutDashboard, Users, User, LogOut } from "lucide-react"
+import { LayoutDashboard, Users, User, Shield, LogOut } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useState } from "react"
 
 const navigation = [
   { name: "Panel de Control", href: "/", icon: LayoutDashboard },
   { name: "Clientes", href: "/clientes", icon: Users },
+  { name: "Usuarios", href: "/usuarios", icon: Shield },
   { name: "Mi perfil", href: "/perfil", icon: User },
 ]
 
@@ -32,10 +32,9 @@ function SidebarContent({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
     router.push("/login")
     router.refresh()
   }

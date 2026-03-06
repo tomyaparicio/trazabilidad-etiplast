@@ -1,5 +1,4 @@
-import { apiFetchServer } from "@/lib/api/server"
-import { createClient } from "@/lib/supabase/server"
+import { apiFetchServer, getServerUser } from "@/lib/api/server"
 import type { DashboardStats } from "@/types/database"
 import { StatCard } from "@/components/stat-card"
 import { RubroPieChart } from "@/components/charts/rubro-pie-chart"
@@ -12,9 +11,8 @@ const CHART_COLORS = [
 ]
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const userName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Usuario"
+  const user = await getServerUser()
+  const userName = user?.full_name || user?.email?.split("@")[0] || "Usuario"
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches"

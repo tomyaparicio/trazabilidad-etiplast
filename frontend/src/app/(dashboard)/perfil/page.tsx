@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, CheckCircle2 } from "lucide-react"
+import { api } from "@/lib/api/client"
 
 export default function PerfilPage() {
   const [fullName, setFullName] = useState("")
@@ -13,17 +13,21 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const supabase = createClient()
   const router = useRouter()
 
   useEffect(() => {
     const loadUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setFullName((user.user_metadata?.full_name as string) || "")
-        setEmail(user.email || "")
+      try {
+        const user = await api.auth.me()
+        if (user) {
+          setFullName(user.full_name || "")
+          setEmail(user.email || "")
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     loadUser()
   }, [])
@@ -33,10 +37,12 @@ export default function PerfilPage() {
     setSaving(true)
     setSaved(false)
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { full_name: fullName.trim() || null },
+      await fetch("/api/backend/auth/me", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: fullName.trim() || null }),
       })
-      if (error) throw error
       setSaved(true)
       router.refresh()
       setTimeout(() => setSaved(false), 3000)

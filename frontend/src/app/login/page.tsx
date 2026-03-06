@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
@@ -16,21 +15,28 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
     try {
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-      if (err) throw err
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || "Error al iniciar sesión")
+      }
       router.push("/")
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       setError(
-        message === "Invalid login credentials"
+        message.includes("incorrectos") || message.includes("Invalid")
           ? "Email o contraseña incorrectos. Verifica tus credenciales e intenta de nuevo."
           : message
       )
@@ -217,7 +223,10 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-muted-foreground/70 text-xs mt-7">
-            Etiplast ERP · © {new Date().getFullYear()} Todos los derechos reservados
+            ¿No tenés cuenta?{" "}
+            <a href="/register" className="text-gold hover:underline">
+              Crear cuenta
+            </a>
           </p>
         </div>
       </div>
