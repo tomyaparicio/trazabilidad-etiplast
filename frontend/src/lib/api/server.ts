@@ -1,15 +1,10 @@
-/**
- * API server-side: obtiene el token de Supabase y llama al backend.
- * Para usar en Server Components.
- */
+import { cookies } from "next/headers"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 export async function getServerAuthHeaders(): Promise<HeadersInit> {
-  const { createClient } = await import("@/lib/supabase/server")
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
+  const cookieStore = await cookies()
+  const token = cookieStore.get("token")?.value
   if (!token) {
     throw new Error("No hay sesión activa")
   }

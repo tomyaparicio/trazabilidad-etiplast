@@ -1,18 +1,11 @@
 "use client"
 
-/**
- * Cliente API para conectar con el backend en Railway.
- * Supabase solo se usa para auth; todas las operaciones de datos pasan por el backend.
- */
-
-import { createClient } from "@/lib/supabase/client"
+import { getToken } from "@/lib/auth"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-export async function getAuthHeaders(): Promise<HeadersInit> {
-  const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
+export function getAuthHeaders(): HeadersInit {
+  const token = getToken()
   if (!token) {
     throw new Error("No hay sesión activa")
   }
@@ -26,7 +19,7 @@ export async function apiFetch<T>(
   path: string,
   options?: Omit<RequestInit, "body"> & { method?: string; body?: object }
 ): Promise<T> {
-  const headers = await getAuthHeaders()
+  const headers = getAuthHeaders()
   const { method = "GET", body, ...rest } = options || {}
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,

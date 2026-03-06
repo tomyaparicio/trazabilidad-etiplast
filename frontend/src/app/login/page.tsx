@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { createClient } from "@/lib/supabase/client"
+import { setToken } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
@@ -16,21 +16,30 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
     try {
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-      if (err) throw err
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.detail || "Error al iniciar sesión")
+      }
+      const { access_token } = await res.json()
+      setToken(access_token)
       router.push("/")
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       setError(
-        message === "Invalid login credentials"
+        message === "Credenciales incorrectas"
           ? "Email o contraseña incorrectos. Verifica tus credenciales e intenta de nuevo."
           : message
       )

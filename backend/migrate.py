@@ -13,6 +13,16 @@ import models  # noqa
 
 MIGRATIONS = [
     ("Agregar columna transporte", "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS transporte TEXT"),
+    ("Recrear tabla users con email", """
+        DROP TABLE IF EXISTS users;
+        CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR UNIQUE NOT NULL,
+            hashed_password VARCHAR NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE
+        );
+        CREATE INDEX IF NOT EXISTS ix_users_email ON users (email);
+    """),
 ]
 
 

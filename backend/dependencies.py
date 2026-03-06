@@ -1,28 +1,20 @@
 """Dependencias compartidas (auth, etc.)."""
-import os
-import httpx
 from fastapi import Header, HTTPException
+from jose import JWTError, jwt
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+from config import SECRET_KEY, ALGORITHM
 
 
-async def verify_token(authorization: str = Header(...)):
-    """Verifica el token JWT de Supabase via HTTP."""
+def verify_token(authorization: str = Header(...)) -> dict:
+    """Verifica el token JWT propio."""
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token inválido")
     token = authorization.replace("Bearer ", "")
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{SUPABASE_URL}/auth/v1/user",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "apikey": SUPABASE_KEY,
-                },
-            )
-        if response.status_code != 200:
-            raise HTTPException(status_code=401, detail="Token inválido o expirado")
-        return response.json()
-    except httpx.HTTPError:
-        raise HTTPException(status_code=401, detail="Error verificando token")
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=401, detail="Token inválido")
+        return {"email": email}
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")

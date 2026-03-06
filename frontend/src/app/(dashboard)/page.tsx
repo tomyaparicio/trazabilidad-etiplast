@@ -1,5 +1,5 @@
+import { cookies } from "next/headers"
 import { apiFetchServer } from "@/lib/api/server"
-import { createClient } from "@/lib/supabase/server"
 import type { DashboardStats } from "@/types/database"
 import { StatCard } from "@/components/stat-card"
 import { RubroPieChart } from "@/components/charts/rubro-pie-chart"
@@ -12,9 +12,16 @@ const CHART_COLORS = [
 ]
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const userName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Usuario"
+  const cookieStore = await cookies()
+  const token = cookieStore.get("token")?.value
+  let userEmail = "Usuario"
+  try {
+    if (token) {
+      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
+      userEmail = payload.sub || "Usuario"
+    }
+  } catch { /* ignore */ }
+  const userName = userEmail.split("@")[0] || "Usuario"
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches"

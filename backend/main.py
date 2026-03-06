@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import clientes, dashboard
+from routers import clientes, dashboard, auth
 
 load_dotenv()
 
@@ -25,5 +25,6 @@ async def health():
     return {"status": "ok"}
 
 
+app.include_router(auth.router)
 app.include_router(clientes.router)
 app.include_router(dashboard.router)

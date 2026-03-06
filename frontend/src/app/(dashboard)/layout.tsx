@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 import { DashboardShell } from "@/components/dashboard-shell"
 
 export default async function DashboardLayout({
@@ -6,15 +6,18 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const fullName = (user?.user_metadata?.full_name as string) || undefined
+  const cookieStore = await cookies()
+  const token = cookieStore.get("token")?.value
+  let userEmail: string | undefined
+  try {
+    if (token) {
+      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
+      userEmail = payload.sub
+    }
+  } catch { /* ignore */ }
 
   return (
-    <DashboardShell userEmail={user?.email} userName={fullName}>
+    <DashboardShell userEmail={userEmail}>
       {children}
     </DashboardShell>
   )
