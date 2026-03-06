@@ -9,7 +9,9 @@ load_dotenv()
 
 app = FastAPI(title="ERP Etiplast API", version="1.0.0")
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+# CORS: en producción Railway, configurar ALLOWED_ORIGINS con la URL de Vercel
+_default_origins = "http://localhost:3000,http://localhost:5173"
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
