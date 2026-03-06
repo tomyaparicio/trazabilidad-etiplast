@@ -24,6 +24,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 # CORS: en producción Railway, configurar ALLOWED_ORIGINS con la URL de Vercel
 _default_origins = "http://localhost:3000,http://localhost:5173"
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
+# Swagger (/docs) corre en el mismo origen: añadir URL del backend para que funcione
+if domain := os.getenv("RAILWAY_PUBLIC_DOMAIN"):
+    backend_url = f"https://{domain}"
+    if backend_url not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(backend_url)
 
 app.add_middleware(
     CORSMiddleware,

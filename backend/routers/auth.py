@@ -1,9 +1,10 @@
 """Rutas de autenticación."""
+import logging
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from jose import jwt
 from sqlalchemy.orm import Session
 
@@ -11,12 +12,15 @@ from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS
 from database import get_db
 from models import User
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+    model_config = {"json_schema_extra": {"examples": [{"email": "usuario@ejemplo.com", "password": "minimo6"}]}}
 
 
 def _hash_password(password: str) -> str:
@@ -45,10 +49,22 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 @router.post("/crear-usuario")
 def crear_usuario(data: LoginRequest, db: Session = Depends(get_db)):
     """Crea un usuario (solo para setup inicial — proteger o eliminar en producción)."""
-    if db.query(User).filter(User.email == data.email).first():
+    email = (data.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="El email es requerido")
+    if not data.password or len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+    if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
-    hashed = _hash_password(data.password)
-    user = User(email=data.email, hashed_password=hashed)
-    db.add(user)
-    db.commit()
-    return {"message": f"Usuario '{data.email}' creado exitosamente"}
+    try:
+        hashed = _hash_password(data.password)
+        user = User(email=email, hashed_password=hashed)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info("Usuario creado: %s (id=%s)", email, user.id)
+        return {"message": f"Usuario '{email}' creado exitosamente"}
+    except Exception as e:
+        db.rollback()
+        logger.exception("Error creando usuario %s: %s", email, e)
+        raise HTTPException(status_code=500, detail=str(e))
