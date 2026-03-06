@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, Users, User, Shield, LogOut } from "lucide-react"
+import { removeToken } from "@/lib/auth"
+import { LayoutDashboard, Users, User, LogOut } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useState } from "react"
 
 const navigation = [
   { name: "Panel de Control", href: "/", icon: LayoutDashboard },
   { name: "Clientes", href: "/clientes", icon: Users },
-  { name: "Usuarios", href: "/usuarios", icon: Shield },
   { name: "Mi perfil", href: "/perfil", icon: User },
 ]
 
@@ -33,8 +33,8 @@ function SidebarContent({
   const pathname = usePathname()
   const router = useRouter()
 
-  const handleSignOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+  const handleSignOut = () => {
+    removeToken()
     router.push("/login")
     router.refresh()
   }

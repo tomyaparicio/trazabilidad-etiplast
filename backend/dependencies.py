@@ -1,35 +1,20 @@
-import os
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+"""Dependencias compartidas (auth, etc.)."""
+from fastapi import Header, HTTPException
 from jose import JWTError, jwt
-from sqlalchemy.orm import Session
 
-from database import get_db
-from models import User
-
-security = HTTPBearer(auto_error=False)
-
-SECRET_KEY = os.getenv("JWT_SECRET", "cambiar-en-produccion")
-ALGORITHM = "HS256"
+from config import SECRET_KEY, ALGORITHM
 
 
-async def verify_token(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
-    """Verifica JWT y devuelve el User de la DB."""
-    token = credentials.credentials if credentials else None
-    if not token:
-        raise HTTPException(status_code=401, detail="Token no proporcionado")
+def verify_token(authorization: str = Header(...)) -> dict:
+    """Verifica el token JWT propio."""
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token inválido")
+    token = authorization.replace("Bearer ", "")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        if user_id is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise HTTPException(status_code=401, detail="Token inválido")
+        return {"email": email}
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado")
-    return user

@@ -1,99 +1,54 @@
-"""Autenticación JWT."""
-import os
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from jose import JWTError, jwt
-import bcrypt
+"""Rutas de autenticación."""
+from datetime import datetime, timedelta, timezone
 
+import bcrypt
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, EmailStr
+from jose import jwt
+from sqlalchemy.orm import Session
+
+from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS
 from database import get_db
 from models import User
-from dependencies import verify_token
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
-security = HTTPBearer(auto_error=False)
-
-SECRET_KEY = os.getenv("JWT_SECRET", "cambiar-en-produccion")
-ALGORITHM = "HS256"
-TOKEN_EXPIRE_DAYS = 7
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
-
-def check_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode(), hashed.encode())
-
-
-def create_token(user_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(days=TOKEN_EXPIRE_DAYS)
-    return jwt.encode({"sub": user_id, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
-
-
-class LoginBody(BaseModel):
+class LoginRequest(BaseModel):
     email: str
     password: str
 
 
-class RegisterBody(BaseModel):
-    email: str
-    password: str
-    full_name: str | None = None
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+
+def _create_token(email: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    return jwt.encode({"sub": email, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 
 @router.post("/login")
-async def login(body: LoginBody, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
-    if not user or not check_password(body.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
-    return {
-        "access_token": create_token(user.id),
-        "token_type": "bearer",
-        "user": user.to_dict(),
-    }
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user or not _verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Usuario inactivo")
+    return {"access_token": _create_token(user.email), "token_type": "bearer"}
 
 
-@router.post("/register")
-async def register(body: RegisterBody, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(status_code=400, detail="El email ya está registrado")
-    user = User(
-        email=body.email,
-        password_hash=hash_password(body.password),
-        full_name=body.full_name,
-    )
+@router.post("/crear-usuario")
+def crear_usuario(data: LoginRequest, db: Session = Depends(get_db)):
+    """Crea un usuario (solo para setup inicial — proteger o eliminar en producción)."""
+    if db.query(User).filter(User.email == data.email).first():
+        raise HTTPException(status_code=400, detail="El usuario ya existe")
+    hashed = _hash_password(data.password)
+    user = User(email=data.email, hashed_password=hashed)
     db.add(user)
     db.commit()
-    db.refresh(user)
-    return {
-        "access_token": create_token(user.id),
-        "token_type": "bearer",
-        "user": user.to_dict(),
-    }
-
-
-@router.post("/logout")
-async def logout():
-    return {"ok": True}
-
-
-@router.get("/me")
-async def me(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    db: Session = Depends(get_db),
-):
-    token = credentials.credentials if credentials else None
-    if not token:
-        raise HTTPException(status_code=401, detail="No autorizado")
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado")
-    return user.to_dict()
+    return {"message": f"Usuario '{data.email}' creado exitosamente"}

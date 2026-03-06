@@ -1,4 +1,4 @@
-import { getServerUser } from "@/lib/api/server"
+import { cookies } from "next/headers"
 import { DashboardShell } from "@/components/dashboard-shell"
 
 export default async function DashboardLayout({
@@ -6,10 +6,18 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const user = await getServerUser()
+  const cookieStore = await cookies()
+  const token = cookieStore.get("token")?.value
+  let userEmail: string | undefined
+  try {
+    if (token) {
+      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
+      userEmail = payload.sub
+    }
+  } catch { /* ignore */ }
 
   return (
-    <DashboardShell userEmail={user?.email} userName={user?.full_name ?? undefined}>
+    <DashboardShell userEmail={userEmail}>
       {children}
     </DashboardShell>
   )

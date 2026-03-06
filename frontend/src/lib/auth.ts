@@ -1,16 +1,27 @@
-/**
- * Utilidades de auth sin Supabase.
- * El token se guarda en cookie httpOnly por el backend.
- */
+"use client"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const TOKEN_KEY = "token"
 
-export async function getSession(): Promise<{ user: { id: number; email: string; full_name: string | null } } | null> {
+export function getToken(): string | null {
+  if (typeof document === "undefined") return null
+  const match = document.cookie.match(new RegExp(`(?:^|; )${TOKEN_KEY}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+export function setToken(token: string) {
+  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24}; SameSite=Lax`
+}
+
+export function removeToken() {
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`
+}
+
+export function getUserEmail(): string | null {
+  const token = getToken()
+  if (!token) return null
   try {
-    const res = await fetch("/api/backend/auth/me", { credentials: "include" })
-    if (!res.ok) return null
-    const user = await res.json()
-    return { user }
+    const payload = JSON.parse(atob(token.split(".")[1]))
+    return payload.sub || null
   } catch {
     return null
   }

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { setToken } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
@@ -21,22 +22,24 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
     try {
-      const res = await fetch("/api/auth/login", {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
-        credentials: "include",
       })
-      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error(data.error || "Error al iniciar sesión")
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.detail || "Error al iniciar sesión")
       }
+      const { access_token } = await res.json()
+      setToken(access_token)
       router.push("/")
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       setError(
-        message.includes("incorrectos") || message.includes("Invalid")
+        message === "Credenciales incorrectas"
           ? "Email o contraseña incorrectos. Verifica tus credenciales e intenta de nuevo."
           : message
       )
@@ -223,10 +226,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-muted-foreground/70 text-xs mt-7">
-            ¿No tenés cuenta?{" "}
-            <a href="/register" className="text-gold hover:underline">
-              Crear cuenta
-            </a>
+            Etiplast ERP · © {new Date().getFullYear()} Todos los derechos reservados
           </p>
         </div>
       </div>
