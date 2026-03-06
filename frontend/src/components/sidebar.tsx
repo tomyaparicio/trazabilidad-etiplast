@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
-import { removeToken } from "@/lib/auth"
 import { LayoutDashboard, Users, User, LogOut } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useState } from "react"
@@ -33,8 +33,8 @@ function SidebarContent({
   const pathname = usePathname()
   const router = useRouter()
 
-  const handleSignOut = () => {
-    removeToken()
+  const handleSignOut = async () => {
+    await api.auth.logout()
     router.push("/login")
     router.refresh()
   }

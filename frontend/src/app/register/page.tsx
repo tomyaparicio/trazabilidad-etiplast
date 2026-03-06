@@ -1,14 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { api } from "@/lib/api"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("")
@@ -24,22 +23,13 @@ export default function RegisterPage() {
     setError("")
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, full_name: fullName.trim() || null }),
-      })
+      const res = await api.auth.register(email, password)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error(data.detail || "Error al registrarse")
+        throw new Error(data.error || data.detail || "Error al registrarse")
       }
       // Login automático después de registrar
-      const loginRes = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      })
+      const loginRes = await api.auth.login(email, password)
       if (loginRes.ok) {
         router.push("/")
         router.refresh()

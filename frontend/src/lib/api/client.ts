@@ -1,61 +1,120 @@
 "use client"
 
-import { getToken } from "@/lib/auth"
+/**
+ * Cliente API: usa el proxy /api/backend para enviar el token desde la cookie httpOnly.
+ * Importar desde @/lib/api para usar las acciones centralizadas.
+ */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+import type { Cliente, ClientesListParams, ClientesListResponse, DashboardStats, Filtros } from "./types"
 
-export function getAuthHeaders(): HeadersInit {
-  const token = getToken()
-  if (!token) {
-    throw new Error("No hay sesión activa")
-  }
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  }
+const PROXY = "/api/backend"
+
+function buildPath(path: string, params?: Record<string, string | number | undefined>): string {
+  const base = path.startsWith("/api/") ? path.replace(/^\/api\//, "") : path
+  if (!params) return `${PROXY}/${base}`
+  const sp = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== "") sp.set(k, String(v))
+  })
+  const q = sp.toString()
+  return `${PROXY}/${base}${q ? `?${q}` : ""}`
 }
 
-export async function apiFetch<T>(
+async function request<T>(
   path: string,
-  options?: Omit<RequestInit, "body"> & { method?: string; body?: object }
+  options?: Omit<RequestInit, "body"> & { method?: string; body?: object; params?: Record<string, string | number | undefined> }
 ): Promise<T> {
-  const headers = getAuthHeaders()
-  const { method = "GET", body, ...rest } = options || {}
-  const res = await fetch(`${API_URL}${path}`, {
+  const { method = "GET", body, params, ...rest } = options || {}
+  const url = params ? buildPath(path, params) : buildPath(path)
+  const res = await fetch(url, {
     ...rest,
     method,
-    headers: { ...headers, ...rest.headers },
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(rest.headers as Record<string, string>),
+    },
     ...(body !== undefined && { body: JSON.stringify(body) }),
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(text || `Error ${res.status}`)
+    let msg = text || `Error ${res.status}`
+    try {
+      const json = JSON.parse(text)
+      if (json.detail) msg = typeof json.detail === "string" ? json.detail : JSON.stringify(json.detail)
+    } catch {
+      /* usar text tal cual */
+    }
+    throw new Error(msg)
   }
   if (res.status === 204) return undefined as T
   return res.json()
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers genéricos
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const get = <T>(path: string, params?: Record<string, string | number | undefined>) =>
+  request<T>(path, { method: "GET", params })
+
+export const post = <T>(path: string, body?: object) =>
+  request<T>(path, { method: "POST", body })
+
+export const put = <T>(path: string, body?: object) =>
+  request<T>(path, { method: "PUT", body })
+
+export const del = <T>(path: string) =>
+  request<T>(path, { method: "DELETE" })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// apiFetch (alias para request)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function apiFetch<T>(
+  path: string,
+  options?: Omit<RequestInit, "body"> & { method?: string; body?: object }
+): Promise<T> {
+  const { method = "GET", body, ...rest } = options || {}
+  return request<T>(path, { method, body, ...rest })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Acciones API
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const api = {
+  /** GET /api/clientes */
   clientes: {
-    list: (params?: { page?: number; per_page?: number; search?: string; rubro?: string; provincia?: string }) => {
-      const sp = new URLSearchParams()
-      if (params?.page) sp.set("page", String(params.page))
-      if (params?.per_page) sp.set("per_page", String(params.per_page))
-      if (params?.search) sp.set("search", params.search)
-      if (params?.rubro) sp.set("rubro", params.rubro)
-      if (params?.provincia) sp.set("provincia", params.provincia)
-      const q = sp.toString()
-      return apiFetch<{ data: unknown[]; total: number; page: number; per_page: number; total_pages: number }>(
-        `/api/clientes${q ? `?${q}` : ""}`
-      )
+    list: (params?: ClientesListParams) => {
+      const p = params as Record<string, string | number | undefined> | undefined
+      return get<ClientesListResponse>("/api/clientes", p)
     },
-    get: (id: number) => apiFetch<unknown>(`/api/clientes/${id}`),
-    create: (data: object) => apiFetch<unknown>("/api/clientes", { method: "POST", body: data }),
-    update: (id: number, data: object) => apiFetch<unknown>(`/api/actualizaCliente/${id}`, { method: "PUT", body: data }),
+    get: (id: number) => get<Cliente>(`/api/clientes/${id}`),
+    create: (data: object) => post<Cliente>("/api/clientes", data),
+    update: (id: number, data: object) => put<Cliente>(`/api/actualizaCliente/${id}`, data),
   },
-  filtros: () => apiFetch<{ rubros: string[]; provincias: string[] }>("/api/filtros"),
-  dashboardStats: () =>
-    apiFetch<{ total_clientes: number; rubros: Array<{ nombre: string; cantidad: number }>; provincias: Array<{ nombre: string; cantidad: number }> }>(
-      "/api/dashboard/stats"
-    ),
+  /** GET /api/filtros */
+  filtros: () => get<Filtros>("/api/filtros"),
+  /** GET /api/dashboard/stats */
+  dashboardStats: () => get<DashboardStats>("/api/dashboard/stats"),
+  /** Auth (usa rutas Next.js locales) */
+  auth: {
+    login: (email: string, password: string) =>
+      fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      }),
+    logout: () =>
+      fetch("/api/auth/logout", { method: "POST", credentials: "include" }),
+    register: (email: string, password: string) =>
+      fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      }),
+  },
 }

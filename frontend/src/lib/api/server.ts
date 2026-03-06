@@ -4,7 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 export async function getServerAuthHeaders(): Promise<HeadersInit> {
   const cookieStore = await cookies()
-  const token = cookieStore.get("token")?.value
+  const token = cookieStore.get("auth-token")?.value
   if (!token) {
     throw new Error("No hay sesión activa")
   }

@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { api } from "@/lib/api"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { setToken } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
@@ -22,18 +22,11 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      })
+      const res = await api.auth.login(email, password)
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        throw new Error(data?.detail || "Error al iniciar sesión")
+        throw new Error(data.error || data.detail || "Error al iniciar sesión")
       }
-      const { access_token } = await res.json()
-      setToken(access_token)
       router.push("/")
       router.refresh()
     } catch (err: unknown) {

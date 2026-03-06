@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { api } from "@/lib/api/client"
+import { api } from "@/lib/api"
 import type { Cliente } from "@/types/database"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
