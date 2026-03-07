@@ -19,3 +19,21 @@ export type ClientesListParams = {
   rubro?: string
   provincia?: string
 }
+
+export type UserAdmin = {
+  id: number
+  email: string
+  is_active: boolean
+  role: string
+}
+
+export type CreateUserRequest = {
+  email: string
+  password: string
+  role?: string
+}
+
+export type UpdateUserRequest = {
+  role?: string
+  is_active?: boolean
+}

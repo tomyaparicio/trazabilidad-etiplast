@@ -11,7 +11,7 @@ from dependencies import verify_token
 router = APIRouter(prefix="/api", tags=["clientes"])
 
 
-@router.get("/clientes")
+@router.get("/clientes", summary="Listar clientes")
 async def listar_clientes(
     _user: User = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -55,7 +55,7 @@ async def listar_clientes(
     }
 
 
-@router.get("/clientes/{cliente_id}")
+@router.get("/clientes/{cliente_id}", summary="Obtener cliente")
 async def obtener_cliente(
     cliente_id: int,
     _user: User = Depends(verify_token),
@@ -67,7 +67,7 @@ async def obtener_cliente(
     return cliente.to_dict()
 
 
-@router.post("/clientes")
+@router.post("/clientes", summary="Crear cliente")
 async def crear_cliente(
     _user: User = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -108,7 +108,7 @@ async def crear_cliente(
     return cliente.to_dict()
 
 
-@router.put("/actualizaCliente/{cliente_id}")
+@router.put("/clientes/{cliente_id}", summary="Actualizar cliente")
 async def actualizar_cliente(
     cliente_id: int,
     _user: User = Depends(verify_token),

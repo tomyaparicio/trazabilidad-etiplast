@@ -5,13 +5,22 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import clientes, dashboard, auth
+from routers import clientes, dashboard, auth, admin
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="ERP Etiplast API", version="1.0.0")
+app = FastAPI(
+    title="ERP Etiplast API",
+    version="1.0.0",
+    openapi_tags=[
+        {"name": "auth", "description": "Login y registro de usuarios"},
+        {"name": "admin", "description": "Gestión de usuarios (solo admin)"},
+        {"name": "clientes", "description": "CRUD de clientes"},
+        {"name": "dashboard", "description": "Estadísticas y filtros"},
+    ],
+)
 
 
 @app.exception_handler(Exception)
@@ -45,5 +54,6 @@ async def health():
 
 
 app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(clientes.router)
 app.include_router(dashboard.router)

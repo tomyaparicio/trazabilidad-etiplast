@@ -1,5 +1,5 @@
 """Dependencias compartidas (auth, etc.)."""
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Depends
 from jose import JWTError, jwt
 
 from config import SECRET_KEY, ALGORITHM
@@ -15,6 +15,14 @@ def verify_token(authorization: str = Header(...)) -> dict:
         email: str = payload.get("sub")
         if email is None:
             raise HTTPException(status_code=401, detail="Token inválido")
-        return {"email": email}
+        role: str = payload.get("role", "user")
+        return {"email": email, "role": role}
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+
+def verify_admin(user: dict = Depends(verify_token)) -> dict:
+    """Verifica que el usuario sea administrador."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acceso denegado: se requiere rol de administrador")
+    return user

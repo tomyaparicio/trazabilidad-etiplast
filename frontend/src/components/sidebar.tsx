@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, Users, User, LogOut } from "lucide-react"
+import { LayoutDashboard, Users, User, LogOut, Shield } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useState } from "react"
 
@@ -13,9 +13,14 @@ const navigation = [
   { name: "Mi perfil", href: "/perfil", icon: User },
 ]
 
+const adminNavigation = [
+  { name: "Usuarios", href: "/admin/usuarios", icon: Shield },
+]
+
 interface SidebarProps {
   userEmail?: string
   userName?: string
+  userRole?: string
   menuOpen?: boolean
   onMenuOpenChange?: (open: boolean) => void
   visible?: boolean
@@ -24,14 +29,17 @@ interface SidebarProps {
 function SidebarContent({
   userEmail,
   userName,
+  userRole,
   onNavigate,
 }: {
   userEmail?: string
   userName?: string
+  userRole?: string
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const isAdmin = userRole === "admin"
 
   const handleSignOut = async () => {
     await api.auth.logout()
@@ -44,7 +52,7 @@ function SidebarContent({
       {/* Navigation */}
       <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
         <p className="px-3 mb-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.15em]">
-          Menú
+          Menu
         </p>
         {navigation.map((item) => {
           const isActive =
@@ -71,6 +79,39 @@ function SidebarContent({
             </Link>
           )
         })}
+
+        {/* Admin section */}
+        {isAdmin && (
+          <>
+            <p className="px-3 mt-6 mb-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.15em]">
+              Administracion
+            </p>
+            {adminNavigation.map((item) => {
+              const isActive = pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 relative ${
+                    isActive
+                      ? "bg-[#1a1866] text-white"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  }`}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white rounded-r-full" />
+                  )}
+                  <item.icon
+                    className={`w-[18px] h-[18px] shrink-0 transition-colors ${isActive ? "text-white" : "group-hover:text-sidebar-foreground"}`}
+                    strokeWidth={isActive ? 2 : 1.5}
+                  />
+                  <span>{item.name}</span>
+                </Link>
+              )
+            })}
+          </>
+        )}
       </nav>
 
       {/* User */}
@@ -88,7 +129,7 @@ function SidebarContent({
           <button
             type="button"
             onClick={handleSignOut}
-            aria-label="Cerrar sesión"
+            aria-label="Cerrar sesion"
             className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -99,7 +140,7 @@ function SidebarContent({
   )
 }
 
-export function Sidebar({ userEmail, userName, menuOpen, onMenuOpenChange, visible = true }: SidebarProps) {
+export function Sidebar({ userEmail, userName, userRole, menuOpen, onMenuOpenChange, visible = true }: SidebarProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = onMenuOpenChange != null
   const open = isControlled ? (menuOpen ?? false) : internalOpen
@@ -109,13 +150,13 @@ export function Sidebar({ userEmail, userName, menuOpen, onMenuOpenChange, visib
     <>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="p-0 w-64 border-0">
-          <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
-          <SidebarContent userEmail={userEmail} userName={userName} onNavigate={() => setOpen(false)} />
+          <SheetTitle className="sr-only">Menu de navegacion</SheetTitle>
+          <SidebarContent userEmail={userEmail} userName={userName} userRole={userRole} onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
       {visible && (
         <aside className="hidden lg:flex w-60 shrink-0 transition-all duration-200">
-          <SidebarContent userEmail={userEmail} userName={userName} />
+          <SidebarContent userEmail={userEmail} userName={userName} userRole={userRole} />
         </aside>
       )}
     </>

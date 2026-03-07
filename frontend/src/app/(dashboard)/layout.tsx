@@ -9,15 +9,17 @@ export default async function DashboardLayout({
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
   let userEmail: string | undefined
+  let userRole: string | undefined
   try {
     if (token) {
       const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
       userEmail = payload.sub
+      userRole = payload.role
     }
   } catch { /* ignore */ }
 
   return (
-    <DashboardShell userEmail={userEmail}>
+    <DashboardShell userEmail={userEmail} userRole={userRole}>
       {children}
     </DashboardShell>
   )

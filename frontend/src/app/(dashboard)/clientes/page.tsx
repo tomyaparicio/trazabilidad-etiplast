@@ -4,7 +4,7 @@ import { ClientesTable } from "./_components/clientes-table"
 
 export default async function ClientesPage() {
   const [filtrosResult, clientesResult] = await Promise.all([
-    apiFetchServer<Filtros>("/api/filtros"),
+    apiFetchServer<Filtros>("/api/dashboard/filtros"),
     apiFetchServer<{ data: Cliente[]; total: number }>("/api/clientes?page=1&per_page=20"),
   ])
 

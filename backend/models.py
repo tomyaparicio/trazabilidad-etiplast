@@ -9,6 +9,15 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    role = Column(String, default="user")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "is_active": self.is_active,
+            "role": self.role,
+        }
 
 
 class Cliente(Base):

@@ -26,3 +26,14 @@ export function getUserEmail(): string | null {
     return null
   }
 }
+
+export function getUserRole(): string | null {
+  const token = getToken()
+  if (!token) return null
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]))
+    return payload.role || null
+  } catch {
+    return null
+  }
+}

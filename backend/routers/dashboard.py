@@ -10,7 +10,7 @@ from dependencies import verify_token
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
 
-@router.get("/dashboard/stats")
+@router.get("/dashboard/stats", summary="Estadísticas del dashboard")
 async def dashboard_stats(
     authorization: str = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -47,7 +47,7 @@ async def dashboard_stats(
     }
 
 
-@router.get("/filtros")
+@router.get("/dashboard/filtros", summary="Rubros y provincias para filtros")
 async def obtener_filtros(
     authorization: str = Depends(verify_token),
     db: Session = Depends(get_db),

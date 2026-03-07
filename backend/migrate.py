@@ -23,6 +23,10 @@ MIGRATIONS = [
         );
         CREATE INDEX IF NOT EXISTS ix_users_email ON users (email);
     """),
+    ("Agregar columna role a users", """
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
+        UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users) AND (role IS NULL OR role = 'user');
+    """),
 ]
 
 

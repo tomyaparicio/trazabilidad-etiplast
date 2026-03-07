@@ -7,7 +7,7 @@
  * Uso en Server Components:
  *   import { apiFetchServer } from "@/lib/api/server"
  *
- * Acciones: api.clientes.list(), api.filtros(), api.dashboardStats()
+ * Acciones: api.clientes.*, api.dashboard.stats(), api.dashboard.filtros()
  * Helpers: get<T>("/api/ruta"), post<T>("/api/ruta", body)
  * Auth: api.auth.login(), api.auth.logout()
  */

@@ -31,40 +31,16 @@ def _verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def _create_token(email: str) -> str:
+def _create_token(email: str, role: str = "user") -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    return jwt.encode({"sub": email, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({"sub": email, "role": role, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 
-@router.post("/login")
+@router.post("/login", summary="Iniciar sesión")
 def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not _verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Usuario inactivo")
-    return {"access_token": _create_token(user.email), "token_type": "bearer"}
-
-
-@router.post("/crear-usuario")
-def crear_usuario(data: LoginRequest, db: Session = Depends(get_db)):
-    """Crea un usuario (solo para setup inicial — proteger o eliminar en producción)."""
-    email = (data.email or "").strip().lower()
-    if not email:
-        raise HTTPException(status_code=400, detail="El email es requerido")
-    if not data.password or len(data.password) < 6:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
-    if db.query(User).filter(User.email == email).first():
-        raise HTTPException(status_code=400, detail="El usuario ya existe")
-    try:
-        hashed = _hash_password(data.password)
-        user = User(email=email, hashed_password=hashed)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        logger.info("Usuario creado: %s (id=%s)", email, user.id)
-        return {"message": f"Usuario '{email}' creado exitosamente"}
-    except Exception as e:
-        db.rollback()
-        logger.exception("Error creando usuario %s: %s", email, e)
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"access_token": _create_token(user.email, user.role or "user"), "token_type": "bearer"}

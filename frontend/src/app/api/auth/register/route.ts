@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: "Email y contraseña son requeridos" }, { status: 400 })
     }
-    const url = `${API_URL.replace(/\/$/, "")}/auth/crear-usuario`
+    const url = `${API_URL.replace(/\/$/, "")}/auth/register`
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

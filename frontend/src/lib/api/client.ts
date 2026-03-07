@@ -5,7 +5,7 @@
  * Importar desde @/lib/api para usar las acciones centralizadas.
  */
 
-import type { Cliente, ClientesListParams, ClientesListResponse, DashboardStats, Filtros } from "./types"
+import type { Cliente, ClientesListParams, ClientesListResponse, DashboardStats, Filtros, UserAdmin, CreateUserRequest, UpdateUserRequest } from "./types"
 
 const PROXY = "/api/backend"
 
@@ -84,7 +84,6 @@ export async function apiFetch<T>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const api = {
-  /** GET /api/clientes */
   clientes: {
     list: (params?: ClientesListParams) => {
       const p = params as Record<string, string | number | undefined> | undefined
@@ -92,12 +91,12 @@ export const api = {
     },
     get: (id: number) => get<Cliente>(`/api/clientes/${id}`),
     create: (data: object) => post<Cliente>("/api/clientes", data),
-    update: (id: number, data: object) => put<Cliente>(`/api/actualizaCliente/${id}`, data),
+    update: (id: number, data: object) => put<Cliente>(`/api/clientes/${id}`, data),
   },
-  /** GET /api/filtros */
-  filtros: () => get<Filtros>("/api/filtros"),
-  /** GET /api/dashboard/stats */
-  dashboardStats: () => get<DashboardStats>("/api/dashboard/stats"),
+  dashboard: {
+    stats: () => get<DashboardStats>("/api/dashboard/stats"),
+    filtros: () => get<Filtros>("/api/dashboard/filtros"),
+  },
   /** Auth (usa rutas Next.js locales) */
   auth: {
     login: (email: string, password: string) =>
@@ -116,5 +115,11 @@ export const api = {
         body: JSON.stringify({ email, password }),
         credentials: "include",
       }),
+  },
+  /** Admin (gestión de usuarios) */
+  admin: {
+    listUsers: () => get<UserAdmin[]>("/api/admin/usuarios"),
+    createUser: (data: CreateUserRequest) => post<UserAdmin>("/api/admin/usuarios", data),
+    updateUser: (id: number, data: UpdateUserRequest) => put<UserAdmin>(`/api/admin/usuarios/${id}`, data),
   },
 }

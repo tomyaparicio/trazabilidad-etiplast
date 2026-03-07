@@ -9,10 +9,11 @@ const SIDEBAR_STORAGE_KEY = "etiplast-sidebar-open"
 interface DashboardShellProps {
   userEmail?: string
   userName?: string
+  userRole?: string
   children: React.ReactNode
 }
 
-export function DashboardShell({ userEmail, userName, children }: DashboardShellProps) {
+export function DashboardShell({ userEmail, userName, userRole, children }: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -40,6 +41,7 @@ export function DashboardShell({ userEmail, userName, children }: DashboardShell
         <Sidebar
           userEmail={userEmail}
           userName={userName}
+          userRole={userRole}
           menuOpen={menuOpen}
           onMenuOpenChange={(open) => setMenuOpen(open)}
           visible={sidebarOpen}
