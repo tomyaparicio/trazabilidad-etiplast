@@ -431,7 +431,7 @@ function RSDialog({
     if (!form.razon_social.trim()) { setError("La razón social es requerida"); return }
     setSaving(true); setError("")
     try {
-      const body = { razon_social: form.razon_social.trim(), cuit: form.cuit.trim() || null }
+      const body = { razon_social: form.razon_social.trim(), cuit: form.cuit.trim() || undefined }
       const saved = isEdit
         ? await api.razonessociales.update(rs!.id, body)
         : await api.razonessociales.create(body)

@@ -522,9 +522,9 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
                     {cliente.rubro}
                   </span>
                 )}
-                {!editing && d?.razon_social && (
+                {!editing && d?.razon_social ? (
                   <span className="text-xs text-muted-foreground">· {String(d.razon_social)}</span>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
