@@ -167,6 +167,8 @@ class Cliente(Base):
             "alto":              float(pr.alto)       if (pr and pr.alto)    else None,
             "cilindro":          float(pr.cilindro)   if (pr and pr.cilindro) else None,
             "cierre":            float(pr.cierre)     if (pr and pr.cierre)   else None,
+            # — Todos los productos (1:N) —
+            "productos":         [p.to_dict() for p in self.productos],
         }
 
 

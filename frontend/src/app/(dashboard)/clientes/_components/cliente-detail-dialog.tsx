@@ -2,79 +2,76 @@
 
 import { useState, useEffect, useRef } from "react"
 import { api } from "@/lib/api"
-import type { Cliente, RazonSocial } from "@/types/database"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import type { Cliente, ClienteProducto, RazonSocial } from "@/types/database"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-  Pencil, Check, Loader2, AlertCircle, CheckCircle2, X, Plus,
-  Building2, MapPin, Phone, Package, FileText, Truck,
-  type LucideIcon,
+  Pencil, Check, Loader2, AlertCircle, CheckCircle2, X, Plus, Trash2,
+  Building2, MapPin, Phone, FileText, Hash, Boxes, Truck,
 } from "lucide-react"
 
-interface FieldDef {
-  key: string
-  label: string
-  type?: string
-  group: string
-  span?: boolean   // full row
+// ─── Gradient by rubro ────────────────────────────────────────────────────────
+const RUBRO_GRAD: Record<string, [string, string]> = {
+  Agua:             ["#0e7490", "#22d3ee"],
+  "Jugos-Gaseosas": ["#c2410c", "#f97316"],
+  Limpieza:         ["#065f46", "#34d399"],
+  Agroquimicos:     ["#991b1b", "#f87171"],
+  Aceite:           ["#92400e", "#fbbf24"],
+}
+const getGrad = (r?: string | null): [string, string] => RUBRO_GRAD[r ?? ""] ?? ["#1a1866", "#292d96"]
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+const TABS = [
+  { key: "general",    label: "General",      icon: Hash      },
+  { key: "razon",      label: "Razón Social", icon: Building2 },
+  { key: "ubicacion",  label: "Ubicación",    icon: MapPin    },
+  { key: "contacto",   label: "Contacto",     icon: Phone     },
+  { key: "transporte", label: "Transporte",   icon: Truck     },
+  { key: "notas",      label: "Notas",        icon: FileText  },
+  { key: "productos",  label: "Productos",    icon: Boxes     },
+] as const
+type TabKey = typeof TABS[number]["key"]
+
+// ─── Field card ───────────────────────────────────────────────────────────────
+function FieldCard({
+  label, value, fieldKey, editing, editData, onChange, type = "text", full = false,
+}: {
+  label: string; value?: string | number | null
+  fieldKey: string; editing: boolean
+  editData: Record<string, unknown>
+  onChange: (k: string, v: string) => void
+  type?: string; full?: boolean
+}) {
+  return (
+    <div className={`rounded-xl border border-border bg-muted/20 px-4 py-4 flex flex-col gap-1.5 ${full ? "col-span-full" : ""}`}>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">{label}</p>
+      {editing ? (
+        <Input
+          type={type}
+          inputMode={type === "number" ? "numeric" : undefined}
+          autoComplete="off"
+          value={String(editData[fieldKey] ?? "")}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          className="h-9 rounded-lg bg-input border-border text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10"
+        />
+      ) : (
+        <p className="text-[15px] font-semibold text-foreground leading-snug">
+          {value != null && String(value).trim() !== ""
+            ? String(value)
+            : <span className="text-muted-foreground/30 font-normal text-sm">—</span>}
+        </p>
+      )}
+    </div>
+  )
 }
 
-const FIELDS: FieldDef[] = [
-  { key: "id_cliente",       label: "N. Cliente",      type: "number", group: "general" },
-  { key: "marca",            label: "Marca",                           group: "general" },
-  { key: "rubro",            label: "Rubro",                           group: "general" },
-  { key: "razon_social",     label: "Razón Social",    span: true,     group: "general" },
-  { key: "domicilio",        label: "Domicilio",       span: true,     group: "ubicacion" },
-  { key: "localidad",        label: "Localidad",                       group: "ubicacion" },
-  { key: "provincia",        label: "Provincia",                       group: "ubicacion" },
-  { key: "pais",             label: "País",                            group: "ubicacion" },
-  { key: "cuit",             label: "CUIT",                            group: "contacto" },
-  { key: "telefono",         label: "Teléfono",                        group: "contacto" },
-  { key: "producto",         label: "Producto",        span: true,     group: "producto" },
-  { key: "volumen_cantidad", label: "Volumen",         type: "number", group: "producto" },
-  { key: "volumen_unidad",   label: "Unidad",                          group: "producto" },
-  { key: "lamina",           label: "Lámina",                          group: "producto" },
-  { key: "muestra",          label: "Muestra",                         group: "producto" },
-  { key: "alto",             label: "Alto",            type: "number", group: "producto" },
-  { key: "cilindro",         label: "Cilindro",        type: "number", group: "producto" },
-  { key: "cierre",           label: "Cierre",          type: "number", group: "producto" },
-  { key: "envase",           label: "Envase",                          group: "producto" },
-  { key: "observaciones",    label: "Observaciones",   span: true,     group: "extra" },
-  { key: "transporte",       label: "Transporte",      span: true,     group: "transporte" },
-]
-
-const GROUP_CONFIG: Record<string, { label: string; icon: LucideIcon; description: string }> = {
-  general:   { label: "General",     icon: Building2, description: "Datos básicos del cliente" },
-  ubicacion: { label: "Ubicación",   icon: MapPin,    description: "Domicilio y localización" },
-  contacto:  { label: "Contacto",    icon: Phone,     description: "CUIT y datos de contacto" },
-  producto:  { label: "Producto",   icon: Package,   description: "Especificaciones técnicas" },
-  transporte: { label: "Transporte", icon: Truck,     description: "Qué transporta usa el cliente" },
-  extra:     { label: "Notas",      icon: FileText,  description: "Observaciones adicionales" },
-}
-
-const CAMPOS_EDITABLES = [
-  "id_cliente","marca","rubro","razon_social","razon_social_id","domicilio","localidad","provincia","pais",
-  "cuit","telefono","producto","volumen_cantidad","volumen_unidad","lamina","muestra","alto","cilindro","cierre","envase","observaciones","transporte",
-]
-
-const RUBRO_AVATAR: Record<string, { from: string; to: string }> = {
-  Agua:             { from: "#0e7490", to: "#22d3ee" },
-  "Jugos-Gaseosas": { from: "#c2410c", to: "#f97316" },
-  Limpieza:         { from: "#065f46", to: "#34d399" },
-  Agroquimicos:     { from: "#991b1b", to: "#f87171" },
-  Aceite:           { from: "#92400e", to: "#fbbf24" },
-}
-function getAvatarGrad(rubro?: string | null) {
-  return RUBRO_AVATAR[rubro ?? ""] ?? { from: "#1a1866", to: "#292d96" }
-}
-
+// ─── RazonSocialSelector ──────────────────────────────────────────────────────
 function RazonSocialSelector({
-  value,
-  onChange,
+  value, onChange,
 }: {
   value: string
-  onChange: (id: number | null, razonSocial: string, cuit?: string | null) => void
+  onChange: (id: number | null, rs: string, cuit?: string | null) => void
 }) {
   const [query, setQuery] = useState(value)
   const [results, setResults] = useState<RazonSocial[]>([])
@@ -92,73 +89,46 @@ function RazonSocialSelector({
   }, [query, open])
 
   useEffect(() => {
-    function handler(e: MouseEvent) {
+    const h = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
+    document.addEventListener("mousedown", h)
+    return () => document.removeEventListener("mousedown", h)
   }, [])
 
-  const handleSelect = (rs: RazonSocial) => {
-    setQuery(rs.razon_social)
-    setOpen(false)
+  const select = (rs: RazonSocial) => {
+    setQuery(rs.razon_social); setOpen(false)
     onChange(rs.id, rs.razon_social, rs.cuit)
   }
-
-  const handleCreate = async () => {
-    if (!query.trim()) return
-    setCreating(true)
+  const create = async () => {
+    if (!query.trim()) return; setCreating(true)
     try {
       const rs = await api.razonessociales.create({ razon_social: query.trim() })
-      setOpen(false)
-      onChange(rs.id, rs.razon_social, rs.cuit)
-    } finally {
-      setCreating(false)
-    }
+      setOpen(false); onChange(rs.id, rs.razon_social, rs.cuit)
+    } finally { setCreating(false) }
   }
-
-  const exactMatch = results.some(
-    (r) => r.razon_social.toLowerCase() === query.trim().toLowerCase()
-  )
+  const exact = results.some((r) => r.razon_social.toLowerCase() === query.trim().toLowerCase())
 
   return (
     <div ref={ref} className="relative">
       <Input
-        type="text"
-        autoComplete="off"
-        value={query}
-        placeholder="Buscar o crear..."
-        onFocus={() => {
-          setOpen(true)
-          api.razonessociales.list({ per_page: 15 }).then((r) => setResults(r.data))
-        }}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          setOpen(true)
-          if (!e.target.value) onChange(null, "")
-        }}
-        className="h-10 rounded-lg bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/10 text-sm"
+        autoComplete="off" value={query} placeholder="Buscar o crear..."
+        onFocus={() => { setOpen(true); api.razonessociales.list({ per_page: 15 }).then((r) => setResults(r.data)) }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); if (!e.target.value) onChange(null, "") }}
+        className="h-9 rounded-lg bg-input border-border text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10"
       />
       {open && (results.length > 0 || query.trim()) && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-xl overflow-hidden max-h-52 overflow-y-auto">
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
           {results.map((rs) => (
-            <button
-              key={rs.id}
-              type="button"
-              onMouseDown={() => handleSelect(rs)}
-              className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm flex flex-col gap-0.5"
-            >
-              <span className="text-foreground font-medium">{rs.razon_social}</span>
-              {rs.cuit && <span className="text-muted-foreground text-xs">{rs.cuit}</span>}
+            <button key={rs.id} type="button" onMouseDown={() => select(rs)}
+              className="w-full text-left px-4 py-2.5 hover:bg-muted/50 text-sm flex flex-col gap-0.5">
+              <span className="font-semibold text-foreground">{rs.razon_social}</span>
+              {rs.cuit && <span className="text-xs text-muted-foreground">{rs.cuit}</span>}
             </button>
           ))}
-          {!exactMatch && query.trim() && (
-            <button
-              type="button"
-              onMouseDown={handleCreate}
-              disabled={creating}
-              className="w-full text-left px-3 py-2.5 hover:bg-emerald-500/10 text-sm text-emerald-400 flex items-center gap-2 border-t border-border"
-            >
+          {!exact && query.trim() && (
+            <button type="button" onMouseDown={create} disabled={creating}
+              className="w-full text-left px-4 py-2.5 hover:bg-emerald-500/10 text-sm text-emerald-400 flex items-center gap-2 border-t border-border">
               {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
               Crear &ldquo;{query.trim()}&rdquo;
             </button>
@@ -169,6 +139,217 @@ function RazonSocialSelector({
   )
 }
 
+// ─── Products ─────────────────────────────────────────────────────────────────
+type ProdForm = {
+  nombre: string; envase: string; volumen_cantidad: string; volumen_unidad: string
+  lamina: string; muestra: string; alto: string; cilindro: string; cierre: string
+}
+const EMPTY: ProdForm = { nombre:"", envase:"", volumen_cantidad:"", volumen_unidad:"", lamina:"", muestra:"", alto:"", cilindro:"", cierre:"" }
+const toForm = (p: ClienteProducto): ProdForm => ({
+  nombre: p.nombre ?? "", envase: p.envase ?? "",
+  volumen_cantidad: p.volumen_cantidad != null ? String(p.volumen_cantidad) : "",
+  volumen_unidad: p.volumen_unidad ?? "", lamina: p.lamina ?? "", muestra: p.muestra ?? "",
+  alto: p.alto != null ? String(p.alto) : "",
+  cilindro: p.cilindro != null ? String(p.cilindro) : "",
+  cierre: p.cierre != null ? String(p.cierre) : "",
+})
+const toBody = (f: ProdForm) => ({
+  nombre: f.nombre || null, envase: f.envase || null,
+  volumen_cantidad: f.volumen_cantidad ? Number(f.volumen_cantidad) : null,
+  volumen_unidad: f.volumen_unidad || null, lamina: f.lamina || null, muestra: f.muestra || null,
+  alto: f.alto ? Number(f.alto) : null,
+  cilindro: f.cilindro ? Number(f.cilindro) : null,
+  cierre: f.cierre ? Number(f.cierre) : null,
+})
+
+const CARD_COLORS = [
+  "border-amber-500/40  bg-amber-500/8",
+  "border-cyan-500/40   bg-cyan-500/8",
+  "border-violet-500/40 bg-violet-500/8",
+  "border-emerald-500/40 bg-emerald-500/8",
+  "border-rose-500/40   bg-rose-500/8",
+  "border-sky-500/40    bg-sky-500/8",
+]
+
+function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
+  producto: ClienteProducto; idx: number
+  onEdit: () => void; onDelete: () => void; deleting: boolean; disabled: boolean
+}) {
+  const color = CARD_COLORS[idx % CARD_COLORS.length]
+  const title = [
+    producto.nombre,
+    producto.volumen_cantidad != null ? `${producto.volumen_cantidad}${producto.volumen_unidad ?? ""}` : null,
+  ].filter(Boolean).join(" · ")
+
+  const specs = [
+    producto.lamina   && { k: "Lámina",  v: producto.lamina },
+    producto.envase   && { k: "Envase",  v: producto.envase },
+    producto.alto     && { k: "Alto",    v: String(producto.alto) },
+    producto.cilindro && { k: "Cilindro",v: String(producto.cilindro) },
+    producto.cierre   && { k: "Cierre",  v: String(producto.cierre) },
+    producto.muestra  && { k: "Muestra", v: producto.muestra },
+  ].filter(Boolean) as { k: string; v: string }[]
+
+  return (
+    <div className={`group relative rounded-xl border p-5 transition-all hover:shadow-lg ${color}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-bold text-foreground leading-tight truncate">
+            {title || <span className="text-muted-foreground font-normal italic text-sm">Sin nombre</span>}
+          </p>
+          {specs.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {specs.map(({ k, v }) => (
+                <span key={k} className="inline-flex items-center gap-1.5 bg-background/60 border border-border/60 rounded-lg px-2.5 py-1 text-xs">
+                  <span className="text-muted-foreground font-medium">{k}</span>
+                  <span className="text-foreground font-semibold">{v}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+          <button type="button" onClick={onEdit} disabled={disabled}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors disabled:opacity-30">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" onClick={onDelete} disabled={deleting || disabled}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30">
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew }: {
+  data: ProdForm; onChange: (d: ProdForm) => void
+  onSave: () => void; onCancel: () => void; saving: boolean; isNew?: boolean
+}) {
+  const set = (k: keyof ProdForm) => (e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...data, [k]: e.target.value })
+  const inp = "h-9 rounded-lg bg-input border-border text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10"
+
+  return (
+    <div className="col-span-full rounded-xl border border-gold/30 bg-gold/5 p-5">
+      <p className="text-xs font-bold text-gold uppercase tracking-wider mb-4">{isNew ? "✦ Nuevo producto" : "Editar producto"}</p>
+      <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
+        <div className="col-span-4 sm:col-span-5">
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Producto</label>
+          <Input value={data.nombre} onChange={set("nombre")} placeholder="Agua, Lavandina, Gaseosa..." className={inp} />
+        </div>
+        {([
+          ["volumen_cantidad","Volumen","number"],["volumen_unidad","Unidad","text"],
+          ["lamina","Lámina","text"],["muestra","Muestra","text"],["envase","Envase","text"],
+          ["alto","Alto","number"],["cilindro","Cilindro","number"],["cierre","Cierre","number"],
+        ] as [keyof ProdForm, string, string][]).map(([k, label, type]) => (
+          <div key={k}>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">{label}</label>
+            <Input type={type} value={data[k]} onChange={set(k)} className={inp} />
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Button variant="outline" size="sm" onClick={onCancel}
+          className="h-9 text-xs rounded-lg border-border bg-transparent text-muted-foreground hover:bg-muted/50 px-4">Cancelar</Button>
+        <Button size="sm" onClick={onSave} disabled={saving}
+          className="h-9 text-xs rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 gap-2 px-4">
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Guardar
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ProductosTab({ clienteId, productos, onProductosChange }: {
+  clienteId: number; productos: ClienteProducto[]
+  onProductosChange: (p: ClienteProducto[]) => void
+}) {
+  const [editingId, setEditingId] = useState<number | "new" | null>(null)
+  const [form, setForm] = useState<ProdForm>(EMPTY)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState<number | null>(null)
+  const [error, setError] = useState("")
+
+  const startEdit = (p: ClienteProducto) => { setForm(toForm(p)); setEditingId(p.id); setError("") }
+  const startNew  = () => { setForm(EMPTY); setEditingId("new"); setError("") }
+  const cancel    = () => { setEditingId(null); setForm(EMPTY); setError("") }
+
+  const save = async () => {
+    setSaving(true); setError("")
+    try {
+      const body = toBody(form)
+      if (editingId === "new") {
+        const n = await api.productos.create(clienteId, body)
+        onProductosChange([...productos, n])
+      } else {
+        const u = await api.productos.update(clienteId, editingId as number, body)
+        onProductosChange(productos.map((p) => p.id === editingId ? u : p))
+      }
+      cancel()
+    } catch { setError("Error al guardar el producto") }
+    finally { setSaving(false) }
+  }
+
+  const remove = async (id: number) => {
+    setDeleting(id); setError("")
+    try {
+      await api.productos.delete(clienteId, id)
+      onProductosChange(productos.filter((p) => p.id !== id))
+    } catch { setError("Error al eliminar") }
+    finally { setDeleting(null) }
+  }
+
+  return (
+    <div>
+      {error && (
+        <div className="flex items-center gap-2 p-3 mb-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm">
+          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+        </div>
+      )}
+
+      {productos.length === 0 && editingId !== "new" && (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-muted/30 border border-border flex items-center justify-center">
+            <Boxes className="w-7 h-7 text-muted-foreground/30" strokeWidth={1.5} />
+          </div>
+          <div className="text-center">
+            <p className="text-base font-semibold text-foreground">Sin productos</p>
+            <p className="text-sm text-muted-foreground mt-1">Agregá el primer producto de esta marca</p>
+          </div>
+          <Button onClick={startNew}
+            className="mt-2 h-9 text-sm rounded-xl bg-gold/10 hover:bg-gold/20 text-gold border border-gold/30 gap-2 px-5">
+            <Plus className="w-4 h-4" />Agregar primer producto
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {productos.map((p, i) =>
+          editingId === p.id
+            ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} />
+            : <ProductCard key={p.id} producto={p} idx={i} onEdit={() => startEdit(p)} onDelete={() => remove(p.id)} deleting={deleting === p.id} disabled={editingId !== null} />
+        )}
+
+        {editingId === "new"
+          ? <ProductInlineForm data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} isNew />
+          : productos.length > 0 && (
+            <button type="button" onClick={startNew} disabled={editingId !== null}
+              className="flex items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed border-border hover:border-gold/40 hover:bg-gold/5 text-muted-foreground hover:text-gold text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+              <Plus className="w-4 h-4" />Agregar producto
+            </button>
+          )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main dialog ──────────────────────────────────────────────────────────────
+const CAMPOS_EDITABLES = [
+  "id_cliente","marca","rubro","razon_social","razon_social_id",
+  "cuit","telefono","domicilio","localidad","provincia","pais","transporte","observaciones",
+]
+
 interface ClienteDetailDialogProps {
   cliente: Cliente | null
   onClose: () => void
@@ -176,298 +357,251 @@ interface ClienteDetailDialogProps {
 }
 
 export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetailDialogProps) {
-  const [activeGroup, setActiveGroup] = useState("general")
+  const [tab, setTab] = useState<TabKey>("general")
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<"success" | "error" | "">("")
   const [hermanas, setHermanas] = useState<{ id: number; id_cliente: number | null; marca: string | null }[]>([])
+  const [productos, setProductos] = useState<ClienteProducto[]>([])
+
+  useEffect(() => { setProductos(cliente?.productos ?? []) }, [cliente?.id])
 
   useEffect(() => {
     if (!cliente?.razon_social_id || editing) { setHermanas([]); return }
-    api.razonessociales.get(cliente.razon_social_id).then((rs) => {
-      setHermanas(rs.marcas.filter((m) => m.id !== cliente.id))
-    }).catch(() => setHermanas([]))
+    api.razonessociales.get(cliente.razon_social_id)
+      .then((rs) => setHermanas(rs.marcas.filter((m) => m.id !== cliente.id)))
+      .catch(() => setHermanas([]))
   }, [cliente?.razon_social_id, cliente?.id, editing])
 
   const handleOpen = (open: boolean) => {
-    if (!open) {
-      onClose()
-      setEditing(false)
-      setSaveMsg("")
-      setActiveGroup("general")
-    }
+    if (!open) { onClose(); setEditing(false); setSaveMsg(""); setTab("general") }
   }
 
   const startEditing = () => {
-    if (cliente) {
-      const base: Record<string, unknown> = { ...cliente }
-      CAMPOS_EDITABLES.forEach((c) => {
-        if (!(c in base)) base[c] = null
-      })
-      setEditData(base)
-      setEditing(true)
-      setSaveMsg("")
-    }
+    if (!cliente) return
+    const base: Record<string, unknown> = { ...cliente }
+    CAMPOS_EDITABLES.forEach((c) => { if (!(c in base)) base[c] = null })
+    setEditData(base); setEditing(true); setSaveMsg("")
   }
-
-  const cancelEditing = () => {
-    setEditing(false)
-    if (cliente) setEditData({ ...cliente })
-  }
+  const cancelEditing = () => { setEditing(false); if (cliente) setEditData({ ...cliente }) }
 
   const handleSave = async () => {
     if (!cliente) return
     setSaving(true); setSaveMsg("")
     try {
-      const numericFields = ["id_cliente", "alto", "cilindro", "cierre", "volumen_cantidad", "razon_social_id"]
+      const numeric = ["id_cliente", "razon_social_id"]
       const updates: Record<string, unknown> = {}
       CAMPOS_EDITABLES.forEach((campo) => {
-        const rawVal = editData[campo]
-        let val = rawVal === undefined || rawVal === "" ? null : rawVal
-        if (val !== null && numericFields.includes(campo)) {
-          const num = Number(val)
-          val = Number.isNaN(num) ? null : num
-        }
+        const raw = editData[campo]
+        let val = raw === undefined || raw === "" ? null : raw
+        if (val !== null && numeric.includes(campo)) { const n = Number(val); val = Number.isNaN(n) ? null : n }
         updates[campo] = val
       })
       const updated = await api.clientes.update(cliente.id, updates) as Cliente
       onUpdate(updated)
       setEditData({ ...updated }); setEditing(false); setSaveMsg("success")
       setTimeout(() => setSaveMsg(""), 3000)
-    } catch (err) {
-      console.error("Error al guardar cliente:", err)
-      setSaveMsg("error")
-    } finally {
-      setSaving(false)
+    } catch { setSaveMsg("error") }
+    finally { setSaving(false) }
+  }
+
+  const set = (key: string, val: string) => setEditData((p) => ({ ...p, [key]: val || null }))
+  const d = editing ? editData : (cliente as Record<string, unknown> | null)
+  const [gFrom, gTo] = getGrad(cliente?.rubro)
+  const isProductosTab = tab === "productos"
+
+  const fieldProps = { editing: editing && !isProductosTab, editData, onChange: set }
+
+  const renderTab = () => {
+    switch (tab) {
+      case "general":
+        return (
+          <div className="grid grid-cols-3 gap-4">
+            <FieldCard label="Marca"      fieldKey="marca"      value={d?.marca as string}      full {...fieldProps} />
+            <FieldCard label="N° Cliente" fieldKey="id_cliente" value={d?.id_cliente as number} type="number" {...fieldProps} />
+            <FieldCard label="Rubro"      fieldKey="rubro"      value={d?.rubro as string}       {...fieldProps} />
+          </div>
+        )
+      case "razon":
+        return (
+          <div className="grid grid-cols-2 gap-4">
+            {(editing) ? (
+              <div className="col-span-full rounded-xl border border-border bg-muted/20 px-4 py-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1.5">Razón Social</p>
+                <RazonSocialSelector
+                  value={String(editData.razon_social ?? "")}
+                  onChange={(id, rs, cuit) => setEditData((prev) => ({
+                    ...prev, razon_social_id: id, razon_social: rs,
+                    ...(cuit !== undefined ? { cuit: cuit ?? "" } : {}),
+                  }))}
+                />
+              </div>
+            ) : (
+              <FieldCard label="Razón Social" fieldKey="razon_social" value={d?.razon_social as string} full {...fieldProps} />
+            )}
+            <FieldCard label="CUIT" fieldKey="cuit" value={d?.cuit as string} {...fieldProps} />
+
+            {!editing && hermanas.length > 0 && (
+              <div className="col-span-full rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400/70 mb-3">Otras marcas de esta razón social</p>
+                <div className="flex flex-wrap gap-2">
+                  {hermanas.map((m) => (
+                    <span key={m.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-sm text-violet-300 font-medium">
+                      {m.marca || `#${m.id_cliente}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      case "ubicacion":
+        return (
+          <div className="grid grid-cols-3 gap-4">
+            <FieldCard label="Domicilio" fieldKey="domicilio" value={d?.domicilio as string} full {...fieldProps} />
+            <FieldCard label="Localidad" fieldKey="localidad" value={d?.localidad as string} {...fieldProps} />
+            <FieldCard label="Provincia" fieldKey="provincia" value={d?.provincia as string} {...fieldProps} />
+            <FieldCard label="País"      fieldKey="pais"      value={d?.pais as string}      {...fieldProps} />
+          </div>
+        )
+      case "contacto":
+        return (
+          <div className="grid grid-cols-3 gap-4">
+            <FieldCard label="Teléfono" fieldKey="telefono" value={d?.telefono as string} {...fieldProps} />
+          </div>
+        )
+      case "transporte":
+        return (
+          <div className="grid grid-cols-3 gap-4">
+            <FieldCard label="Transporte" fieldKey="transporte" value={d?.transporte as string} full {...fieldProps} />
+          </div>
+        )
+      case "notas":
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <FieldCard label="Observaciones" fieldKey="observaciones" value={d?.observaciones as string} {...fieldProps} />
+          </div>
+        )
+      case "productos":
+        return cliente ? (
+          <ProductosTab clienteId={cliente.id} productos={productos} onProductosChange={setProductos} />
+        ) : null
     }
   }
 
-  const displayCliente = editing ? editData : (cliente as Record<string, unknown> | null)
-  const grad = getAvatarGrad(cliente?.rubro)
-  const activeFields = FIELDS.filter(f => f.group === activeGroup)
-  const { label: activeLabel, icon: ActiveIcon, description: activeDesc } = GROUP_CONFIG[activeGroup]
-
   return (
     <Dialog open={!!cliente} onOpenChange={handleOpen}>
-      <DialogContent showCloseButton={false} className="w-[95vw] max-w-[1400px] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0 bg-card border-border shadow-2xl">
+      <DialogContent
+        showCloseButton={false}
+        className="w-[95vw] max-w-[900px] h-[85vh] max-h-[85vh] overflow-hidden flex flex-col p-0 bg-card border-border shadow-2xl rounded-2xl"
+      >
+        {/* ── Gradient top strip ── */}
+        <div className="h-1 rounded-t-2xl shrink-0" style={{ background: `linear-gradient(to right, ${gFrom}, ${gTo})` }} />
 
-        {/* ── Top header ── */}
-        <DialogHeader className="px-6 py-4 border-b border-border shrink-0">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-primary-foreground font-bold text-base border border-border shrink-0 shadow-md"
-                style={{ background: `linear-gradient(135deg, ${grad.from}, ${grad.to})` }}
-              >
-                {(String(displayCliente?.marca || ""))?.[0]?.toUpperCase() || "?"}
-              </div>
-              <div>
-                <DialogTitle className="text-[15px] text-foreground font-semibold leading-tight">
-                  {String(displayCliente?.marca || "—")}
-                </DialogTitle>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <DialogDescription className="text-muted-foreground text-xs">
-                    Cliente #{cliente?.id_cliente}
-                  </DialogDescription>
-                  {cliente?.rubro && (
-                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted/50 border border-border px-2 py-0.5 rounded-md">
-                      {cliente.rubro}
-                    </span>
-                  )}
-                </div>
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-lg"
+              style={{ background: `linear-gradient(135deg, ${gFrom}, ${gTo})` }}
+            >
+              {String(d?.marca || "?")[0]?.toUpperCase()}
+            </div>
+            <div>
+              <DialogTitle className="text-base font-bold text-foreground leading-tight">
+                {String(d?.marca || "—")}
+              </DialogTitle>
+              <div className="flex items-center flex-wrap gap-2 mt-0.5">
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Cliente #{cliente?.id_cliente}
+                </DialogDescription>
+                {cliente?.rubro && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                    style={{ color: gTo, borderColor: `${gTo}50`, background: `${gFrom}25` }}>
+                    {cliente.rubro}
+                  </span>
+                )}
+                {!editing && d?.razon_social && (
+                  <span className="text-xs text-muted-foreground">· {String(d.razon_social)}</span>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {!editing ? (
-                <Button
-                  size="sm" onClick={startEditing}
-                  className="bg-muted/50 hover:bg-muted text-secondary-foreground border border-border text-xs h-8 rounded-lg gap-1.5"
-                >
-                  <Pencil className="w-3.5 h-3.5" />Editar
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            {saveMsg === "success" && (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
+                <CheckCircle2 className="w-3.5 h-3.5" />Guardado
+              </span>
+            )}
+            {saveMsg === "error" && (
+              <span className="flex items-center gap-1.5 text-xs text-red-400 font-semibold">
+                <AlertCircle className="w-3.5 h-3.5" />Error
+              </span>
+            )}
+            {!isProductosTab && (!editing ? (
+              <Button size="sm" onClick={startEditing}
+                className="h-8 text-xs rounded-lg bg-muted/50 hover:bg-muted text-secondary-foreground border border-border gap-1.5 px-3">
+                <Pencil className="w-3.5 h-3.5" />Editar
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={cancelEditing}
+                  className="h-8 text-xs rounded-lg bg-transparent border-border text-muted-foreground hover:bg-muted/50">
+                  Cancelar
                 </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline" size="sm" onClick={cancelEditing}
-                    className="bg-transparent border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground text-xs h-8 rounded-lg"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    size="sm" onClick={handleSave} disabled={saving}
-                    className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs h-8 rounded-lg gap-1.5"
-                  >
-                    {saving
-                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      : <Check className="w-3.5 h-3.5" />
-                    }
-                    Guardar
-                  </Button>
-                </>
-              )}
-              {/* Divider + close */}
-              <div className="w-px h-5 bg-border mx-1" />
-              <button
-                type="button"
-                onClick={() => handleOpen(false)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                aria-label="Cerrar"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+                <Button size="sm" onClick={handleSave} disabled={saving}
+                  className="h-8 text-xs rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 gap-1.5 px-3">
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Guardar
+                </Button>
+              </>
+            ))}
+            <div className="w-px h-5 bg-border" />
+            <button type="button" onClick={() => handleOpen(false)}
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        </DialogHeader>
-
-        {/* ── Two-column body ── */}
-        <div className="flex flex-1 overflow-hidden min-h-0">
-
-          {/* Left nav */}
-          <nav className="w-[230px] shrink-0 border-r border-border bg-muted/20 flex flex-col py-2 overflow-y-auto">
-            {Object.entries(GROUP_CONFIG).map(([key, { label, icon: Icon }]) => {
-              const isActive = activeGroup === key
-              // Count filled fields for this group
-              const groupFields = FIELDS.filter(f => f.group === key)
-              const filledCount = groupFields.filter(f => {
-                const val = displayCliente?.[f.key]
-                return val != null && String(val).trim() !== ""
-              }).length
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setActiveGroup(key)}
-                  className={`relative flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 group ${
-                    isActive
-                      ? "text-gold"
-                      : "text-muted-foreground hover:text-secondary-foreground"
-                  }`}
-                >
-                  {/* Right active indicator */}
-                  {isActive && (
-                    <span className="absolute right-0 top-2 bottom-2 w-[2px] bg-gold rounded-l-full" />
-                  )}
-                  {/* Active bg */}
-                  {isActive && (
-                    <span className="absolute inset-0 bg-gold/6 rounded-none" />
-                  )}
-
-                  <div className={`relative rounded-lg p-1.5 shrink-0 border transition-colors ${
-                    isActive
-                      ? "bg-gold/10 border-gold/25"
-                      : "bg-muted/30 border-border group-hover:border-border"
-                  }`}>
-                    <Icon className={`w-3.5 h-3.5 ${isActive ? "text-gold" : "text-muted-foreground group-hover:text-secondary-foreground"}`} strokeWidth={1.5} />
-                  </div>
-
-                  <div className="relative flex-1 min-w-0">
-                    <p className="text-xs font-medium leading-none truncate">{label}</p>
-                    <p className={`text-[10px] mt-1 tabular-nums ${isActive ? "text-gold/60" : "text-muted-foreground"}`}>
-                      {filledCount}/{groupFields.length} campos
-                    </p>
-                  </div>
-                </button>
-              )
-            })}
-          </nav>
-
-          {/* Right content */}
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-
-            {/* Section sub-header */}
-            <div className="px-7 py-4 border-b border-border bg-muted/20 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <ActiveIcon className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground leading-none">{activeLabel}</h3>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{activeDesc}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Scrollable fields */}
-            <div className="flex-1 overflow-y-auto px-7 py-6">
-
-              {/* Feedback banners */}
-              {saveMsg === "success" && (
-                <div className="flex items-center gap-2.5 p-3.5 mb-5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />Cliente actualizado correctamente
-                </div>
-              )}
-              {saveMsg === "error" && (
-                <div className="flex items-center gap-2.5 p-3.5 mb-5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm">
-                  <AlertCircle className="w-4 h-4 shrink-0" />Error al guardar. Verifica los datos e intenta de nuevo.
-                </div>
-              )}
-
-              {/* Fields grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
-                {activeFields.map((field) => (
-                  <div key={field.key} className={field.span ? "sm:col-span-2 lg:col-span-3" : ""}>
-                    <label
-                      htmlFor={`modal-${field.key}`}
-                      className="block text-xs font-medium text-muted-foreground mb-1.5"
-                    >
-                      {field.label}
-                    </label>
-                    {editing && field.key === "razon_social" ? (
-                      <RazonSocialSelector
-                        value={String(editData.razon_social ?? "")}
-                        onChange={(id, rs, cuit) => {
-                          setEditData((prev) => ({
-                            ...prev,
-                            razon_social_id: id,
-                            razon_social: rs,
-                            ...(cuit !== undefined ? { cuit: cuit ?? "" } : {}),
-                          }))
-                        }}
-                      />
-                    ) : editing ? (
-                      <Input
-                        id={`modal-${field.key}`}
-                        type={field.type || "text"}
-                        inputMode={field.type === "number" ? "numeric" : undefined}
-                        autoComplete="off"
-                        value={String(editData[field.key] ?? "")}
-                        onChange={(e) => setEditData((prev) => ({ ...prev, [field.key]: e.target.value || null }))}
-                        className="h-10 rounded-lg bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/10 text-sm"
-                      />
-                    ) : (
-                      <div className="h-10 flex items-center px-3.5 bg-muted/30 border border-border rounded-lg">
-                        {displayCliente?.[field.key] != null && String(displayCliente[field.key]).trim() !== ""
-                          ? <span className="text-sm text-secondary-foreground truncate">{String(displayCliente[field.key])}</span>
-                          : <span className="text-sm text-muted-foreground">—</span>
-                        }
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Otras marcas de la misma razón social */}
-              {!editing && activeGroup === "general" && hermanas.length > 0 && (
-                <div className="mt-6 pt-5 border-t border-border">
-                  <p className="text-xs font-medium text-muted-foreground mb-3">
-                    Otras marcas de esta razón social
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {hermanas.map((m) => (
-                      <span
-                        key={m.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/40 border border-border text-xs text-secondary-foreground"
-                      >
-                        <Building2 className="w-3 h-3 text-muted-foreground" />
-                        {m.marca || `Cliente #${m.id_cliente}`}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
         </div>
+
+        {/* ── Tab bar ── */}
+        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border bg-muted/10 overflow-x-auto shrink-0">
+          {TABS.map(({ key, label, icon: Icon }) => {
+            const isActive = tab === key
+            const isProd = key === "productos"
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setTab(key); if (editing) cancelEditing() }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 border ${
+                  isActive
+                    ? isProd
+                      ? "bg-gold/15 text-gold border-gold/35 shadow-sm"
+                      : "bg-gold/15 text-gold border-gold/35 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" strokeWidth={2} />
+                {label}
+                {isProd && productos.length > 0 && (
+                  <span className={`ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    isActive ? "bg-gold/20 text-gold" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {productos.length}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ── Tab content ── */}
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+          {renderTab()}
+        </div>
+
       </DialogContent>
     </Dialog>
   )

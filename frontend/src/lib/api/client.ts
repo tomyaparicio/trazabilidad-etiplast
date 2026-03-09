@@ -6,7 +6,7 @@
  */
 
 import type {
-  Cliente, ClientesListParams, ClientesListResponse,
+  Cliente, ClienteProducto, ClientesListParams, ClientesListResponse,
   DashboardStats, Filtros,
   RazonSocial,
   UserAdmin, CreateUserRequest, UpdateUserRequest,
@@ -142,6 +142,15 @@ export const api = {
       post<RazonSocial>("/api/razones-sociales", data),
     update: (id: number, data: { razon_social?: string; cuit?: string }) =>
       put<RazonSocial>(`/api/razones-sociales/${id}`, data),
+  },
+  /** Productos de clientes (1:N) */
+  productos: {
+    create: (clienteId: number, data: object) =>
+      post<ClienteProducto>(`/api/clientes/${clienteId}/productos`, data),
+    update: (clienteId: number, productoId: number, data: object) =>
+      put<ClienteProducto>(`/api/clientes/${clienteId}/productos/${productoId}`, data),
+    delete: (clienteId: number, productoId: number) =>
+      del<void>(`/api/clientes/${clienteId}/productos/${productoId}`),
   },
   /** Órdenes de Trabajo */
   ordenes: {

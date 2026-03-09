@@ -1,15 +1,43 @@
 import { cookies } from "next/headers"
 import { apiFetchServer } from "@/lib/api/server"
 import type { DashboardStats } from "@/types/database"
-import { StatCard } from "@/components/stat-card"
 import { RubroPieChart } from "@/components/charts/rubro-pie-chart"
 import { ProvinciaBarChart } from "@/components/charts/provincia-bar-chart"
-import { AlertCircle, Users } from "lucide-react"
+import {
+  AlertCircle, Users, Building2, Boxes, Tag, MapPin,
+  TrendingUp, PackageCheck, AlertTriangle,
+} from "lucide-react"
 
 const CHART_COLORS = [
   "#6366f1", "#f5eb4a", "#8b5cf6", "#06b6d4",
   "#10b981", "#f59e0b", "#ec4899", "#3b82f6", "#f97316", "#14b8a6",
 ]
+
+// ─── Mini stat card ───────────────────────────────────────────────────────────
+function MiniStat({
+  label, value, sub, icon: Icon, color, accent,
+}: {
+  label: string; value: number | string; sub?: string
+  icon: React.ElementType; color: string; accent: string
+}) {
+  const nf = new Intl.NumberFormat("es-AR")
+  return (
+    <div className="flex flex-col justify-between rounded-2xl border border-border bg-card/80 p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${accent}18`, border: `1px solid ${accent}35` }}>
+          <Icon className="w-4.5 h-4.5" style={{ color: accent }} strokeWidth={1.8} />
+        </div>
+      </div>
+      <div>
+        <p className="text-3xl font-black tabular-nums leading-none" style={{ color }}>
+          {typeof value === "number" ? nf.format(value) : value}
+        </p>
+        {sub && <p className="text-xs text-muted-foreground mt-1.5">{sub}</p>}
+      </div>
+    </div>
+  )
+}
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -19,7 +47,6 @@ export default async function DashboardPage() {
     if (token) {
       const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
       const email: string = payload.sub || ""
-      // Intentar traer nombre_completo desde el backend
       try {
         const me = await apiFetchServer<{ nombre: string | null; apellido: string | null; nombre_completo: string }>("/auth/me")
         userName = (me.nombre || me.apellido) ? me.nombre_completo : email.split("@")[0] || "Usuario"
@@ -64,65 +91,59 @@ export default async function DashboardPage() {
     )
   }
 
-  const stats = data as DashboardStats
+  const stats = data
   const nf = new Intl.NumberFormat("es-AR")
   const topRubro = stats.rubros[0]
   const topProvincia = stats.provincias[0]
+  const pctConProductos = stats.total_clientes > 0
+    ? Math.round((stats.marcas_con_productos / stats.total_clientes) * 100)
+    : 0
+  const promProductosPorMarca = stats.marcas_con_productos > 0
+    ? (stats.total_productos / stats.marcas_con_productos).toFixed(1)
+    : "0"
 
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-[1280px] mx-auto">
 
-      {/* ── Hero + side stats ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* ── Hero ── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a1866] via-[#2520a0] to-[#292d96] border border-white/10 p-8 shadow-xl">
+        <div
+          className="absolute inset-0 opacity-[0.06] pointer-events-none"
+          style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
+            backgroundSize: "48px 48px",
+          }}
+        />
+        <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/5 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-16 left-16 w-56 h-56 bg-[#6366f1]/20 rounded-full blur-[80px] pointer-events-none" />
 
-        {/* Hero card — bienvenida + total clientes (azul) */}
-        <div className="lg:col-span-2 relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a1866] via-[#2520a0] to-[#292d96] border border-white/10 p-8 min-h-[240px] flex flex-col justify-between shadow-xl">
-          {/* Grid overlay */}
-          <div
-            className="absolute inset-0 opacity-[0.06] pointer-events-none"
-            style={{
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
-                                linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
-              backgroundSize: "48px 48px",
-            }}
-          />
-          {/* Ambient glows */}
-          <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/5 rounded-full blur-[100px] pointer-events-none" />
-          <div className="absolute -bottom-16 left-16 w-56 h-56 bg-[#6366f1]/20 rounded-full blur-[80px] pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+          {/* Left — greeting + total */}
+          <div>
+            <h2 className="text-2xl font-bold text-white tracking-tight">
+              {greeting}, <span className="text-[#f5eb4a]">{userName}</span>
+            </h2>
+            <p className="text-white/60 text-sm mt-1 mb-6">Te mostramos el resumen del sistema</p>
 
-          <div className="relative z-10">
-            {/* Bienvenida */}
-            <div className="mb-5">
-              <h2 className="text-2xl font-bold text-white tracking-tight">
-                {greeting}, <span className="text-[#f5eb4a]">{userName}</span>
-              </h2>
-              <p className="text-white/70 text-sm mt-1">Te mostramos el resumen de hoy</p>
-            </div>
-            {/* Label */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-3">
               <div className="rounded-lg p-1.5 bg-white/15 border border-white/20">
                 <Users className="w-3.5 h-3.5 text-white" strokeWidth={1.5} />
               </div>
               <span className="text-[11px] font-semibold text-white/80 uppercase tracking-[0.2em]">
-                Total Clientes
+                Total Marcas
               </span>
             </div>
-
-            {/* Big number */}
             <p className="text-[72px] font-black text-white tabular-nums leading-none tracking-tight drop-shadow-sm">
               {nf.format(stats.total_clientes)}
             </p>
-            <p className="text-white/70 text-sm mt-2 mb-6">
-              Registros activos en el sistema ERP
-            </p>
 
-            {/* Tags row */}
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 mt-5">
               {topRubro && (
                 <span className="inline-flex items-center gap-2 bg-white/15 border border-white/25 rounded-xl px-3.5 py-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#f5eb4a] shrink-0" />
                   <span className="text-white text-xs font-medium">
-                    {topRubro.nombre} · {nf.format(topRubro.cantidad)} clientes
+                    {topRubro.nombre} · {nf.format(topRubro.cantidad)} marcas
                   </span>
                 </span>
               )}
@@ -130,30 +151,135 @@ export default async function DashboardPage() {
                 <span className="inline-flex items-center gap-2 bg-white/15 border border-white/25 rounded-xl px-3.5 py-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#a5b4fc] shrink-0" />
                   <span className="text-white text-xs font-medium">
-                    {topProvincia.nombre} · {nf.format(topProvincia.cantidad)} clientes
+                    {topProvincia.nombre} · {nf.format(topProvincia.cantidad)} marcas
                   </span>
                 </span>
               )}
             </div>
           </div>
+
+          {/* Right — 3 hero counters inline */}
+          <div className="flex flex-row gap-5 lg:gap-8 shrink-0">
+            <div className="text-center">
+              <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Razones Sociales</p>
+              <p className="text-4xl font-black text-white tabular-nums">{nf.format(stats.total_razones_sociales)}</p>
+              <p className="text-[11px] text-white/50 mt-1">entidades legales</p>
+            </div>
+            <div className="w-px bg-white/15 self-stretch" />
+            <div className="text-center">
+              <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Productos</p>
+              <p className="text-4xl font-black text-[#f5eb4a] tabular-nums">{nf.format(stats.total_productos)}</p>
+              <p className="text-[11px] text-white/50 mt-1">especificaciones registradas</p>
+            </div>
+            <div className="w-px bg-white/15 self-stretch" />
+            <div className="text-center">
+              <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Prom. por marca</p>
+              <p className="text-4xl font-black text-[#a5b4fc] tabular-nums">{promProductosPorMarca}</p>
+              <p className="text-[11px] text-white/50 mt-1">productos / marca</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stat grid ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <MiniStat
+          label="Marcas registradas"
+          value={stats.total_clientes}
+          sub="Clientes / marcas comerciales"
+          icon={Users}
+          color="#f5eb4a"
+          accent="#f5eb4a"
+        />
+        <MiniStat
+          label="Razones Sociales"
+          value={stats.total_razones_sociales}
+          sub={`${stats.marcas_sin_rs > 0 ? `${stats.marcas_sin_rs} marcas sin vincular` : "Todas las marcas vinculadas"}`}
+          icon={Building2}
+          color="#a5b4fc"
+          accent="#6366f1"
+        />
+        <MiniStat
+          label="Productos totales"
+          value={stats.total_productos}
+          sub={`En ${nf.format(stats.marcas_con_productos)} marcas (${pctConProductos}%)`}
+          icon={Boxes}
+          color="#34d399"
+          accent="#10b981"
+        />
+        <MiniStat
+          label="Rubros activos"
+          value={stats.rubros.length}
+          sub={`${nf.format(stats.provincias.length)} provincias con cobertura`}
+          icon={Tag}
+          color="#fb923c"
+          accent="#f97316"
+        />
+      </div>
+
+      {/* ── Alertas ── */}
+      {(stats.marcas_sin_rs > 0) && (
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/8 px-5 py-4">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-300">
+            <span className="font-semibold">{nf.format(stats.marcas_sin_rs)} marcas</span> no tienen razón social vinculada.
+            Vinculálas desde el detalle de cada cliente.
+          </p>
+        </div>
+      )}
+
+      {/* ── Cobertura de productos ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Coverage bar */}
+        <div className="rounded-2xl border border-border bg-card/80 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <PackageCheck className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-sm font-semibold text-foreground">Cobertura de productos</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-5">Marcas con al menos un producto registrado</p>
+
+          <div className="flex items-end gap-3 mb-3">
+            <p className="text-4xl font-black tabular-nums text-emerald-400">{pctConProductos}%</p>
+            <p className="text-sm text-muted-foreground pb-1">
+              {nf.format(stats.marcas_con_productos)} de {nf.format(stats.total_clientes)} marcas
+            </p>
+          </div>
+          <div className="h-3 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-500/70 transition-all"
+              style={{ width: `${pctConProductos}%` }}
+            />
+          </div>
+          {stats.total_clientes - stats.marcas_con_productos > 0 && (
+            <p className="text-xs text-muted-foreground mt-3">
+              {nf.format(stats.total_clientes - stats.marcas_con_productos)} marcas sin productos aún
+            </p>
+          )}
         </div>
 
-        {/* Right column — 2 mini stat cards */}
-        <div className="flex flex-col gap-5">
-          <StatCard
-            label="Rubros Activos"
-            value={stats.rubros.length}
-            icon="tags"
-            accent="#f5eb4a"
-            description="Categorías de producto"
-          />
-          <StatCard
-            label="Provincias"
-            value={stats.provincias.length}
-            icon="map-pin"
-            accent="#6366f1"
-            description="Cobertura geográfica"
-          />
+        {/* Prom products */}
+        <div className="rounded-2xl border border-border bg-card/80 p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4 text-violet-400" />
+            <h3 className="text-sm font-semibold text-foreground">Productos por marca</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-5">Promedio entre marcas con productos</p>
+
+          <p className="text-4xl font-black tabular-nums text-violet-400 mb-2">{promProductosPorMarca}</p>
+          <p className="text-xs text-muted-foreground">
+            {nf.format(stats.total_productos)} productos en total entre {nf.format(stats.marcas_con_productos)} marcas
+          </p>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-muted/30 border border-border px-4 py-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Total marcas</p>
+              <p className="text-xl font-black tabular-nums text-foreground">{nf.format(stats.total_clientes)}</p>
+            </div>
+            <div className="rounded-xl bg-muted/30 border border-border px-4 py-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Total productos</p>
+              <p className="text-xl font-black tabular-nums text-foreground">{nf.format(stats.total_productos)}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -167,23 +293,18 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Rubros breakdown — progress bars ── */}
+      {/* ── Rubros breakdown ── */}
       <div className="bg-card/80 border border-border rounded-2xl p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-base font-semibold text-foreground">Distribución por Rubro</h3>
-            <p className="text-muted-foreground text-xs mt-0.5">
-              Proporción de clientes por categoría
-            </p>
+            <p className="text-muted-foreground text-xs mt-0.5">Proporción de marcas por categoría</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</p>
-            <p className="text-lg font-bold text-foreground tabular-nums">
-              {nf.format(stats.total_clientes)}
-            </p>
+            <p className="text-lg font-bold text-foreground tabular-nums">{nf.format(stats.total_clientes)}</p>
           </div>
         </div>
-
         <div className="space-y-5">
           {stats.rubros.map((rubro, i) => {
             const pct = stats.total_clientes > 0
@@ -194,34 +315,20 @@ export default async function DashboardPage() {
               <div key={rubro.nombre}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2.5">
-                    <div
-                      className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
-                    />
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
                     <span className="text-sm font-medium text-secondary-foreground">{rubro.nombre}</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-xs text-muted-foreground tabular-nums hidden sm:block">
-                      {nf.format(rubro.cantidad)} clientes
+                      {nf.format(rubro.cantidad)} marcas
                     </span>
-                    <span
-                      className="text-sm font-bold tabular-nums min-w-[42px] text-right"
-                      style={{ color }}
-                    >
+                    <span className="text-sm font-bold tabular-nums min-w-[42px] text-right" style={{ color }}>
                       {pct}%
                     </span>
                   </div>
                 </div>
-                {/* Track */}
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${pct}%`,
-                      backgroundColor: color,
-                      opacity: 0.8,
-                    }}
-                  />
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.8 }} />
                 </div>
               </div>
             )

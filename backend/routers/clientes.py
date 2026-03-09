@@ -358,3 +358,79 @@ async def actualizar_cliente(
         .first()
     )
     return cliente.to_dict()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CRUD de cliente_productos (1:N)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.post("/clientes/{cliente_id}/productos", status_code=201, summary="Agregar producto a un cliente")
+async def crear_producto_cliente(
+    cliente_id: int,
+    datos: Dict[str, Any] = Body(...),
+    _user: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    if not db.query(Cliente).filter(Cliente.id == cliente_id).first():
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    producto = ClienteProducto(
+        cliente_id=cliente_id,
+        nombre=datos.get("nombre"),
+        envase=datos.get("envase"),
+        volumen_cantidad=_to_float(datos.get("volumen_cantidad")),
+        volumen_unidad=datos.get("volumen_unidad"),
+        lamina=datos.get("lamina"),
+        muestra=datos.get("muestra"),
+        alto=_to_float(datos.get("alto")),
+        cilindro=_to_float(datos.get("cilindro")),
+        cierre=_to_float(datos.get("cierre")),
+    )
+    db.add(producto)
+    db.commit()
+    db.refresh(producto)
+    return producto.to_dict()
+
+
+@router.put("/clientes/{cliente_id}/productos/{producto_id}", summary="Actualizar producto de un cliente")
+async def actualizar_producto_cliente(
+    cliente_id: int,
+    producto_id: int,
+    datos: Dict[str, Any] = Body(...),
+    _user: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    producto = db.query(ClienteProducto).filter(
+        ClienteProducto.id == producto_id,
+        ClienteProducto.cliente_id == cliente_id,
+    ).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    for campo in ("nombre", "envase", "volumen_unidad", "lamina", "muestra"):
+        if campo in datos:
+            setattr(producto, campo, datos[campo])
+    for campo in ("volumen_cantidad", "alto", "cilindro", "cierre"):
+        if campo in datos:
+            setattr(producto, campo, _to_float(datos[campo]))
+
+    db.commit()
+    db.refresh(producto)
+    return producto.to_dict()
+
+
+@router.delete("/clientes/{cliente_id}/productos/{producto_id}", status_code=204, summary="Eliminar producto de un cliente")
+async def eliminar_producto_cliente(
+    cliente_id: int,
+    producto_id: int,
+    _user: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    producto = db.query(ClienteProducto).filter(
+        ClienteProducto.id == producto_id,
+        ClienteProducto.cliente_id == cliente_id,
+    ).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    db.delete(producto)
+    db.commit()

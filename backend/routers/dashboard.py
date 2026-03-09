@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import verify_token
-from models import Cliente, ClienteUbicacion, Provincia, Rubro
+from models import Cliente, ClienteProducto, ClienteUbicacion, Provincia, RazonSocial, Rubro
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -24,8 +24,34 @@ async def dashboard_stats(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
-    # Total de clientes activos
+    # Total de marcas (= clientes)
     total_clientes = db.query(func.count(Cliente.id)).scalar()
+
+    # Total de razones sociales
+    total_razones_sociales = db.query(func.count(RazonSocial.id)).scalar()
+
+    # Total de productos distintos (cliente_productos)
+    total_productos = db.query(func.count(ClienteProducto.id)).scalar()
+
+    # Marcas sin razón social vinculada
+    marcas_sin_rs = (
+        db.query(func.count(Cliente.id))
+        .filter(Cliente.razon_social_id.is_(None))
+        .scalar()
+    )
+
+    # Promedio de productos por marca (solo marcas con al menos 1)
+    avg_subq = (
+        db.query(func.count(ClienteProducto.id).label("cnt"))
+        .filter(ClienteProducto.cliente_id == Cliente.id)
+        .correlate(Cliente)
+        .scalar_subquery()
+    )
+    marcas_con_productos = (
+        db.query(func.count(Cliente.id))
+        .filter(avg_subq > 0)
+        .scalar()
+    )
 
     # Distribución por rubro (usando catálogo)
     rubros_query = (
@@ -57,9 +83,13 @@ async def dashboard_stats(
     provincias = [{"nombre": nombre, "cantidad": cantidad} for nombre, cantidad in provincias_query]
 
     return {
-        "total_clientes": total_clientes,
-        "rubros":         rubros,
-        "provincias":     provincias,
+        "total_clientes":        total_clientes,
+        "total_razones_sociales": total_razones_sociales,
+        "total_productos":        total_productos,
+        "marcas_sin_rs":          marcas_sin_rs,
+        "marcas_con_productos":   marcas_con_productos,
+        "rubros":                 rubros,
+        "provincias":             provincias,
     }
 
 

@@ -2,7 +2,7 @@
  * Tipos para la API.
  */
 
-export type { Cliente, DashboardStats, Filtros, RazonSocial } from "@/types/database"
+export type { Cliente, ClienteProducto, DashboardStats, Filtros, RazonSocial } from "@/types/database"
 
 export type ClientesListResponse = {
   data: unknown[]

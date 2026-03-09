@@ -318,6 +318,22 @@ MIGRATIONS_ORDENES = [
 
 MIGRATIONS_SPLIT_MARCAS = [
 
+    ("Convertir índice único id_cliente a no-único",
+     """
+     DO $$
+     BEGIN
+         -- Dropear el índice único si existe (esquema legacy)
+         IF EXISTS (
+             SELECT 1 FROM pg_indexes
+             WHERE tablename = 'clientes'
+               AND indexname = 'ix_clientes_id_cliente'
+         ) THEN
+             DROP INDEX ix_clientes_id_cliente;
+             CREATE INDEX ix_clientes_id_cliente ON clientes (id_cliente);
+         END IF;
+     END $$;
+     """),
+
     ("Split marcas con '/' en clientes",
      """
      DO $$
@@ -385,6 +401,56 @@ MIGRATIONS_SPLIT_MARCAS = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Deduplicación de razones_sociales
+# Agrupa por nombre (case-insensitive, trim) y conserva el ID más bajo.
+# Antes de borrar, rescata el CUIT del grupo si el canónico no lo tiene.
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_DEDUP_RAZONES = [
+
+    ("Rescatar CUIT en entrada canónica de razones_sociales",
+     """
+     UPDATE razones_sociales rs
+     SET cuit = sub.best_cuit
+     FROM (
+         SELECT
+             MIN(id)                                                    AS canonical_id,
+             MIN(cuit) FILTER (WHERE cuit IS NOT NULL AND TRIM(cuit) != '') AS best_cuit
+         FROM razones_sociales
+         GROUP BY LOWER(TRIM(razon_social))
+     ) sub
+     WHERE rs.id = sub.canonical_id
+       AND (rs.cuit IS NULL OR TRIM(rs.cuit) = '')
+       AND sub.best_cuit IS NOT NULL;
+     """),
+
+    ("Revincular clientes al ID canónico de su razón social",
+     """
+     WITH dedup AS (
+         SELECT id,
+                MIN(id) OVER (PARTITION BY LOWER(TRIM(razon_social))) AS canonical_id
+         FROM razones_sociales
+     )
+     UPDATE clientes
+     SET razon_social_id = dedup.canonical_id
+     FROM dedup
+     WHERE clientes.razon_social_id = dedup.id
+       AND dedup.id <> dedup.canonical_id;
+     """),
+
+    ("Eliminar razones_sociales duplicadas (conservar la de menor ID por nombre)",
+     """
+     DELETE FROM razones_sociales
+     WHERE id NOT IN (
+         SELECT MIN(id)
+         FROM razones_sociales
+         GROUP BY LOWER(TRIM(razon_social))
+     );
+     """),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -402,7 +468,7 @@ def run_migrations():
     Base.metadata.create_all(bind=engine)
     print("  ✓ Esquema verificado\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES
 
     with engine.connect() as conn:
         for name, sql in all_migrations:
