@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS
 from database import get_db
+from dependencies import verify_token
 from models import User
 
 logger = logging.getLogger(__name__)
@@ -31,9 +32,12 @@ def _verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def _create_token(email: str, role: str = "user") -> str:
+def _create_token(email: str, role: str = "user", user_id: int | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    return jwt.encode({"sub": email, "role": role, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    payload: dict = {"sub": email, "role": role, "exp": expire}
+    if user_id is not None:
+        payload["user_id"] = user_id
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 @router.post("/login", summary="Iniciar sesión")
@@ -43,4 +47,12 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Usuario inactivo")
-    return {"access_token": _create_token(user.email, user.role or "user"), "token_type": "bearer"}
+    return {"access_token": _create_token(user.email, user.role or "user", user.id), "token_type": "bearer"}
+
+
+@router.get("/me", summary="Datos del usuario autenticado")
+def me(token_data: dict = Depends(verify_token), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == token_data["email"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return user.to_dict()

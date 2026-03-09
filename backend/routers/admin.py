@@ -18,10 +18,14 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 class CreateUserRequest(BaseModel):
     email: str
     password: str
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
     role: str = "user"
 
 
 class UpdateUserRequest(BaseModel):
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -56,7 +60,13 @@ def crear_usuario(
         raise HTTPException(status_code=400, detail="El usuario ya existe")
 
     hashed = _hash_password(data.password)
-    user = User(email=email, hashed_password=hashed, role=data.role)
+    user = User(
+        email=email,
+        hashed_password=hashed,
+        nombre=(data.nombre or "").strip() or None,
+        apellido=(data.apellido or "").strip() or None,
+        role=data.role,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -74,6 +84,10 @@ def actualizar_usuario(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if data.nombre is not None:
+        user.nombre = data.nombre.strip() or None
+    if data.apellido is not None:
+        user.apellido = data.apellido.strip() or None
     if data.role is not None:
         if data.role not in ("admin", "user"):
             raise HTTPException(status_code=400, detail="El rol debe ser 'admin' o 'user'")

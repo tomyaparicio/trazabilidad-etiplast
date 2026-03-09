@@ -5,7 +5,13 @@
  * Importar desde @/lib/api para usar las acciones centralizadas.
  */
 
-import type { Cliente, ClientesListParams, ClientesListResponse, DashboardStats, Filtros, UserAdmin, CreateUserRequest, UpdateUserRequest } from "./types"
+import type {
+  Cliente, ClientesListParams, ClientesListResponse,
+  DashboardStats, Filtros,
+  RazonSocial,
+  UserAdmin, CreateUserRequest, UpdateUserRequest,
+  OrdenTrabajo, OrdenesListResponse, OrdenesListParams, CreateOrdenRequest,
+} from "./types"
 
 const PROXY = "/api/backend"
 
@@ -97,7 +103,7 @@ export const api = {
     stats: () => get<DashboardStats>("/api/dashboard/stats"),
     filtros: () => get<Filtros>("/api/dashboard/filtros"),
   },
-  /** Auth (usa rutas Next.js locales) */
+  /** Auth (usa rutas Next.js locales + proxy para /me) */
   auth: {
     login: (email: string, password: string) =>
       fetch("/api/auth/login", {
@@ -115,11 +121,37 @@ export const api = {
         body: JSON.stringify({ email, password }),
         credentials: "include",
       }),
+    /** Datos del usuario autenticado (via proxy → backend /auth/me) */
+    me: () => get<UserAdmin>("/api/auth/me"),
   },
   /** Admin (gestión de usuarios) */
   admin: {
     listUsers: () => get<UserAdmin[]>("/api/admin/usuarios"),
     createUser: (data: CreateUserRequest) => post<UserAdmin>("/api/admin/usuarios", data),
     updateUser: (id: number, data: UpdateUserRequest) => put<UserAdmin>(`/api/admin/usuarios/${id}`, data),
+  },
+  /** Razones Sociales (entidades legales que agrupan marcas) */
+  razonessociales: {
+    list: (params?: { search?: string; per_page?: number }) => {
+      const p = params as Record<string, string | number | undefined> | undefined
+      return get<{ data: RazonSocial[]; total: number }>("/api/razones-sociales", p)
+    },
+    get: (id: number) =>
+      get<RazonSocial & { marcas: { id: number; id_cliente: number | null; marca: string | null }[] }>(`/api/razones-sociales/${id}`),
+    create: (data: { razon_social: string; cuit?: string }) =>
+      post<RazonSocial>("/api/razones-sociales", data),
+    update: (id: number, data: { razon_social?: string; cuit?: string }) =>
+      put<RazonSocial>(`/api/razones-sociales/${id}`, data),
+  },
+  /** Órdenes de Trabajo */
+  ordenes: {
+    list: (params?: OrdenesListParams) => {
+      const p = params as Record<string, string | number | undefined> | undefined
+      return get<OrdenesListResponse>("/api/ordenes", p)
+    },
+    get: (id: number) => get<OrdenTrabajo>(`/api/ordenes/${id}`),
+    create: (data: CreateOrdenRequest) => post<OrdenTrabajo>("/api/ordenes", data),
+    update: (id: number, data: Partial<CreateOrdenRequest>) => put<OrdenTrabajo>(`/api/ordenes/${id}`, data),
+    delete: (id: number) => del<void>(`/api/ordenes/${id}`),
   },
 }

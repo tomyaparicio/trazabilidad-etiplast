@@ -1,64 +1,88 @@
-"""Rutas del dashboard y filtros."""
+"""
+Router del dashboard — Etiplast ERP
+=====================================
+Estadísticas y datos para filtros.
+Usa las tablas de catálogo (rubros, provincias) para queries más eficientes.
+"""
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Cliente
 from dependencies import verify_token
+from models import Cliente, ClienteUbicacion, Provincia, Rubro
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
 
-@router.get("/dashboard/stats", summary="Estadísticas del dashboard")
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /api/dashboard/stats
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/dashboard/stats", summary="Estadísticas generales del sistema")
 async def dashboard_stats(
-    authorization: str = Depends(verify_token),
+    _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
+    # Total de clientes activos
     total_clientes = db.query(func.count(Cliente.id)).scalar()
 
+    # Distribución por rubro (usando catálogo)
     rubros_query = (
-        db.query(Cliente.rubro, func.count(Cliente.id))
-        .group_by(Cliente.rubro)
+        db.query(Rubro.nombre, func.count(Cliente.id).label("cantidad"))
+        .outerjoin(Cliente, Cliente.rubro_id == Rubro.id)
+        .group_by(Rubro.id, Rubro.nombre)
         .order_by(func.count(Cliente.id).desc())
         .all()
     )
-    rubros = [
-        {"nombre": r or "Sin rubro", "cantidad": c}
-        for r, c in rubros_query
-    ]
+    # Clientes sin rubro asignado
+    sin_rubro = (
+        db.query(func.count(Cliente.id))
+        .filter(Cliente.rubro_id.is_(None))
+        .scalar()
+    )
+    rubros = [{"nombre": nombre, "cantidad": cantidad} for nombre, cantidad in rubros_query]
+    if sin_rubro:
+        rubros.append({"nombre": "Sin rubro", "cantidad": sin_rubro})
 
+    # Top 10 provincias (usando catálogo)
     provincias_query = (
-        db.query(Cliente.provincia, func.count(Cliente.id))
-        .group_by(Cliente.provincia)
-        .order_by(func.count(Cliente.id).desc())
+        db.query(Provincia.nombre, func.count(ClienteUbicacion.id).label("cantidad"))
+        .join(ClienteUbicacion, ClienteUbicacion.provincia_id == Provincia.id)
+        .group_by(Provincia.id, Provincia.nombre)
+        .order_by(func.count(ClienteUbicacion.id).desc())
         .limit(10)
         .all()
     )
-    provincias = [
-        {"nombre": p or "Sin provincia", "cantidad": c}
-        for p, c in provincias_query
-    ]
+    provincias = [{"nombre": nombre, "cantidad": cantidad} for nombre, cantidad in provincias_query]
 
     return {
         "total_clientes": total_clientes,
-        "rubros": rubros,
-        "provincias": provincias,
+        "rubros":         rubros,
+        "provincias":     provincias,
     }
 
 
-@router.get("/dashboard/filtros", summary="Rubros y provincias para filtros")
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /api/dashboard/filtros
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/dashboard/filtros", summary="Opciones disponibles para filtros")
 async def obtener_filtros(
-    authorization: str = Depends(verify_token),
+    _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
-    rubros = sorted([
-        r[0] for r in db.query(Cliente.rubro).distinct().all()
-        if r[0]
-    ])
-    provincias = sorted([
-        p[0] for p in db.query(Cliente.provincia).distinct().all()
-        if p[0]
-    ])
+    """
+    Devuelve rubros y provincias desde sus catálogos,
+    ordenados alfabéticamente.
+    """
+    rubros = [
+        r.nombre for r in
+        db.query(Rubro).order_by(Rubro.nombre).all()
+    ]
+    provincias = [
+        p.nombre for p in
+        db.query(Provincia).order_by(Provincia.nombre).all()
+    ]
 
     return {"rubros": rubros, "provincias": provincias}

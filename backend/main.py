@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import clientes, dashboard, auth, admin
+from routers import clientes, dashboard, auth, admin, ordenes, razones_sociales
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +18,7 @@ app = FastAPI(
         {"name": "auth", "description": "Login y registro de usuarios"},
         {"name": "admin", "description": "Gestión de usuarios (solo admin)"},
         {"name": "clientes", "description": "CRUD de clientes"},
+        {"name": "ordenes", "description": "Órdenes de trabajo"},
         {"name": "dashboard", "description": "Estadísticas y filtros"},
     ],
 )
@@ -56,4 +57,6 @@ async def health():
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(clientes.router)
+app.include_router(razones_sociales.router)
+app.include_router(ordenes.router)
 app.include_router(dashboard.router)

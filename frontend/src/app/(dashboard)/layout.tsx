@@ -8,15 +8,18 @@ export default async function DashboardLayout({
 }) {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
+
   let userEmail: string | undefined
   let userRole: string | undefined
+
   try {
     if (token) {
+      // Decodimos el JWT localmente — sin llamada al backend en cada carga
       const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
       userEmail = payload.sub
-      userRole = payload.role
+      userRole  = payload.role
     }
-  } catch { /* ignore */ }
+  } catch { /* ignorar si el token es inválido */ }
 
   return (
     <DashboardShell userEmail={userEmail} userRole={userRole}>

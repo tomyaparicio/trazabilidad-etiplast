@@ -1,0 +1,573 @@
+/* ═══════════════════════════════════════════════════════════════
+   Orden de Trabajo — Etiplast  |  Diseño v2 — Grande & Bold
+   A4: 210 × 297 mm
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Reset body ── */
+.ot-body {
+  background: #d1d5db;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  color: #111;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ══ PÁGINA A4 ════════════════════════════════════════════════ */
+.ot-page {
+  background: #fff;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 24px auto;
+  padding: 0;
+  border: none;
+  box-shadow: 0 8px 40px rgba(0,0,0,.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ══ HEADER ══════════════════════════════════════════════════ */
+.ot-header {
+  background: #0f0c44;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: stretch;
+  min-height: 80px;
+}
+
+/* Logo + empresa */
+.ot-logo-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px 16px 20px;
+  border-right: 1px solid rgba(255,255,255,.15);
+}
+
+.ot-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: rgba(255,255,255,.12);
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.ot-empresa {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ot-empresa-nombre {
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.ot-empresa-sub {
+  font-size: 9px;
+  color: rgba(255,255,255,.55);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Título central */
+.ot-titulo-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  gap: 4px;
+}
+
+.ot-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,.5);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.ot-numero {
+  font-size: 32px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Meta (fecha, estado) */
+.ot-meta-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px 20px;
+  border-left: 1px solid rgba(255,255,255,.15);
+  gap: 10px;
+}
+
+.ot-meta-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ot-meta-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: rgba(255,255,255,.45);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.ot-meta-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.ot-meta-estado {
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(255,255,255,.15);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ── Banda de cliente ── */
+.ot-cliente-band {
+  background: #f3f4f8;
+  border-bottom: 2px solid #e2e4ec;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ot-cliente-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: #888;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ot-cliente-nombre {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f0c44;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ══ CUERPO DEL FORMULARIO ═══════════════════════════════════ */
+.ot-body-grid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 20px;
+  gap: 12px;
+}
+
+/* ── Sección genérica ── */
+.ot-section {
+  border: 1.5px solid #d0d3e0;
+  border-radius: 6px;
+  overflow: hidden;
+  page-break-inside: avoid;
+}
+
+.ot-section-header {
+  background: #0f0c44;
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ot-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.ot-section-body {
+  padding: 12px 14px;
+}
+
+/* ── Campos ── */
+.ot-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ot-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ot-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+  border-bottom: 1.5px solid #c0c4d8;
+  min-height: 22px;
+  padding-bottom: 2px;
+  line-height: 1.4;
+}
+
+.ot-value--empty {
+  color: transparent; /* Mantiene el espacio pero invisible */
+}
+
+/* ══ EXTRUSIÓN ═══════════════════════════════════════════════ */
+.ot-ext-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+/* Tabla de bobinas */
+.ot-bobinas-wrap {
+  background: #f8f9fc;
+  border: 1.5px solid #d0d3e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ot-bobinas-title {
+  background: #e8eaf2;
+  padding: 4px 10px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #555;
+  border-bottom: 1px solid #d0d3e0;
+}
+
+.ot-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ot-table th {
+  background: #eceef5;
+  border: 1px solid #d0d3e0;
+  padding: 5px 10px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #444;
+  text-align: center;
+}
+
+.ot-table td {
+  border: 1px solid #e0e2ed;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  min-height: 26px;
+  height: 26px;
+  color: #222;
+}
+
+.ot-td-num {
+  text-align: center;
+  color: #aaa;
+  font-size: 10px;
+  width: 28px;
+  background: #f5f6fa;
+}
+
+/* Campos lado derecho de extrusión */
+.ot-ext-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  align-content: start;
+}
+
+.ot-ext-fields .ot-field--full {
+  grid-column: 1 / -1;
+}
+
+/* ══ IMPRESIÓN ═══════════════════════════════════════════════ */
+.ot-imp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 180px;
+  gap: 0;
+}
+
+.ot-imp-col {
+  border-right: 1.5px solid #d0d3e0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.ot-imp-col:last-child {
+  border-right: none;
+}
+
+.ot-imp-col-title {
+  background: #f3f4f8;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #666;
+  padding: 5px 10px;
+  border-bottom: 1px solid #d0d3e0;
+}
+
+.ot-imp-text {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #222;
+  min-height: 54px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* Cilindro + Colores */
+.ot-imp-right {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ot-colores-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+}
+
+.ot-color-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.ot-color-num {
+  font-size: 9px;
+  font-weight: 800;
+  color: #999;
+  width: 14px;
+  shrink: 0;
+}
+
+.ot-color-val {
+  font-size: 11px;
+  font-weight: 600;
+  border-bottom: 1px solid #c0c4d8;
+  flex: 1;
+  min-height: 17px;
+  color: #222;
+}
+
+/* ══ TROQUELADO ══════════════════════════════════════════════ */
+.ot-troq-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 10px 20px;
+}
+
+/* ══ TOTALES + FIRMAS ════════════════════════════════════════ */
+.ot-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ot-totales-section {
+  border: 1.5px solid #d0d3e0;
+  border-radius: 6px;
+  overflow: hidden;
+  page-break-inside: avoid;
+}
+
+.ot-totales-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.ot-total-box {
+  padding: 12px 14px;
+  border-right: 1.5px solid #d0d3e0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ot-total-box:last-child {
+  border-right: none;
+  background: #f0f2ff;
+}
+
+.ot-total-amount {
+  font-size: 22px;
+  font-weight: 900;
+  color: #0f0c44;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.ot-obs-box {
+  border-top: 1.5px solid #d0d3e0;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ── Firmas ── */
+.ot-firmas-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1.5px solid #d0d3e0;
+  border-radius: 6px;
+}
+
+.ot-firmas-title {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #999;
+}
+
+.ot-firmas-row {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  align-items: flex-end;
+}
+
+.ot-firma {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.ot-firma-line {
+  width: 100%;
+  border-top: 1.5px solid #555;
+  margin-bottom: 4px;
+}
+
+.ot-firma-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #666;
+  text-align: center;
+}
+
+/* ══ FOOTER ══════════════════════════════════════════════════ */
+.ot-footer {
+  background: #0f0c44;
+  padding: 6px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ot-footer-text {
+  font-size: 8px;
+  color: rgba(255,255,255,.4);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ot-footer-num {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(255,255,255,.6);
+  letter-spacing: 0.1em;
+}
+
+/* ══ BOTONES (solo pantalla) ═════════════════════════════════ */
+.ot-print-btn-wrapper {
+  width: 210mm;
+  margin: 20px auto;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.ot-print-btn {
+  background: #0f0c44;
+  color: #fff;
+  border: none;
+  padding: 12px 28px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  font-family: inherit;
+  box-shadow: 0 4px 16px rgba(15,12,68,.35);
+  transition: background .15s;
+}
+
+.ot-print-btn:hover { background: #1a1866; }
+
+.ot-close-btn {
+  background: transparent;
+  color: #555;
+  border: 1.5px solid #ccc;
+  padding: 12px 22px;
+  font-size: 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+
+.ot-close-btn:hover { background: #f3f4f6; }
+
+/* ══ PRINT ═══════════════════════════════════════════════════ */
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  .ot-body { background: #fff; }
+  .ot-page {
+    width: 100%; min-height: 100vh;
+    margin: 0; box-shadow: none;
+  }
+  .no-print { display: none !important; }
+}

@@ -14,14 +14,20 @@ const CHART_COLORS = [
 export default async function DashboardPage() {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
-  let userEmail = "Usuario"
+  let userName = "Usuario"
   try {
     if (token) {
       const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
-      userEmail = payload.sub || "Usuario"
+      const email: string = payload.sub || ""
+      // Intentar traer nombre_completo desde el backend
+      try {
+        const me = await apiFetchServer<{ nombre: string | null; apellido: string | null; nombre_completo: string }>("/auth/me")
+        userName = (me.nombre || me.apellido) ? me.nombre_completo : email.split("@")[0] || "Usuario"
+      } catch {
+        userName = email.split("@")[0] || "Usuario"
+      }
     }
   } catch { /* ignore */ }
-  const userName = userEmail.split("@")[0] || "Usuario"
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches"

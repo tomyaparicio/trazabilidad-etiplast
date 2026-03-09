@@ -16,7 +16,8 @@ def verify_token(authorization: str = Header(...)) -> dict:
         if email is None:
             raise HTTPException(status_code=401, detail="Token inválido")
         role: str = payload.get("role", "user")
-        return {"email": email, "role": role}
+        user_id = payload.get("user_id")
+        return {"email": email, "role": role, "id": user_id}
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
 

@@ -1,8 +1,16 @@
+export interface RazonSocial {
+  id: number
+  razon_social: string
+  cuit: string | null
+  created_at: string | null
+}
+
 export interface Cliente {
   id: number
   id_cliente: number | null
   marca: string | null
   rubro: string | null
+  razon_social_id: number | null
   razon_social: string | null
   domicilio: string | null
   localidad: string | null

@@ -1,18 +1,13 @@
-import { apiFetchServer } from "@/lib/api/server"
-import type { Filtros, Cliente } from "@/types/database"
 import { ClientesTable } from "./_components/clientes-table"
 
-export default async function ClientesPage() {
-  const [filtrosResult, clientesResult] = await Promise.all([
-    apiFetchServer<Filtros>("/api/dashboard/filtros"),
-    apiFetchServer<{ data: Cliente[]; total: number }>("/api/clientes?page=1&per_page=20"),
-  ])
-
+// Página sin fetch SSR — los datos se cargan desde el cliente
+// para evitar que el cold-start del backend bloquee la carga de la página
+export default function ClientesPage() {
   return (
     <ClientesTable
-      initialClientes={clientesResult.data ?? []}
-      initialTotal={clientesResult.total ?? 0}
-      filtros={filtrosResult ?? { rubros: [], provincias: [] }}
+      initialClientes={[]}
+      initialTotal={0}
+      filtros={{ rubros: [], provincias: [] }}
     />
   )
 }

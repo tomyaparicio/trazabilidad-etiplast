@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { api } from "@/lib/api"
-import type { Cliente, Filtros } from "@/types/database"
+import type { Cliente, Filtros, RazonSocial } from "@/types/database"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,7 +54,7 @@ const GROUP_CONFIG: Record<string, { label: string; icon: LucideIcon; descriptio
 }
 
 const CAMPOS_INSERT = [
-  "id_cliente","marca","rubro","razon_social","domicilio","localidad","provincia","pais",
+  "id_cliente","marca","rubro","razon_social","razon_social_id","domicilio","localidad","provincia","pais",
   "cuit","telefono","producto","volumen_cantidad","volumen_unidad","lamina","muestra","alto","cilindro","cierre","envase","observaciones","transporte",
 ]
 
@@ -81,6 +81,7 @@ const INITIAL_FORM: Record<string, string | number | null> = {
   marca: "",
   rubro: "",
   razon_social: "",
+  razon_social_id: null,
   domicilio: "",
   localidad: "",
   provincia: "",
@@ -98,6 +99,106 @@ const INITIAL_FORM: Record<string, string | number | null> = {
   envase: "",
   observaciones: "",
   transporte: "",
+}
+
+function RazonSocialSelector({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (id: number | null, razonSocial: string, cuit?: string | null) => void
+}) {
+  const [query, setQuery] = useState(value)
+  const [results, setResults] = useState<RazonSocial[]>([])
+  const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(async () => {
+      const res = await api.razonessociales.list({ search: query, per_page: 15 })
+      setResults(res.data)
+    }, 250)
+    return () => clearTimeout(t)
+  }, [query, open])
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  const handleSelect = (rs: RazonSocial) => {
+    setQuery(rs.razon_social)
+    setOpen(false)
+    onChange(rs.id, rs.razon_social, rs.cuit)
+  }
+
+  const handleCreate = async () => {
+    if (!query.trim()) return
+    setCreating(true)
+    try {
+      const rs = await api.razonessociales.create({ razon_social: query.trim() })
+      setOpen(false)
+      onChange(rs.id, rs.razon_social, rs.cuit)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const exactMatch = results.some(
+    (r) => r.razon_social.toLowerCase() === query.trim().toLowerCase()
+  )
+
+  return (
+    <div ref={ref} className="relative">
+      <Input
+        type="text"
+        autoComplete="off"
+        value={query}
+        placeholder="Buscar o crear..."
+        onFocus={() => {
+          setOpen(true)
+          api.razonessociales.list({ per_page: 15 }).then((r) => setResults(r.data))
+        }}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+          if (!e.target.value) onChange(null, "")
+        }}
+        className="h-10 rounded-lg bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/10 text-sm"
+      />
+      {open && (results.length > 0 || query.trim()) && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-xl overflow-hidden max-h-52 overflow-y-auto">
+          {results.map((rs) => (
+            <button
+              key={rs.id}
+              type="button"
+              onMouseDown={() => handleSelect(rs)}
+              className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm flex flex-col gap-0.5"
+            >
+              <span className="text-foreground font-medium">{rs.razon_social}</span>
+              {rs.cuit && <span className="text-muted-foreground text-xs">{rs.cuit}</span>}
+            </button>
+          ))}
+          {!exactMatch && query.trim() && (
+            <button
+              type="button"
+              onMouseDown={handleCreate}
+              disabled={creating}
+              className="w-full text-left px-3 py-2.5 hover:bg-emerald-500/10 text-sm text-emerald-400 flex items-center gap-2 border-t border-border"
+            >
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              Crear &ldquo;{query.trim()}&rdquo;
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: ClienteNuevoDialogProps) {
@@ -119,7 +220,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
     setSaving(true)
     setSaveMsg("")
     try {
-      const numericFields = ["id_cliente", "alto", "cilindro", "cierre", "volumen_cantidad"]
+      const numericFields = ["id_cliente", "alto", "cilindro", "cierre", "volumen_cantidad", "razon_social_id"]
       const insert: Record<string, unknown> = {}
 
       CAMPOS_INSERT.forEach((campo) => {
@@ -291,7 +392,19 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                         </span>
                       )}
                     </label>
-                    {field.key === "rubro" && filtros.rubros.length > 0 ? (
+                    {field.key === "razon_social" ? (
+                      <RazonSocialSelector
+                        value={String(formData.razon_social ?? "")}
+                        onChange={(id, rs, cuit) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            razon_social_id: id,
+                            razon_social: rs,
+                            ...(cuit !== undefined ? { cuit: cuit ?? "" } : {}),
+                          }))
+                        }}
+                      />
+                    ) : field.key === "rubro" && filtros.rubros.length > 0 ? (
                       <>
                         <Input
                           id={`nuevo-${field.key}`}

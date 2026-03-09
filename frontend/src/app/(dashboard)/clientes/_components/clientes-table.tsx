@@ -5,7 +5,8 @@ import { api } from "@/lib/api"
 import type { Cliente, Filtros } from "@/types/database"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, ChevronLeft, ChevronRight, ChevronDown, X, SearchX, Plus, Filter, MapPin, Tag } from "lucide-react"
+import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { Search, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Filter, MapPin, Tag } from "lucide-react"
 import { ClienteDetailDialog } from "./cliente-detail-dialog"
 import { ClienteNuevoDialog } from "./cliente-nuevo-dialog"
 
@@ -42,24 +43,115 @@ interface ClientesTableProps {
   filtros: Filtros
 }
 
-function sortByMarca(list: Cliente[]) {
-  return [...list].sort((a, b) =>
-    (a.marca || "").localeCompare((b.marca || ""), "es", { sensitivity: "base" })
-  )
-}
 
-export function ClientesTable({ initialClientes, initialTotal, filtros }: ClientesTableProps) {
-  const [clientes, setClientes] = useState(sortByMarca(initialClientes))
-  const [loading, setLoading] = useState(false)
+const COLUMNS: ColumnDef<Cliente>[] = [
+  {
+    key: "id",
+    header: "N.",
+    sortable: true,
+    skeleton: <div className="h-3 w-8 rounded-full bg-muted animate-pulse" />,
+    cell: (c) => (
+      <span className="text-xs font-mono text-muted-foreground tabular-nums">{c.id_cliente}</span>
+    ),
+  },
+  {
+    key: "marca",
+    header: "Marca",
+    sortable: true,
+    skeleton: (
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-muted animate-pulse shrink-0" />
+        <div className="h-3.5 w-28 rounded-full bg-muted animate-pulse" />
+      </div>
+    ),
+    cell: (c) => {
+      const av = avatarFor(c.marca || "")
+      return (
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border border-border"
+            style={{ background: `linear-gradient(135deg, ${av.from}, ${av.to})`, color: av.color }}
+          >
+            {(c.marca || "?")?.[0]?.toUpperCase()}
+          </div>
+          <span className="text-sm font-semibold text-foreground group-hover:text-gold transition-colors">
+            {c.marca}
+          </span>
+        </div>
+      )
+    },
+  },
+  {
+    key: "rubro",
+    header: "Rubro",
+    skeleton: <div className="h-6 w-20 rounded-lg bg-muted animate-pulse" />,
+    cell: (c) => {
+      const rs = getRubroStyle(c.rubro || "")
+      return (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${rs.bg} ${rs.text} ${rs.border}`}>
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: rs.dot }} />
+          {c.rubro}
+        </span>
+      )
+    },
+  },
+  {
+    key: "razon_social",
+    header: "Razón Social",
+    sortable: true,
+    cellClassName: "max-w-[180px]",
+    skeleton: <div className="h-3 w-36 rounded-full bg-muted animate-pulse" />,
+    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.razon_social}</span>,
+  },
+  {
+    key: "localidad",
+    header: "Localidad",
+    sortable: true,
+    skeleton: <div className="h-3 w-24 rounded-full bg-muted animate-pulse" />,
+    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.localidad}</span>,
+  },
+  {
+    key: "provincia",
+    header: "Provincia",
+    skeleton: <div className="h-3 w-24 rounded-full bg-muted animate-pulse" />,
+    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.provincia}</span>,
+  },
+  {
+    key: "producto",
+    header: "Producto",
+    cellClassName: "max-w-[140px]",
+    skeleton: <div className="h-3 w-28 rounded-full bg-muted animate-pulse" />,
+    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.producto ?? ""}</span>,
+  },
+  {
+    key: "arrow",
+    header: "",
+    skeleton: <div className="w-4 h-4 rounded bg-muted animate-pulse" />,
+    cell: () => (
+      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-gold group-hover:translate-x-0.5 transition-all duration-150" />
+    ),
+  },
+]
+
+export function ClientesTable({ initialClientes, initialTotal, filtros: initialFiltros }: ClientesTableProps) {
+  const [clientes, setClientes] = useState<Cliente[]>(initialClientes)
+  const [loading, setLoading] = useState(true)
+  const [filtros, setFiltros] = useState<Filtros>(initialFiltros)
   const [search, setSearch] = useState("")
   const [rubro, setRubro] = useState("")
   const [provincia, setProvincia] = useState("")
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(initialTotal)
+  const [sortBy, setSortBy] = useState("marca")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
   const [nuevoDialogOpen, setNuevoDialogOpen] = useState(false)
   const [searchDebounced, setSearchDebounced] = useState(search)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => {
+    api.dashboard.filtros().then(setFiltros).catch(() => {})
+  }, [])
 
   useEffect(() => {
     debounceRef.current = setTimeout(() => setSearchDebounced(search), 300)
@@ -79,21 +171,31 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
         search: searchDebounced?.trim() || undefined,
         rubro: rubro || undefined,
         provincia: provincia || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
       })
-      setClientes(sortByMarca((res.data as Cliente[]) || []))
+      setClientes((res.data as Cliente[]) || [])
       setTotal(res.total || 0)
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [page, searchDebounced, rubro, provincia])
+  }, [page, searchDebounced, rubro, provincia, sortBy, sortDir])
 
-  const [mounted, setMounted] = useState(false)
   useEffect(() => {
-    if (!mounted) { setMounted(true); return }
     fetchClientes()
-  }, [page, searchDebounced, rubro, provincia, fetchClientes, mounted])
+  }, [fetchClientes])
+
+  const handleSort = (key: string) => {
+    if (key === sortBy) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortBy(key)
+      setSortDir("asc")
+    }
+    setPage(1)
+  }
 
   const handleClienteUpdate = (updated: Cliente) => {
     setClientes((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
@@ -177,7 +279,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
                 autoComplete="off"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                placeholder="Marca, razón social, localidad, producto…"
+                placeholder="#ID, marca, razón social, localidad, producto…"
                 className="pl-10 h-11 rounded-xl bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/15 transition-all"
               />
             </div>
@@ -222,105 +324,19 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-card/80 border border-border rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                {["N.", "Marca", "Rubro", "Razón Social", "Localidad", "Provincia", "Producto", ""].map((h, i) => (
-                  <th
-                    key={i}
-                    scope="col"
-                    className="text-left px-5 py-3.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i} className="border-b border-border/50 last:border-0">
-                    <td className="px-5 py-4">
-                      <div className="h-3 w-8 rounded-full bg-muted animate-pulse" />
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-muted animate-pulse shrink-0" />
-                        <div className="h-3.5 w-28 rounded-full bg-muted animate-pulse" />
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="h-6 w-20 rounded-lg bg-muted animate-pulse" />
-                    </td>
-                    <td className="px-5 py-4"><div className="h-3 w-36 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="h-3 w-24 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="h-3 w-24 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="h-3 w-28 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="w-4 h-4 rounded bg-muted animate-pulse" /></td>
-                  </tr>
-                ))
-              ) : clientes.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-20 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="rounded-2xl bg-muted/50 border border-border p-5">
-                        <SearchX className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
-                      </div>
-                      <p className="text-muted-foreground text-sm font-medium">Sin resultados</p>
-                      <p className="text-muted-foreground text-xs">No se encontraron clientes con los filtros aplicados</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                clientes.map((c) => {
-                  const rs = getRubroStyle(c.rubro || "")
-                  const av = avatarFor(c.marca || "")
-                  return (
-                    <tr
-                      key={c.id}
-                      className="border-b border-border/50 last:border-0 hover:bg-muted/30 cursor-pointer transition-colors duration-150 group"
-                      onClick={() => setSelectedCliente(c)}
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedCliente(c) } }}
-                    >
-                      <td className="px-5 py-3.5 text-xs font-mono text-muted-foreground tabular-nums">{c.id_cliente}</td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border border-border"
-                            style={{ background: `linear-gradient(135deg, ${av.from}, ${av.to})`, color: av.color }}
-                          >
-                            {(c.marca || "?")?.[0]?.toUpperCase()}
-                          </div>
-                          <span className="text-sm font-semibold text-foreground group-hover:text-gold transition-colors">
-                            {c.marca}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${rs.bg} ${rs.text} ${rs.border}`}>
-                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: rs.dot }} />
-                          {c.rubro}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-muted-foreground max-w-[180px] truncate">{c.razon_social}</td>
-                      <td className="px-5 py-3.5 text-sm text-muted-foreground truncate">{c.localidad}</td>
-                      <td className="px-5 py-3.5 text-sm text-muted-foreground truncate">{c.provincia}</td>
-                      <td className="px-5 py-3.5 text-sm text-muted-foreground max-w-[140px] truncate">{c.producto ?? ""}</td>
-                      <td className="px-5 py-3.5">
-                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-gold group-hover:translate-x-0.5 transition-all duration-150" />
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ── Pagination ── */}
+      <DataTable
+        columns={COLUMNS}
+        data={clientes}
+        loading={loading}
+        keyExtractor={(c) => c.id}
+        onRowClick={setSelectedCliente}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSort={handleSort}
+        emptyTitle="Sin resultados"
+        emptyDescription="No se encontraron clientes con los filtros aplicados"
+      >
+        {/* ── Pagination (slot dentro del mismo borde redondeado) ── */}
         {totalPages > 1 && (
           <nav className="flex items-center justify-between px-5 py-4 border-t border-border" aria-label="Paginación">
             <p className="text-xs text-muted-foreground">
@@ -332,8 +348,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
               <span className="text-foreground font-medium tabular-nums">{nf.format(total)}</span>
             </p>
             <div className="flex gap-1.5">
-              <Button
-                variant="outline" size="icon"
+              <Button variant="outline" size="icon"
                 className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
                 onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Página anterior"
               >
@@ -343,21 +358,15 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
                 const p = page <= 3 ? i + 1 : page + i - 2
                 if (p < 1 || p > totalPages) return null
                 return (
-                  <Button
-                    key={p} variant="outline" size="icon"
-                    className={`h-8 w-8 text-xs tabular-nums transition-all rounded-lg ${
-                      p === page
-                        ? "bg-gold/10 border-gold/30 text-gold hover:bg-gold/15 font-semibold"
-                        : "bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
+                  <Button key={p} variant="outline" size="icon"
+                    className={`h-8 w-8 text-xs tabular-nums transition-all rounded-lg ${p === page ? "bg-gold/10 border-gold/30 text-gold hover:bg-gold/15 font-semibold" : "bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground"}`}
                     onClick={() => setPage(p)} aria-current={p === page ? "page" : undefined}
                   >
                     {p}
                   </Button>
                 )
               })}
-              <Button
-                variant="outline" size="icon"
+              <Button variant="outline" size="icon"
                 className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
                 onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} aria-label="Página siguiente"
               >
@@ -366,7 +375,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros }: Client
             </div>
           </nav>
         )}
-      </div>
+      </DataTable>
 
       <ClienteDetailDialog
         cliente={selectedCliente}

@@ -3,13 +3,14 @@
 import Link from "next/link"
 import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, Users, User, LogOut, Shield } from "lucide-react"
+import { LayoutDashboard, Users, User, LogOut, Shield, ClipboardList } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useState } from "react"
 
 const navigation = [
   { name: "Panel de Control", href: "/", icon: LayoutDashboard },
   { name: "Clientes", href: "/clientes", icon: Users },
+  { name: "Órdenes de Trabajo", href: "/ordenes", icon: ClipboardList },
   { name: "Mi perfil", href: "/perfil", icon: User },
 ]
 
@@ -42,7 +43,11 @@ function SidebarContent({
   const isAdmin = userRole === "admin"
 
   const handleSignOut = async () => {
-    await api.auth.logout()
+    try {
+      await api.auth.logout()
+    } catch {
+      // Si el servidor no responde, igual cerramos la sesión en el cliente
+    }
     router.push("/login")
     router.refresh()
   }
