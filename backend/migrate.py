@@ -75,24 +75,40 @@ MIGRATIONS_NORMALIZACION = [
      CREATE INDEX IF NOT EXISTS ix_provincias_nombre ON provincias (nombre);
      """),
 
-    # 3. Poblar rubros desde datos existentes
+    # 3. Poblar rubros desde datos existentes (solo si existe la columna legacy)
     ("Poblar rubros desde clientes",
      """
-     INSERT INTO rubros (nombre)
-     SELECT DISTINCT TRIM(rubro)
-     FROM clientes
-     WHERE rubro IS NOT NULL AND TRIM(rubro) != ''
-     ON CONFLICT (nombre) DO NOTHING;
+     DO $$
+     BEGIN
+         IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name='clientes' AND column_name='rubro'
+         ) THEN
+             INSERT INTO rubros (nombre)
+             SELECT DISTINCT TRIM(rubro)
+             FROM clientes
+             WHERE rubro IS NOT NULL AND TRIM(rubro) != ''
+             ON CONFLICT (nombre) DO NOTHING;
+         END IF;
+     END $$;
      """),
 
-    # 4. Poblar provincias desde datos existentes
+    # 4. Poblar provincias desde datos existentes (solo si existe la columna legacy)
     ("Poblar provincias desde clientes",
      """
-     INSERT INTO provincias (nombre)
-     SELECT DISTINCT TRIM(provincia)
-     FROM clientes
-     WHERE provincia IS NOT NULL AND TRIM(provincia) != ''
-     ON CONFLICT (nombre) DO NOTHING;
+     DO $$
+     BEGIN
+         IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name='clientes' AND column_name='provincia'
+         ) THEN
+             INSERT INTO provincias (nombre)
+             SELECT DISTINCT TRIM(provincia)
+             FROM clientes
+             WHERE provincia IS NOT NULL AND TRIM(provincia) != ''
+             ON CONFLICT (nombre) DO NOTHING;
+         END IF;
+     END $$;
      """),
 
     # 5. Agregar FK rubro_id y updated_at a clientes
@@ -105,14 +121,22 @@ MIGRATIONS_NORMALIZACION = [
      CREATE INDEX IF NOT EXISTS ix_clientes_rubro_id ON clientes (rubro_id);
      """),
 
-    # 6. Poblar rubro_id desde la columna legacy rubro
+    # 6. Poblar rubro_id desde la columna legacy rubro (solo si existe)
     ("Poblar rubro_id en clientes",
      """
-     UPDATE clientes c
-     SET rubro_id = r.id
-     FROM rubros r
-     WHERE TRIM(c.rubro) = r.nombre
-       AND c.rubro_id IS NULL;
+     DO $$
+     BEGIN
+         IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name='clientes' AND column_name='rubro'
+         ) THEN
+             UPDATE clientes c
+             SET rubro_id = r.id
+             FROM rubros r
+             WHERE TRIM(c.rubro) = r.nombre
+               AND c.rubro_id IS NULL;
+         END IF;
+     END $$;
      """),
 
     # 7. Tabla de ubicaciones (1:1)
@@ -131,20 +155,28 @@ MIGRATIONS_NORMALIZACION = [
      CREATE INDEX IF NOT EXISTS ix_cliente_ubicaciones_provincia_id ON cliente_ubicaciones (provincia_id);
      """),
 
-    # 8. Migrar datos de ubicación
+    # 8. Migrar datos de ubicación (solo si existe columna legacy provincia)
     ("Migrar ubicaciones desde clientes",
      """
-     INSERT INTO cliente_ubicaciones (cliente_id, domicilio, localidad, provincia_id, pais, transporte)
-     SELECT
-         c.id,
-         c.domicilio,
-         c.localidad,
-         p.id,
-         COALESCE(NULLIF(TRIM(c.pais), ''), 'Argentina'),
-         c.transporte
-     FROM clientes c
-     LEFT JOIN provincias p ON TRIM(p.nombre) = TRIM(c.provincia)
-     ON CONFLICT (cliente_id) DO NOTHING;
+     DO $$
+     BEGIN
+         IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name='clientes' AND column_name='provincia'
+         ) THEN
+             INSERT INTO cliente_ubicaciones (cliente_id, domicilio, localidad, provincia_id, pais, transporte)
+             SELECT
+                 c.id,
+                 c.domicilio,
+                 c.localidad,
+                 p.id,
+                 COALESCE(NULLIF(TRIM(c.pais), ''), 'Argentina'),
+                 c.transporte
+             FROM clientes c
+             LEFT JOIN provincias p ON TRIM(p.nombre) = TRIM(c.provincia)
+             ON CONFLICT (cliente_id) DO NOTHING;
+         END IF;
+     END $$;
      """),
 
     # 9. Tabla de contactos (1:1, extensible a 1:N)
@@ -159,13 +191,21 @@ MIGRATIONS_NORMALIZACION = [
      CREATE INDEX IF NOT EXISTS ix_cliente_contactos_cliente_id ON cliente_contactos (cliente_id);
      """),
 
-    # 10. Migrar datos de contacto
+    # 10. Migrar datos de contacto (solo si existe columna legacy telefono)
     ("Migrar contactos desde clientes",
      """
-     INSERT INTO cliente_contactos (cliente_id, telefono, observaciones)
-     SELECT id, telefono, observaciones
-     FROM clientes
-     ON CONFLICT (cliente_id) DO NOTHING;
+     DO $$
+     BEGIN
+         IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name='clientes' AND column_name='telefono'
+         ) THEN
+             INSERT INTO cliente_contactos (cliente_id, telefono, observaciones)
+             SELECT id, telefono, observaciones
+             FROM clientes
+             ON CONFLICT (cliente_id) DO NOTHING;
+         END IF;
+     END $$;
      """),
 
     # 11. Tabla de productos (1:N)
@@ -189,19 +229,27 @@ MIGRATIONS_NORMALIZACION = [
      CREATE INDEX IF NOT EXISTS ix_cliente_productos_cliente_id ON cliente_productos (cliente_id);
      """),
 
-    # 12. Migrar datos de producto
+    # 12. Migrar datos de producto (solo si existe columna legacy producto)
     ("Migrar productos desde clientes",
      """
-     INSERT INTO cliente_productos
-         (cliente_id, nombre, envase, volumen_cantidad, volumen_unidad,
-          lamina, muestra, alto, cilindro, cierre)
-     SELECT
-         id, producto, envase, volumen_cantidad, volumen_unidad,
-         lamina, muestra, alto, cilindro, cierre
-     FROM clientes
-     WHERE NOT EXISTS (
-         SELECT 1 FROM cliente_productos cp WHERE cp.cliente_id = clientes.id
-     );
+     DO $$
+     BEGIN
+         IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name='clientes' AND column_name='producto'
+         ) THEN
+             INSERT INTO cliente_productos
+                 (cliente_id, nombre, envase, volumen_cantidad, volumen_unidad,
+                  lamina, muestra, alto, cilindro, cierre)
+             SELECT
+                 id, producto, envase, volumen_cantidad, volumen_unidad,
+                 lamina, muestra, alto, cilindro, cierre
+             FROM clientes
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM cliente_productos cp WHERE cp.cliente_id = clientes.id
+             );
+         END IF;
+     END $$;
      """),
 ]
 
@@ -226,11 +274,19 @@ MIGRATIONS_RAZONES_SOCIALES = [
 
     ("Poblar razones_sociales desde clientes",
      """
-     INSERT INTO razones_sociales (razon_social, cuit)
-     SELECT DISTINCT TRIM(razon_social), TRIM(cuit)
-     FROM clientes
-     WHERE razon_social IS NOT NULL AND TRIM(razon_social) != ''
-     ON CONFLICT DO NOTHING;
+     DO $$
+     BEGIN
+         IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_name='clientes' AND column_name='razon_social'
+         ) THEN
+             INSERT INTO razones_sociales (razon_social, cuit)
+             SELECT DISTINCT TRIM(razon_social), TRIM(cuit)
+             FROM clientes
+             WHERE razon_social IS NOT NULL AND TRIM(razon_social) != ''
+             ON CONFLICT DO NOTHING;
+         END IF;
+     END $$;
      """),
 
     ("Agregar razon_social_id a clientes",
@@ -449,6 +505,14 @@ MIGRATIONS_DEDUP_RAZONES = [
      """),
 ]
 
+MIGRATIONS_RESPONSABLE = [
+    ("Agregar responsable_id a ordenes_trabajo",
+     """
+     ALTER TABLE ordenes_trabajo
+     ADD COLUMN IF NOT EXISTS responsable_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+     """),
+]
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
@@ -468,7 +532,7 @@ def run_migrations():
     Base.metadata.create_all(bind=engine)
     print("  ✓ Esquema verificado\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE
 
     with engine.connect() as conn:
         for name, sql in all_migrations:

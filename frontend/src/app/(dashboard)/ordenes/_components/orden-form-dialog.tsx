@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import { api } from "@/lib/api"
-import type { Bobina, Cliente, CreateOrdenRequest, EstadoOrden, OrdenTrabajo } from "@/lib/api/types"
+import type { Bobina, Cliente, ClienteProducto, CreateOrdenRequest, EstadoOrden, OrdenTrabajo, UserAdmin } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog"
-import { Loader2, Plus, Trash2, Search, ChevronDown, Check } from "lucide-react"
+import { Loader2, Plus, Trash2, Search, ChevronDown, Check, Package } from "lucide-react"
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ function Field({ label, children, className = "" }: { label: string; children: R
   )
 }
 
-// ─── Selector de cliente con búsqueda ──────────────────────────────────────
+// ─── Selector de marca con búsqueda ──────────────────────────────────────
 
 interface ClienteSelectorProps {
   value: number | null
@@ -58,7 +58,6 @@ function ClienteSelector({ value, onSelect }: ClienteSelectorProps) {
   const [selectedName, setSelectedName] = useState<string>("")
   const ref = useRef<HTMLDivElement>(null)
 
-  // Cerrar al hacer click afuera
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -80,6 +79,9 @@ function ClienteSelector({ value, onSelect }: ClienteSelectorProps) {
     return () => clearTimeout(t)
   }, [query])
 
+  // Mostrar nombre cuando hay un valor seleccionado pero no hay nombre cargado aún
+  const displayName = selectedName || (value ? `Cliente #${value}` : "")
+
   return (
     <div ref={ref} className="relative">
       <div
@@ -87,9 +89,9 @@ function ClienteSelector({ value, onSelect }: ClienteSelectorProps) {
         onClick={() => setOpen((o) => !o)}
       >
         {value ? (
-          <span className="flex-1 text-sm font-medium truncate">{selectedName || `Cliente #${value}`}</span>
+          <span className="flex-1 text-sm font-medium truncate">{displayName}</span>
         ) : (
-          <span className="flex-1 text-sm text-muted-foreground">Seleccionar cliente...</span>
+          <span className="flex-1 text-sm text-muted-foreground">Seleccionar marca...</span>
         )}
         <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
       </div>
@@ -119,7 +121,6 @@ function ClienteSelector({ value, onSelect }: ClienteSelectorProps) {
                 {query ? "Sin resultados" : "Escribí para buscar"}
               </div>
             ) : (() => {
-              // Group by razon_social
               const groups = results.reduce<Record<string, Cliente[]>>((acc, c) => {
                 const key = c.razon_social || "__sin__"
                 if (!acc[key]) acc[key] = []
@@ -154,6 +155,11 @@ function ClienteSelector({ value, onSelect }: ClienteSelectorProps) {
                         {!multiGroup && c.marca && c.razon_social && (
                           <p className="text-[11px] text-muted-foreground">{c.razon_social}</p>
                         )}
+                        {c.productos?.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                            {c.productos.length} producto{c.productos.length !== 1 ? "s" : ""}
+                          </p>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -167,14 +173,52 @@ function ClienteSelector({ value, onSelect }: ClienteSelectorProps) {
   )
 }
 
+// ─── Selector de producto ─────────────────────────────────────────────────
+
+interface ProductoSelectorProps {
+  productos: ClienteProducto[]
+  value: number | null
+  onSelect: (p: ClienteProducto | null) => void
+}
+
+function ProductoSelector({ productos, value, onSelect }: ProductoSelectorProps) {
+  if (productos.length === 0) return null
+
+  return (
+    <div className="flex items-center gap-2 border border-input rounded-lg px-3 h-9 bg-background">
+      <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      <select
+        value={value ?? ""}
+        onChange={(e) => {
+          const id = parseInt(e.target.value)
+          onSelect(isNaN(id) ? null : (productos.find((p) => p.id === id) ?? null))
+        }}
+        className="flex-1 text-sm bg-transparent outline-none"
+      >
+        <option value="">Sin producto específico</option>
+        {productos.map((p) => {
+          const label = [
+            p.nombre,
+            p.volumen_cantidad != null ? `${p.volumen_cantidad}${p.volumen_unidad ?? ""}` : null,
+            p.envase,
+            p.lamina,
+          ].filter(Boolean).join(" · ")
+          return <option key={p.id} value={p.id}>{label || `Producto #${p.id}`}</option>
+        })}
+      </select>
+    </div>
+  )
+}
+
 // ─── Estado inicial del formulario ─────────────────────────────────────────
 
-function emptyForm(): CreateOrdenRequest & { impresion_colores: string[]; bobinas: Bobina[] } {
+function emptyForm(): CreateOrdenRequest & { impresion_colores: string[]; bobinas: Bobina[]; responsable_id: number | null } {
   return {
     cliente_id: 0,
     cliente_producto_id: null,
     fecha: new Date().toISOString().split("T")[0],
     estado: "borrador",
+    responsable_id: null,
 
     extrusion_ancho: null,
     extrusion_color: "Blanco",
@@ -211,6 +255,7 @@ function ordenToForm(orden: OrdenTrabajo): ReturnType<typeof emptyForm> {
     cliente_producto_id: orden.cliente_producto_id,
     fecha: orden.fecha ?? new Date().toISOString().split("T")[0],
     estado: orden.estado,
+    responsable_id: orden.responsable_id ?? null,
 
     extrusion_ancho: orden.extrusion_ancho,
     extrusion_color: orden.extrusion_color ?? "Blanco",
@@ -246,23 +291,34 @@ interface Props {
 
 export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
   type Form = ReturnType<typeof emptyForm>
-  const [form, setForm] = useState<Form>(emptyForm())
-  const [clienteName, setClienteName] = useState("")
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
+  const [form, setForm]                   = useState<Form>(emptyForm())
+  const [clienteName, setClienteName]     = useState("")
+  const [clienteProductos, setClienteProductos] = useState<ClienteProducto[]>([])
+  const [usuarios, setUsuarios]           = useState<UserAdmin[]>([])
+  const [saving, setSaving]               = useState(false)
+  const [error, setError]                 = useState("")
+
+  // Cargar lista de usuarios activos
+  useEffect(() => {
+    api.admin.listUsers().then((u) => setUsuarios(u.filter((u) => u.is_active))).catch(() => {})
+  }, [])
 
   // Inicializar con datos de la orden al editar
   useEffect(() => {
-    if (open) {
-      if (orden) {
-        setForm(ordenToForm(orden))
-        setClienteName(orden.cliente_nombre ?? "")
-      } else {
-        setForm(emptyForm())
-        setClienteName("")
-      }
-      setError("")
+    if (!open) return
+    if (orden) {
+      setForm(ordenToForm(orden))
+      setClienteName(orden.cliente_nombre ?? "")
+      // Cargar productos del cliente para mostrar el selector
+      api.clientes.get(orden.cliente_id)
+        .then((c) => setClienteProductos(c.productos ?? []))
+        .catch(() => setClienteProductos([]))
+    } else {
+      setForm(emptyForm())
+      setClienteName("")
+      setClienteProductos([])
     }
+    setError("")
   }, [open, orden])
 
   const set = (key: keyof Form, value: unknown) =>
@@ -270,14 +326,50 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
 
   const num = (v: string) => (v === "" ? null : Number(v))
 
-  // Autocompletar datos del producto al seleccionar cliente
+  // Al seleccionar la marca: resetear producto y guardar productos disponibles
   const handleSelectCliente = (c: Cliente) => {
+    const productos = c.productos ?? []
     set("cliente_id", c.id)
+    set("cliente_producto_id", null)
     setClienteName(c.marca || c.razon_social || "")
-    // Auto-fill desde el producto del cliente
-    if (c.cilindro != null) set("impresion_cilindro", c.cilindro)
-    if (c.alto != null)     set("troquelado_alto", c.alto)
-    if (c.envase)           set("troquelado_envase", c.envase)
+    setClienteProductos(productos)
+
+    // Si solo hay un producto, seleccionarlo automáticamente
+    if (productos.length === 1) {
+      fillFromProducto(productos[0])
+      setForm((f) => ({ ...f, cliente_id: c.id, cliente_producto_id: productos[0].id }))
+    } else {
+      // Limpiar campos del producto anterior
+      setForm((f) => ({
+        ...f,
+        cliente_id: c.id,
+        cliente_producto_id: null,
+        impresion_cilindro: null,
+        troquelado_alto: null,
+        troquelado_envase: "",
+        extrusion_formulacion: "2045/208",
+      }))
+    }
+  }
+
+  // Al seleccionar un producto: auto-completar campos del formulario
+  const fillFromProducto = (p: ClienteProducto) => {
+    setForm((f) => ({
+      ...f,
+      cliente_producto_id: p.id,
+      ...(p.cilindro != null  && { impresion_cilindro: p.cilindro }),
+      ...(p.alto != null      && { troquelado_alto: p.alto }),
+      ...(p.envase            && { troquelado_envase: p.envase }),
+      ...(p.lamina            && { extrusion_formulacion: p.lamina }),
+    }))
+  }
+
+  const handleSelectProducto = (p: ClienteProducto | null) => {
+    if (!p) {
+      set("cliente_producto_id", null)
+      return
+    }
+    fillFromProducto(p)
   }
 
   // Bobinas
@@ -334,31 +426,82 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-8">
-          {/* ── Encabezado: Cliente, Fecha, Estado ── */}
+
+          {/* ── Datos Generales ── */}
           {sectionTitle("Datos Generales")}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 -mt-4">
-            <Field label="Cliente" className="sm:col-span-2">
-              <ClienteSelector value={form.cliente_id || null} onSelect={handleSelectCliente} />
-            </Field>
-            <Field label="Fecha">
-              <Input
-                type="date"
-                value={form.fecha ?? ""}
-                onChange={(e) => set("fecha", e.target.value)}
-                className="h-9 text-sm"
-              />
-            </Field>
-            <Field label="Estado" className="sm:col-span-1">
-              <select
-                value={form.estado}
-                onChange={(e) => set("estado", e.target.value)}
-                className="h-9 text-sm border border-input rounded-lg px-3 bg-background"
-              >
-                {ESTADOS_OT.map(({ value, label }) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </Field>
+          <div className="space-y-3 -mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field label="Marca" className="sm:col-span-2">
+                <ClienteSelector value={form.cliente_id || null} onSelect={handleSelectCliente} />
+              </Field>
+              <Field label="Fecha">
+                <Input
+                  type="date"
+                  value={form.fecha ?? ""}
+                  onChange={(e) => set("fecha", e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </Field>
+            </div>
+
+            {/* Selector de producto — solo si el cliente tiene productos */}
+            {clienteProductos.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Field label="Producto" className="sm:col-span-2">
+                  <ProductoSelector
+                    productos={clienteProductos}
+                    value={form.cliente_producto_id ?? null}
+                    onSelect={handleSelectProducto}
+                  />
+                </Field>
+                <Field label="Estado">
+                  <select
+                    value={form.estado}
+                    onChange={(e) => set("estado", e.target.value)}
+                    className="h-9 text-sm border border-input rounded-lg px-3 bg-background"
+                  >
+                    {ESTADOS_OT.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            )}
+
+            {/* Responsable — siempre visible */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field label="Responsable" className="sm:col-span-2">
+                <select
+                  value={form.responsable_id ?? ""}
+                  onChange={(e) => set("responsable_id", e.target.value === "" ? null : Number(e.target.value))}
+                  className="h-9 text-sm border border-input rounded-lg px-3 bg-background w-full"
+                >
+                  <option value="">Sin asignar</option>
+                  {usuarios.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nombre_completo || u.email}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            {/* Estado en fila propia si no hay productos */}
+            {clienteProductos.length === 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Field label="Estado" className="sm:col-span-1">
+                  <select
+                    value={form.estado}
+                    onChange={(e) => set("estado", e.target.value)}
+                    className="h-9 text-sm border border-input rounded-lg px-3 bg-background"
+                  >
+                    {ESTADOS_OT.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            )}
           </div>
 
           {/* ── Extrusión ── */}
@@ -446,9 +589,13 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
                 </select>
               </Field>
               <Field label="Micronaje (µ)">
-                <div className="h-9 flex items-center px-3 border border-input rounded-lg bg-muted/40 text-sm font-medium text-muted-foreground">
-                  60
-                </div>
+                <Input
+                  type="number" step="1"
+                  value={form.extrusion_espesor ?? ""}
+                  placeholder="60"
+                  onChange={(e) => set("extrusion_espesor", num(e.target.value))}
+                  className="h-9 text-sm"
+                />
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -456,10 +603,13 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
                 <Input type="number" value={form.extrusion_cant_bob ?? ""} placeholder="0"
                   onChange={(e) => set("extrusion_cant_bob", num(e.target.value))} className="h-9 text-sm" />
               </Field>
-              <Field label="Formulación">
-                <div className="h-9 flex items-center px-3 border border-input rounded-lg bg-muted/40 text-sm font-medium text-muted-foreground">
-                  2045/208
-                </div>
+              <Field label="Formulación / Lámina">
+                <Input
+                  value={form.extrusion_formulacion ?? ""}
+                  placeholder="2045/208"
+                  onChange={(e) => set("extrusion_formulacion", e.target.value)}
+                  className="h-9 text-sm"
+                />
               </Field>
             </div>
           </div>
@@ -481,7 +631,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
               </Field>
             </div>
-            <Field label="Cilindro (mm) — auto-completado desde cliente">
+            <Field label="Cilindro (mm)">
               <Input type="number" step="0.01" value={form.impresion_cilindro ?? ""} placeholder="0.00"
                 onChange={(e) => set("impresion_cilindro", num(e.target.value))} className="h-9 text-sm w-48" />
             </Field>
@@ -516,11 +666,11 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
               <Input type="number" step="0.01" value={form.troquelado_ancho ?? ""} placeholder="0.00"
                 onChange={(e) => set("troquelado_ancho", num(e.target.value))} className="h-9 text-sm" />
             </Field>
-            <Field label="Alto (mm) — auto-completado">
+            <Field label="Alto (mm)">
               <Input type="number" step="0.01" value={form.troquelado_alto ?? ""} placeholder="0.00"
                 onChange={(e) => set("troquelado_alto", num(e.target.value))} className="h-9 text-sm" />
             </Field>
-            <Field label="Envase — auto-completado">
+            <Field label="Envase">
               <Input value={form.troquelado_envase ?? ""} placeholder="Tipo de envase"
                 onChange={(e) => set("troquelado_envase", e.target.value)} className="h-9 text-sm" />
             </Field>

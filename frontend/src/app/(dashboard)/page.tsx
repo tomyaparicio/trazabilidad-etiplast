@@ -4,33 +4,38 @@ import type { DashboardStats } from "@/types/database"
 import { RubroPieChart } from "@/components/charts/rubro-pie-chart"
 import { ProvinciaBarChart } from "@/components/charts/provincia-bar-chart"
 import {
-  AlertCircle, Users, Building2, Boxes, Tag, MapPin,
-  TrendingUp, PackageCheck, AlertTriangle,
+  AlertCircle, Users, Building2, Boxes, Tag,
+  TrendingUp, PackageCheck, AlertTriangle, ClipboardList,
 } from "lucide-react"
+import type { OrdenResumen } from "@/types/database"
 
+// Colores originales — solo se reemplazó #f5eb4a (amarillo ilegible en fondo blanco) por #d97706
 const CHART_COLORS = [
-  "#6366f1", "#f5eb4a", "#8b5cf6", "#06b6d4",
+  "#6366f1", "#d97706", "#8b5cf6", "#06b6d4",
   "#10b981", "#f59e0b", "#ec4899", "#3b82f6", "#f97316", "#14b8a6",
 ]
 
 // ─── Mini stat card ───────────────────────────────────────────────────────────
 function MiniStat({
-  label, value, sub, icon: Icon, color, accent,
+  label, value, sub, icon: Icon, numClass, iconClass, iconBg,
 }: {
   label: string; value: number | string; sub?: string
-  icon: React.ElementType; color: string; accent: string
+  icon: React.ElementType
+  numClass: string   // clases Tailwind para el número grande
+  iconClass: string  // clases Tailwind para el ícono
+  iconBg: string     // clases Tailwind para el fondo del ícono
 }) {
   const nf = new Intl.NumberFormat("es-AR")
   return (
     <div className="flex flex-col justify-between rounded-2xl border border-border bg-card/80 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${accent}18`, border: `1px solid ${accent}35` }}>
-          <Icon className="w-4.5 h-4.5" style={{ color: accent }} strokeWidth={1.8} />
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${iconBg}`}>
+          <Icon className={`w-4 h-4 ${iconClass}`} strokeWidth={1.8} />
         </div>
       </div>
       <div>
-        <p className="text-3xl font-black tabular-nums leading-none" style={{ color }}>
+        <p className={`text-3xl font-black tabular-nums leading-none ${numClass}`}>
           {typeof value === "number" ? nf.format(value) : value}
         </p>
         {sub && <p className="text-xs text-muted-foreground mt-1.5">{sub}</p>}
@@ -39,6 +44,118 @@ function MiniStat({
   )
 }
 
+// ─── Estado config ────────────────────────────────────────────────────────────
+const ESTADO_CONFIG: Record<string, { label: string; cls: string }> = {
+  borrador:   { label: "Borrador",    cls: "bg-muted/60 text-muted-foreground border-border" },
+  pendiente:  { label: "Pendiente",   cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30" },
+  en_proceso: { label: "En proceso",  cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30" },
+  completada: { label: "Completada",  cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" },
+  cancelada:  { label: "Cancelada",   cls: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30" },
+}
+
+// ─── Sección Órdenes de Trabajo ───────────────────────────────────────────────
+function OrdenesSection({
+  activas, porEstado, recientes,
+}: {
+  activas: number
+  porEstado: Record<string, number>
+  recientes: OrdenResumen[]
+}) {
+  const nf = new Intl.NumberFormat("es-AR")
+  const safeEstado = porEstado ?? {}
+  const total = Object.values(safeEstado).reduce((a, b) => a + b, 0)
+
+  return (
+    <div className="rounded-2xl border border-border bg-card/80 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-blue-500/15 border border-blue-500/30">
+            <ClipboardList className="w-4 h-4 text-blue-600 dark:text-blue-400" strokeWidth={1.8} />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Órdenes de Trabajo</h3>
+            <p className="text-xs text-muted-foreground">{nf.format(total)} órdenes en total</p>
+          </div>
+        </div>
+        <a
+          href="/ordenes"
+          className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          Ver todas →
+        </a>
+      </div>
+
+      {/* Mini stats por estado */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        {(["borrador", "pendiente", "en_proceso", "completada", "cancelada"] as const).map((estado) => {
+          const cfg = ESTADO_CONFIG[estado]
+          return (
+            <div key={estado} className={`rounded-xl border px-3 py-2.5 text-center ${cfg.cls}`}>
+              <p className="text-xl font-black tabular-nums">{nf.format(safeEstado[estado] ?? 0)}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide mt-0.5 opacity-80">{cfg.label}</p>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Lista de órdenes activas recientes */}
+      {recientes.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          No hay órdenes registradas
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">
+            Recientes
+          </p>
+          {recientes.map((o) => {
+            const cfg = ESTADO_CONFIG[o.estado] ?? ESTADO_CONFIG.borrador
+            return (
+              <div
+                key={o.id}
+                className="flex items-center gap-3 rounded-xl px-4 py-2.5 hover:bg-muted/30 transition-colors group"
+              >
+                {/* Número */}
+                <span className="font-mono text-xs font-bold text-foreground w-20 shrink-0">
+                  {o.numero}
+                </span>
+                {/* Cliente + Creador + Responsable */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-secondary-foreground truncate">{o.cliente_nombre ?? "—"}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    por {o.creador_nombre ?? "—"}
+                    {o.responsable_nombre && (
+                      <> · <span className="text-blue-500 dark:text-blue-400">resp. {o.responsable_nombre}</span></>
+                    )}
+                  </p>
+                </div>
+                {/* Estado */}
+                <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border shrink-0 ${cfg.cls}`}>
+                  {cfg.label}
+                </span>
+                {/* Fecha */}
+                {o.fecha && (
+                  <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">
+                    {new Date(o.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+                  </span>
+                )}
+                {/* Cantidad */}
+                {o.cantidad != null && (
+                  <span className="text-xs text-muted-foreground tabular-nums shrink-0 hidden md:block">
+                    {nf.format(o.cantidad)} u.
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default async function DashboardPage() {
   const cookieStore = await cookies()
   const token = cookieStore.get("auth-token")?.value
@@ -181,6 +298,13 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Órdenes de Trabajo ── */}
+      <OrdenesSection
+        activas={stats.ordenes_activas ?? 0}
+        porEstado={stats.ordenes_por_estado ?? {}}
+        recientes={stats.ordenes_recientes ?? []}
+      />
+
       {/* ── Stat grid ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MiniStat
@@ -188,40 +312,44 @@ export default async function DashboardPage() {
           value={stats.total_clientes}
           sub="Clientes / marcas comerciales"
           icon={Users}
-          color="#f5eb4a"
-          accent="#f5eb4a"
+          numClass="text-amber-600 dark:text-[#f5eb4a]"
+          iconClass="text-amber-600 dark:text-[#f5eb4a]"
+          iconBg="bg-amber-500/10 border-amber-500/20 dark:bg-amber-400/15 dark:border-amber-400/30"
         />
         <MiniStat
           label="Razones Sociales"
           value={stats.total_razones_sociales}
           sub={`${stats.marcas_sin_rs > 0 ? `${stats.marcas_sin_rs} marcas sin vincular` : "Todas las marcas vinculadas"}`}
           icon={Building2}
-          color="#a5b4fc"
-          accent="#6366f1"
+          numClass="text-indigo-600 dark:text-[#22d3ee]"
+          iconClass="text-indigo-600 dark:text-[#22d3ee]"
+          iconBg="bg-indigo-500/10 border-indigo-500/20 dark:bg-cyan-400/15 dark:border-cyan-400/30"
         />
         <MiniStat
           label="Productos totales"
           value={stats.total_productos}
           sub={`En ${nf.format(stats.marcas_con_productos)} marcas (${pctConProductos}%)`}
           icon={Boxes}
-          color="#34d399"
-          accent="#10b981"
+          numClass="text-emerald-600 dark:text-[#4ade80]"
+          iconClass="text-emerald-600 dark:text-[#4ade80]"
+          iconBg="bg-emerald-500/10 border-emerald-500/20 dark:bg-green-400/15 dark:border-green-400/30"
         />
         <MiniStat
           label="Rubros activos"
           value={stats.rubros.length}
           sub={`${nf.format(stats.provincias.length)} provincias con cobertura`}
           icon={Tag}
-          color="#fb923c"
-          accent="#f97316"
+          numClass="text-orange-600 dark:text-[#f472b6]"
+          iconClass="text-orange-600 dark:text-[#f472b6]"
+          iconBg="bg-orange-500/10 border-orange-500/20 dark:bg-pink-500/15 dark:border-pink-500/30"
         />
       </div>
 
       {/* ── Alertas ── */}
       {(stats.marcas_sin_rs > 0) && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/8 px-5 py-4">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-300">
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/8 px-5 py-4">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-700 dark:text-amber-300">
             <span className="font-semibold">{nf.format(stats.marcas_sin_rs)} marcas</span> no tienen razón social vinculada.
             Vinculálas desde el detalle de cada cliente.
           </p>
@@ -233,20 +361,20 @@ export default async function DashboardPage() {
         {/* Coverage bar */}
         <div className="rounded-2xl border border-border bg-card/80 p-6">
           <div className="flex items-center gap-2 mb-1">
-            <PackageCheck className="w-4 h-4 text-emerald-400" />
+            <PackageCheck className="w-4 h-4 text-emerald-600 dark:text-[#4ade80]" />
             <h3 className="text-sm font-semibold text-foreground">Cobertura de productos</h3>
           </div>
           <p className="text-xs text-muted-foreground mb-5">Marcas con al menos un producto registrado</p>
 
           <div className="flex items-end gap-3 mb-3">
-            <p className="text-4xl font-black tabular-nums text-emerald-400">{pctConProductos}%</p>
+            <p className="text-4xl font-black tabular-nums text-emerald-600 dark:text-[#4ade80]">{pctConProductos}%</p>
             <p className="text-sm text-muted-foreground pb-1">
               {nf.format(stats.marcas_con_productos)} de {nf.format(stats.total_clientes)} marcas
             </p>
           </div>
           <div className="h-3 rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full rounded-full bg-emerald-500/70 transition-all"
+              className="h-full rounded-full bg-emerald-600 dark:bg-[#4ade80]/70 transition-all"
               style={{ width: `${pctConProductos}%` }}
             />
           </div>
@@ -260,12 +388,12 @@ export default async function DashboardPage() {
         {/* Prom products */}
         <div className="rounded-2xl border border-border bg-card/80 p-6">
           <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-violet-400" />
+            <TrendingUp className="w-4 h-4 text-violet-600 dark:text-[#e879f9]" />
             <h3 className="text-sm font-semibold text-foreground">Productos por marca</h3>
           </div>
           <p className="text-xs text-muted-foreground mb-5">Promedio entre marcas con productos</p>
 
-          <p className="text-4xl font-black tabular-nums text-violet-400 mb-2">{promProductosPorMarca}</p>
+          <p className="text-4xl font-black tabular-nums text-violet-600 dark:text-[#e879f9] mb-2">{promProductosPorMarca}</p>
           <p className="text-xs text-muted-foreground">
             {nf.format(stats.total_productos)} productos en total entre {nf.format(stats.marcas_con_productos)} marcas
           </p>

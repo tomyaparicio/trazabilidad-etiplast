@@ -6,11 +6,11 @@ Usa las tablas de catálogo (rubros, provincias) para queries más eficientes.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from dependencies import verify_token
-from models import Cliente, ClienteProducto, ClienteUbicacion, Provincia, RazonSocial, Rubro
+from models import Cliente, ClienteProducto, ClienteUbicacion, OrdenTrabajo, Provincia, RazonSocial, Rubro
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -82,6 +82,47 @@ async def dashboard_stats(
     )
     provincias = [{"nombre": nombre, "cantidad": cantidad} for nombre, cantidad in provincias_query]
 
+    # ── Órdenes de Trabajo ────────────────────────────────────────────────────
+    ESTADOS = ["borrador", "pendiente", "en_proceso", "completada", "cancelada"]
+    ACTIVOS = ["pendiente", "en_proceso"]
+
+    ordenes_por_estado = {}
+    for estado in ESTADOS:
+        ordenes_por_estado[estado] = (
+            db.query(func.count(OrdenTrabajo.id))
+            .filter(OrdenTrabajo.estado == estado)
+            .scalar() or 0
+        )
+
+    ordenes_activas = sum(ordenes_por_estado[e] for e in ACTIVOS)
+
+    # Últimas 8 órdenes (cualquier estado), más recientes primero
+    ot_recientes = (
+        db.query(OrdenTrabajo)
+        .options(
+            joinedload(OrdenTrabajo.cliente),
+            joinedload(OrdenTrabajo.creador),
+            joinedload(OrdenTrabajo.responsable),
+        )
+        .order_by(OrdenTrabajo.created_at.desc())
+        .limit(3)
+        .all()
+    )
+    ordenes_recientes = [
+        {
+            "id":                  o.id,
+            "numero":              o.numero,
+            "cliente_nombre":      o.cliente.marca if o.cliente else None,
+            "estado":              o.estado,
+            "fecha":               o.fecha.isoformat() if o.fecha else None,
+            "cantidad":            o.cantidad,
+            "created_at":          o.created_at.isoformat() if o.created_at else None,
+            "creador_nombre":      o.creador.nombre_completo if o.creador else None,
+            "responsable_nombre":  o.responsable.nombre_completo if o.responsable else None,
+        }
+        for o in ot_recientes
+    ]
+
     return {
         "total_clientes":        total_clientes,
         "total_razones_sociales": total_razones_sociales,
@@ -90,6 +131,10 @@ async def dashboard_stats(
         "marcas_con_productos":   marcas_con_productos,
         "rubros":                 rubros,
         "provincias":             provincias,
+        # OTs
+        "ordenes_activas":      ordenes_activas,
+        "ordenes_por_estado":   ordenes_por_estado,
+        "ordenes_recientes":    ordenes_recientes,
     }
 
 

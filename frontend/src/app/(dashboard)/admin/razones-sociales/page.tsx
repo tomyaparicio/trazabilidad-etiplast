@@ -11,7 +11,10 @@ import {
 import {
   Building2, Plus, Pencil, Loader2,
   Search, Boxes, Package, AlertCircle, Eye,
+  ChevronLeft, ChevronRight,
 } from "lucide-react"
+
+const PER_PAGE = 30
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RazonSocialRow {
@@ -200,20 +203,25 @@ function DetalleMarcasDialog({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function RazonesSocialesPage() {
-  const [rows, setRows] = useState<RazonSocialRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [search, setSearch] = useState("")
-  const [viewRS, setViewRS] = useState<RazonSocialRow | null>(null)
+  const [rows, setRows]           = useState<RazonSocialRow[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState("")
+  const [search, setSearch]       = useState("")
+  const [page, setPage]           = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal]         = useState(0)
+  const [viewRS, setViewRS]       = useState<RazonSocialRow | null>(null)
   const [nuevoOpen, setNuevoOpen] = useState(false)
-  const [editRS, setEditRS] = useState<RazonSocialRow | null>(null)
+  const [editRS, setEditRS]       = useState<RazonSocialRow | null>(null)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchRows = useCallback(async (q = "") => {
+  const fetchRows = useCallback(async (q: string, p: number) => {
     setLoading(true); setError("")
     try {
-      const res = await api.razonessociales.list({ search: q || undefined, per_page: 200 })
+      const res = await api.razonessociales.list({ search: q || undefined, page: p, per_page: PER_PAGE })
       setRows(res.data as RazonSocialRow[])
+      setTotal(res.total)
+      setTotalPages(res.total_pages)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar")
     } finally {
@@ -221,25 +229,39 @@ export default function RazonesSocialesPage() {
     }
   }, [])
 
-  useEffect(() => { fetchRows() }, [fetchRows])
+  useEffect(() => { fetchRows(search, page) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = (v: string) => {
     setSearch(v)
+    setPage(1)
     if (debounce.current) clearTimeout(debounce.current)
-    debounce.current = setTimeout(() => fetchRows(v), 300)
+    debounce.current = setTimeout(() => fetchRows(v, 1), 350)
+  }
+
+  const goToPage = (p: number) => {
+    setPage(p)
+    fetchRows(search, p)
   }
 
   const handleCreated = (rs: RazonSocialRow) => {
-    setRows((prev) => [rs, ...prev].sort((a, b) => a.razon_social.localeCompare(b.razon_social)))
     setNuevoOpen(false)
+    fetchRows(search, 1)
+    setPage(1)
   }
 
   const handleUpdated = (rs: RazonSocialRow) => {
     setRows((prev) => prev.map((r) => (r.id === rs.id ? rs : r)))
     setEditRS(null)
-    // Update viewRS if it's the one being edited
     if (viewRS?.id === rs.id) setViewRS(rs)
   }
+
+  // Genera los números de página a mostrar (máx 7 botones)
+  const pageNumbers = (() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    if (page <= 4) return [1, 2, 3, 4, 5, "…", totalPages]
+    if (page >= totalPages - 3) return [1, "…", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    return [1, "…", page - 1, page, page + 1, "…", totalPages]
+  })()
 
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
@@ -251,7 +273,7 @@ export default function RazonesSocialesPage() {
           <div>
             <h2 className="text-xl font-semibold text-foreground">Razones Sociales</h2>
             <p className="text-muted-foreground text-sm">
-              {loading ? "Cargando…" : `${rows.length} entidades legales`}
+              {loading ? "Cargando…" : `${total.toLocaleString("es-AR")} entidades legales`}
             </p>
           </div>
         </div>
@@ -297,7 +319,7 @@ export default function RazonesSocialesPage() {
             </thead>
             <tbody>
               {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
+                Array.from({ length: PER_PAGE }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50 last:border-0">
                     <td className="px-5 py-4"><div className="h-3.5 w-56 rounded-full bg-muted animate-pulse" /></td>
                     <td className="px-5 py-4"><div className="h-3.5 w-32 rounded-full bg-muted animate-pulse" /></td>
@@ -375,6 +397,62 @@ export default function RazonesSocialesPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination footer */}
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-t border-border bg-muted/10 flex-wrap">
+
+            {/* Info */}
+            <p className="text-xs text-muted-foreground whitespace-nowrap">
+              Página <span className="font-semibold text-foreground">{page}</span> de{" "}
+              <span className="font-semibold text-foreground">{totalPages}</span>
+              {" · "}{total.toLocaleString("es-AR")} registros
+            </p>
+
+            {/* Controles */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 1}
+                className="h-8 w-8 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+
+              {pageNumbers.map((n, i) =>
+                n === "…" ? (
+                  <span key={`ellipsis-${i}`} className="w-8 text-center text-xs text-muted-foreground">…</span>
+                ) : (
+                  <Button
+                    key={n}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => goToPage(n as number)}
+                    className={`h-8 w-8 p-0 rounded-lg text-xs border-border transition-colors ${
+                      page === n
+                        ? "bg-gold/10 text-gold border-gold/30 font-bold hover:bg-gold/15"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {n}
+                  </Button>
+                )
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToPage(page + 1)}
+                disabled={page === totalPages}
+                className="h-8 w-8 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Detail dialog */}

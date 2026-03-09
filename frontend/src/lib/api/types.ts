@@ -67,6 +67,9 @@ export type OrdenTrabajo = {
   fecha: string | null
   estado: EstadoOrden
   created_by: number | null
+  creador_nombre: string | null
+  responsable_id: number | null
+  responsable_nombre: string | null
 
   extrusion_ancho: number | null
   extrusion_color: string | null

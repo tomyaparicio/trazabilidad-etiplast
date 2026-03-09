@@ -323,7 +323,8 @@ class OrdenTrabajo(Base):
     fecha      = Column(Date, nullable=True)
     estado     = Column(String(20), default="borrador", nullable=False, index=True)
     # estados: borrador | pendiente | en_proceso | completada | cancelada
-    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_by     = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    responsable_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # — Extrusión —
     extrusion_ancho         = Column(Numeric(10, 2))
@@ -361,7 +362,8 @@ class OrdenTrabajo(Base):
         cascade="all, delete-orphan",
         order_by="OrdenExtrusionBobina.id",
     )
-    creador          = relationship("User")
+    creador      = relationship("User", foreign_keys=[created_by])
+    responsable  = relationship("User", foreign_keys=[responsable_id])
 
     def __repr__(self):
         return f"<OrdenTrabajo numero={self.numero!r} estado={self.estado!r}>"
@@ -386,7 +388,10 @@ class OrdenTrabajo(Base):
             "cliente_producto_id": self.cliente_producto_id,
             "fecha":            self.fecha.isoformat() if self.fecha else None,
             "estado":           self.estado,
-            "created_by":       self.created_by,
+            "created_by":          self.created_by,
+            "creador_nombre":      self.creador.nombre_completo if self.creador else None,
+            "responsable_id":      self.responsable_id,
+            "responsable_nombre":  self.responsable.nombre_completo if self.responsable else None,
             # Extrusión
             "extrusion_ancho":       float(self.extrusion_ancho)    if self.extrusion_ancho    else None,
             "extrusion_color":       self.extrusion_color,

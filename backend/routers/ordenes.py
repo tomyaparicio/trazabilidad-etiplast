@@ -29,6 +29,8 @@ def _eager_options():
         joinedload(OrdenTrabajo.cliente),
         joinedload(OrdenTrabajo.cliente_producto),
         joinedload(OrdenTrabajo.bobinas),
+        joinedload(OrdenTrabajo.creador),
+        joinedload(OrdenTrabajo.responsable),
     ]
 
 
@@ -192,6 +194,7 @@ async def crear_orden(
         fecha=fecha,
         estado=datos.get("estado", "borrador"),
         created_by=_user.get("id"),
+        responsable_id=_to_int(datos.get("responsable_id")),
 
         extrusion_ancho=_to_float(datos.get("extrusion_ancho")),
         extrusion_color=datos.get("extrusion_color"),
@@ -258,6 +261,8 @@ async def actualizar_orden(
     # Campos simples
     if "estado" in datos:
         orden.estado = datos["estado"]
+    if "responsable_id" in datos:
+        orden.responsable_id = _to_int(datos["responsable_id"])
     if "cliente_producto_id" in datos:
         orden.cliente_producto_id = datos["cliente_producto_id"]
     if "fecha" in datos and datos["fecha"]:

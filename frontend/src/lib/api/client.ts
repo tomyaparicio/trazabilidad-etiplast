@@ -121,8 +121,15 @@ export const api = {
         body: JSON.stringify({ email, password }),
         credentials: "include",
       }),
-    /** Datos del usuario autenticado (via proxy → backend /auth/me) */
-    me: () => get<UserAdmin>("/api/auth/me"),
+    /** Datos del usuario autenticado (via route handler → backend /auth/me) */
+    me: async (): Promise<UserAdmin> => {
+      const res = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || `Error ${res.status}`)
+      }
+      return res.json()
+    },
   },
   /** Admin (gestión de usuarios) */
   admin: {
@@ -132,9 +139,9 @@ export const api = {
   },
   /** Razones Sociales (entidades legales que agrupan marcas) */
   razonessociales: {
-    list: (params?: { search?: string; per_page?: number }) => {
+    list: (params?: { search?: string; page?: number; per_page?: number }) => {
       const p = params as Record<string, string | number | undefined> | undefined
-      return get<{ data: RazonSocial[]; total: number }>("/api/razones-sociales", p)
+      return get<{ data: RazonSocial[]; total: number; page: number; per_page: number; total_pages: number }>("/api/razones-sociales", p)
     },
     get: (id: number) =>
       get<RazonSocial & { marcas: { id: number; id_cliente: number | null; marca: string | null }[] }>(`/api/razones-sociales/${id}`),

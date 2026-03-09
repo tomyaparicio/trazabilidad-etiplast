@@ -47,6 +47,18 @@ export interface Cliente {
   productos: ClienteProducto[]
 }
 
+export interface OrdenResumen {
+  id: number
+  numero: string
+  cliente_nombre: string | null
+  estado: string
+  fecha: string | null
+  cantidad: number | null
+  created_at: string | null
+  creador_nombre: string | null
+  responsable_nombre: string | null
+}
+
 export interface DashboardStats {
   total_clientes: number
   total_razones_sociales: number
@@ -55,6 +67,10 @@ export interface DashboardStats {
   marcas_con_productos: number
   rubros: Array<{ nombre: string; cantidad: number }>
   provincias: Array<{ nombre: string; cantidad: number }>
+  // Órdenes de trabajo
+  ordenes_activas: number
+  ordenes_por_estado: Record<string, number>
+  ordenes_recientes: OrdenResumen[]
 }
 
 export interface Filtros {

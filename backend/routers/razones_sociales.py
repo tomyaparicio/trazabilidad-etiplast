@@ -25,23 +25,40 @@ async def listar_razones_sociales(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=200),
 ):
-    query = (
+    import math
+
+    term = f"%{search.strip()}%" if search else None
+
+    # Query base con join para cantidad_marcas
+    base_q = (
         db.query(RazonSocial, func.count(Cliente.id).label("cantidad_marcas"))
         .outerjoin(Cliente, Cliente.razon_social_id == RazonSocial.id)
         .group_by(RazonSocial.id)
     )
-    if search:
-        query = query.filter(RazonSocial.razon_social.ilike(f"%{search}%"))
 
-    rows = query.order_by(RazonSocial.razon_social).limit(per_page).all()
+    # Conteo real (sin paginar)
+    count_q = db.query(func.count(RazonSocial.id))
 
-    data = [
-        {**rs.to_dict(), "cantidad_marcas": cantidad}
-        for rs, cantidad in rows
-    ]
-    return {"data": data, "total": len(data)}
+    if term:
+        filter_expr = RazonSocial.razon_social.ilike(term) | RazonSocial.cuit.ilike(term)
+        base_q  = base_q.filter(filter_expr)
+        count_q = count_q.filter(filter_expr)
+
+    total: int = count_q.scalar() or 0
+
+    offset = (page - 1) * per_page
+    rows = base_q.order_by(RazonSocial.razon_social).offset(offset).limit(per_page).all()
+
+    return {
+        "data":        [{**rs.to_dict(), "cantidad_marcas": cant} for rs, cant in rows],
+        "total":       total,
+        "page":        page,
+        "per_page":    per_page,
+        "total_pages": math.ceil(total / per_page) if total > 0 else 1,
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
