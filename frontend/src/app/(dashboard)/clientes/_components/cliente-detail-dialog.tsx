@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   Pencil, Check, Loader2, AlertCircle, CheckCircle2, X, Plus, Trash2,
-  Building2, MapPin, Phone, FileText, Hash, Boxes, Truck,
+  Building2, MapPin, Phone, FileText, Hash, Boxes, Truck, TriangleAlert,
+  MessageCircle, Navigation,
 } from "lucide-react"
 
 // ─── Gradient by rubro ────────────────────────────────────────────────────────
@@ -141,12 +142,14 @@ function RazonSocialSelector({
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 type ProdForm = {
-  nombre: string; envase: string; volumen_cantidad: string; volumen_unidad: string
+  nombre: string; envase: string; envase_codificado: string
+  volumen_cantidad: string; volumen_unidad: string
   lamina: string; muestra: string; alto: string; cilindro: string; cierre: string
 }
-const EMPTY: ProdForm = { nombre:"", envase:"", volumen_cantidad:"", volumen_unidad:"", lamina:"", muestra:"", alto:"", cilindro:"", cierre:"" }
+const EMPTY: ProdForm = { nombre:"", envase:"", envase_codificado:"", volumen_cantidad:"", volumen_unidad:"", lamina:"", muestra:"", alto:"", cilindro:"", cierre:"" }
 const toForm = (p: ClienteProducto): ProdForm => ({
   nombre: p.nombre ?? "", envase: p.envase ?? "",
+  envase_codificado: p.envase_codificado ?? "",
   volumen_cantidad: p.volumen_cantidad != null ? String(p.volumen_cantidad) : "",
   volumen_unidad: p.volumen_unidad ?? "", lamina: p.lamina ?? "", muestra: p.muestra ?? "",
   alto: p.alto != null ? String(p.alto) : "",
@@ -155,6 +158,7 @@ const toForm = (p: ClienteProducto): ProdForm => ({
 })
 const toBody = (f: ProdForm) => ({
   nombre: f.nombre || null, envase: f.envase || null,
+  envase_codificado: f.envase_codificado || null,
   volumen_cantidad: f.volumen_cantidad ? Number(f.volumen_cantidad) : null,
   volumen_unidad: f.volumen_unidad || null, lamina: f.lamina || null, muestra: f.muestra || null,
   alto: f.alto ? Number(f.alto) : null,
@@ -182,12 +186,13 @@ function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   ].filter(Boolean).join(" · ")
 
   const specs = [
-    producto.lamina   && { k: "Lámina",  v: producto.lamina },
-    producto.envase   && { k: "Envase",  v: producto.envase },
-    producto.alto     && { k: "Alto",    v: String(producto.alto) },
-    producto.cilindro && { k: "Cilindro",v: String(producto.cilindro) },
-    producto.cierre   && { k: "Cierre",  v: String(producto.cierre) },
-    producto.muestra  && { k: "Muestra", v: producto.muestra },
+    producto.lamina            && { k: "Lámina",    v: producto.lamina },
+    producto.envase            && { k: "Envase",    v: producto.envase },
+    producto.envase_codificado && { k: "Cód. Env.", v: producto.envase_codificado },
+    producto.alto              && { k: "Alto",      v: String(producto.alto) },
+    producto.cilindro          && { k: "Cilindro",  v: String(producto.cilindro) },
+    producto.cierre            && { k: "Cierre",    v: String(producto.cierre) },
+    producto.muestra           && { k: "Muestra",   v: producto.muestra },
   ].filter(Boolean) as { k: string; v: string }[]
 
   return (
@@ -240,7 +245,8 @@ function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew }: 
         </div>
         {([
           ["volumen_cantidad","Volumen","number"],["volumen_unidad","Unidad","text"],
-          ["lamina","Lámina","text"],["muestra","Muestra","text"],["envase","Envase","text"],
+          ["lamina","Lámina","text"],["muestra","Muestra","text"],
+          ["envase","Envase","text"],["envase_codificado","Cód. Envase","text"],
           ["alto","Alto","number"],["cilindro","Cilindro","number"],["cierre","Cierre","number"],
         ] as [keyof ProdForm, string, string][]).map(([k, label, type]) => (
           <div key={k}>
@@ -348,15 +354,17 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
 const CAMPOS_EDITABLES = [
   "id_cliente","marca","rubro","razon_social","razon_social_id",
   "cuit","telefono","domicilio","localidad","provincia","pais","transporte","observaciones",
+  "latitud","longitud",
 ]
 
 interface ClienteDetailDialogProps {
   cliente: Cliente | null
   onClose: () => void
   onUpdate: (updated: Cliente) => void
+  onDelete?: (id: number) => void
 }
 
-export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetailDialogProps) {
+export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: ClienteDetailDialogProps) {
   const [tab, setTab] = useState<TabKey>("general")
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<Record<string, unknown>>({})
@@ -364,6 +372,8 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
   const [saveMsg, setSaveMsg] = useState<"success" | "error" | "">("")
   const [hermanas, setHermanas] = useState<{ id: number; id_cliente: number | null; marca: string | null }[]>([])
   const [productos, setProductos] = useState<ClienteProducto[]>([])
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => { setProductos(cliente?.productos ?? []) }, [cliente?.id])
 
@@ -375,7 +385,18 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
   }, [cliente?.razon_social_id, cliente?.id, editing])
 
   const handleOpen = (open: boolean) => {
-    if (!open) { onClose(); setEditing(false); setSaveMsg(""); setTab("general") }
+    if (!open) { onClose(); setEditing(false); setSaveMsg(""); setTab("general"); setConfirmDelete(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!cliente) return
+    setDeleting(true)
+    try {
+      await api.clientes.delete(cliente.id)
+      onDelete?.(cliente.id)
+      handleOpen(false)
+    } catch { /* noop */ }
+    finally { setDeleting(false) }
   }
 
   const startEditing = () => {
@@ -390,7 +411,7 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
     if (!cliente) return
     setSaving(true); setSaveMsg("")
     try {
-      const numeric = ["id_cliente", "razon_social_id"]
+      const numeric = ["id_cliente", "razon_social_id", "latitud", "longitud"]
       const updates: Record<string, unknown> = {}
       CAMPOS_EDITABLES.forEach((campo) => {
         const raw = editData[campo]
@@ -456,21 +477,58 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
             )}
           </div>
         )
-      case "ubicacion":
+      case "ubicacion": {
+        const lat = d?.latitud as number | null
+        const lng = d?.longitud as number | null
+        const mapsUrl = lat != null && lng != null
+          ? `https://www.google.com/maps?q=${lat},${lng}`
+          : null
         return (
           <div className="grid grid-cols-3 gap-4">
             <FieldCard label="Domicilio" fieldKey="domicilio" value={d?.domicilio as string} full {...fieldProps} />
             <FieldCard label="Localidad" fieldKey="localidad" value={d?.localidad as string} {...fieldProps} />
             <FieldCard label="Provincia" fieldKey="provincia" value={d?.provincia as string} {...fieldProps} />
             <FieldCard label="País"      fieldKey="pais"      value={d?.pais as string}      {...fieldProps} />
+            <FieldCard label="Latitud"   fieldKey="latitud"   value={lat}   type="number" {...fieldProps} />
+            <div className="relative">
+              <FieldCard label="Longitud" fieldKey="longitud" value={lng} type="number" {...fieldProps} />
+              {!editing && mapsUrl && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  <Navigation className="w-3 h-3" />Ver
+                </a>
+              )}
+            </div>
           </div>
         )
-      case "contacto":
+      }
+      case "contacto": {
+        const tel = d?.telefono as string | null
+        // Normalizar número: quitar espacios, guiones, paréntesis y agregar código Argentina si no empieza con +
+        const waNumber = tel ? tel.replace(/[\s\-\(\)]/g, "").replace(/^0/, "54").replace(/^(?!\+)/, "54") : null
+        const waUrl = waNumber ? `https://wa.me/${waNumber}` : null
         return (
           <div className="grid grid-cols-3 gap-4">
-            <FieldCard label="Teléfono" fieldKey="telefono" value={d?.telefono as string} {...fieldProps} />
+            <div className="relative">
+              <FieldCard label="Teléfono" fieldKey="telefono" value={tel} {...fieldProps} />
+              {!editing && waUrl && (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
+                >
+                  <MessageCircle className="w-3 h-3" />WhatsApp
+                </a>
+              )}
+            </div>
           </div>
         )
+      }
       case "transporte":
         return (
           <div className="grid grid-cols-3 gap-4">
@@ -530,33 +588,60 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate }: ClienteDetai
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            {saveMsg === "success" && (
-              <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
-                <CheckCircle2 className="w-3.5 h-3.5" />Guardado
-              </span>
-            )}
-            {saveMsg === "error" && (
-              <span className="flex items-center gap-1.5 text-xs text-red-400 font-semibold">
-                <AlertCircle className="w-3.5 h-3.5" />Error
-              </span>
-            )}
-            {!isProductosTab && (!editing ? (
-              <Button size="sm" onClick={startEditing}
-                className="h-8 text-xs rounded-lg bg-muted/50 hover:bg-muted text-secondary-foreground border border-border gap-1.5 px-3">
-                <Pencil className="w-3.5 h-3.5" />Editar
-              </Button>
-            ) : (
-              <>
-                <Button variant="outline" size="sm" onClick={cancelEditing}
-                  className="h-8 text-xs rounded-lg bg-transparent border-border text-muted-foreground hover:bg-muted/50">
+            {/* ── Confirmación de eliminación ── */}
+            {confirmDelete ? (
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5 text-xs text-red-400 font-semibold">
+                  <TriangleAlert className="w-3.5 h-3.5" />
+                  ¿Eliminar &ldquo;{cliente?.marca}&rdquo;?
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}
+                  className="h-8 text-xs rounded-lg bg-transparent border-border text-muted-foreground hover:bg-muted/50 px-3">
                   Cancelar
                 </Button>
-                <Button size="sm" onClick={handleSave} disabled={saving}
-                  className="h-8 text-xs rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 gap-1.5 px-3">
-                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Guardar
+                <Button size="sm" onClick={handleDelete} disabled={deleting}
+                  className="h-8 text-xs rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 gap-1.5 px-3">
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Eliminar
                 </Button>
+              </div>
+            ) : (
+              <>
+                {saveMsg === "success" && (
+                  <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />Guardado
+                  </span>
+                )}
+                {saveMsg === "error" && (
+                  <span className="flex items-center gap-1.5 text-xs text-red-400 font-semibold">
+                    <AlertCircle className="w-3.5 h-3.5" />Error
+                  </span>
+                )}
+                {!editing && (
+                  <Button size="sm" onClick={() => setConfirmDelete(true)}
+                    className="h-8 w-8 p-0 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+                {!isProductosTab && (!editing ? (
+                  <Button size="sm" onClick={startEditing}
+                    className="h-8 text-xs rounded-lg bg-muted/50 hover:bg-muted text-secondary-foreground border border-border gap-1.5 px-3">
+                    <Pencil className="w-3.5 h-3.5" />Editar
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="outline" size="sm" onClick={cancelEditing}
+                      className="h-8 text-xs rounded-lg bg-transparent border-border text-muted-foreground hover:bg-muted/50">
+                      Cancelar
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={saving}
+                      className="h-8 text-xs rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 gap-1.5 px-3">
+                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Guardar
+                    </Button>
+                  </>
+                ))}
               </>
-            ))}
+            )}
             <div className="w-px h-5 bg-border" />
             <button type="button" onClick={() => handleOpen(false)}
               className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">

@@ -227,6 +227,8 @@ async def crear_cliente(
         provincia_id=provincia_id,
         pais=datos.get("pais") or "Argentina",
         transporte=datos.get("transporte"),
+        latitud=_to_float(datos.get("latitud")),
+        longitud=_to_float(datos.get("longitud")),
     ))
 
     # Crear contacto
@@ -237,13 +239,14 @@ async def crear_cliente(
     ))
 
     # Crear producto (si hay algún campo de producto)
-    campos_producto = ["producto", "envase", "volumen_cantidad", "volumen_unidad",
+    campos_producto = ["producto", "envase", "envase_codificado", "volumen_cantidad", "volumen_unidad",
                        "lamina", "muestra", "alto", "cilindro", "cierre"]
     if any(datos.get(c) for c in campos_producto):
         db.add(ClienteProducto(
             cliente_id=cliente.id,
             nombre=datos.get("producto"),
             envase=datos.get("envase"),
+            envase_codificado=datos.get("envase_codificado"),
             volumen_cantidad=_to_float(datos.get("volumen_cantidad")),
             volumen_unidad=datos.get("volumen_unidad"),
             lamina=datos.get("lamina"),
@@ -314,6 +317,10 @@ async def actualizar_cliente(
         if campo in datos:
             setattr(ub, campo, datos[campo])
 
+    for campo in ("latitud", "longitud"):
+        if campo in datos:
+            setattr(ub, campo, _to_float(datos[campo]))
+
     if "provincia" in datos:
         if datos["provincia"]:
             ub.provincia_id = _get_or_create_provincia(db, datos["provincia"]).id
@@ -332,7 +339,7 @@ async def actualizar_cliente(
 
     # — Producto principal —
     pr = cliente.productos[0] if cliente.productos else None
-    campos_producto = ["producto", "envase", "volumen_cantidad", "volumen_unidad",
+    campos_producto = ["producto", "envase", "envase_codificado", "volumen_cantidad", "volumen_unidad",
                        "lamina", "muestra", "alto", "cilindro", "cierre"]
 
     if any(c in datos for c in campos_producto):
@@ -342,7 +349,7 @@ async def actualizar_cliente(
 
         if "producto" in datos:
             pr.nombre = datos["producto"]
-        for campo in ("envase", "volumen_unidad", "lamina", "muestra"):
+        for campo in ("envase", "envase_codificado", "volumen_unidad", "lamina", "muestra"):
             if campo in datos:
                 setattr(pr, campo, datos[campo])
         for campo in ("volumen_cantidad", "alto", "cilindro", "cierre"):
@@ -378,6 +385,7 @@ async def crear_producto_cliente(
         cliente_id=cliente_id,
         nombre=datos.get("nombre"),
         envase=datos.get("envase"),
+        envase_codificado=datos.get("envase_codificado"),
         volumen_cantidad=_to_float(datos.get("volumen_cantidad")),
         volumen_unidad=datos.get("volumen_unidad"),
         lamina=datos.get("lamina"),
@@ -407,7 +415,7 @@ async def actualizar_producto_cliente(
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    for campo in ("nombre", "envase", "volumen_unidad", "lamina", "muestra"):
+    for campo in ("nombre", "envase", "envase_codificado", "volumen_unidad", "lamina", "muestra"):
         if campo in datos:
             setattr(producto, campo, datos[campo])
     for campo in ("volumen_cantidad", "alto", "cilindro", "cierre"):
@@ -433,4 +441,17 @@ async def eliminar_producto_cliente(
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     db.delete(producto)
+    db.commit()
+
+
+@router.delete("/clientes/{cliente_id}", status_code=204, summary="Eliminar cliente")
+async def eliminar_cliente(
+    cliente_id: int,
+    _user: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    db.delete(cliente)
     db.commit()

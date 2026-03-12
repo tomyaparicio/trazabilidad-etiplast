@@ -98,6 +98,7 @@ export const api = {
     get: (id: number) => get<Cliente>(`/api/clientes/${id}`),
     create: (data: object) => post<Cliente>("/api/clientes", data),
     update: (id: number, data: object) => put<Cliente>(`/api/clientes/${id}`, data),
+    delete: (id: number) => del<void>(`/api/clientes/${id}`),
   },
   dashboard: {
     stats: () => get<DashboardStats>("/api/dashboard/stats"),

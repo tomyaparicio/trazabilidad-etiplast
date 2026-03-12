@@ -212,33 +212,55 @@ function ProductoSelector({ productos, value, onSelect }: ProductoSelectorProps)
 
 // ─── Estado inicial del formulario ─────────────────────────────────────────
 
-function emptyForm(): CreateOrdenRequest & { impresion_colores: string[]; bobinas: Bobina[]; responsable_id: number | null } {
+function emptyForm() {
   return {
-    cliente_id: 0,
-    cliente_producto_id: null,
+    cliente_id: 0 as number,
+    cliente_producto_id: null as number | null,
     fecha: new Date().toISOString().split("T")[0],
-    estado: "borrador",
-    responsable_id: null,
+    estado: "borrador" as EstadoOrden,
+    responsable_id: null as number | null,
 
-    extrusion_ancho: null,
+    // Extrusión
+    extrusion_ancho: null as number | null,
     extrusion_color: "Blanco",
     extrusion_trat: "Con",
-    extrusion_espesor: 60,
-    extrusion_cant_bob: null,
+    extrusion_espesor: 60 as number | null,
+    extrusion_cant_bob: null as number | null,
     extrusion_formulacion: "2045/208",
-    bobinas: [{ metros: null, kg_bob: null }],
+    extrusion_maquina: "",
+    extrusion_observaciones: "",
+    operador_extrusion: "",
+    bobinas: [{ metros: null, kg_bob: null }] as Bobina[],
 
+    // Impresión
     impresion_frente: "",
+    impresion_retroverso: "",
     impresion_observaciones: "",
-    impresion_cilindro: null,
+    impresion_cilindro: null as number | null,
     impresion_colores: ["", "", "", "", "", ""],
+    operador_impresion: "",
 
-    troquelado_ancho: null,
-    troquelado_alto: null,
+    // Troquelado
+    troquelado_ancho: null as number | null,
+    troquelado_alto: null as number | null,
     troquelado_envase: "",
+    troquelado_maquina: "",
+    troquelado_observaciones: "",
+    operador_troquelado: "",
 
-    cantidad: null,
-    total_final: null,
+    // Control de calidad
+    control_calidad: "",
+
+    // Fechas por etapa
+    fecha_diseno: "",
+    fecha_preprensa: "",
+    fecha_extrusion: "",
+    fecha_impresion: "",
+    fecha_troquelado: "",
+    fecha_entrega: "",
+
+    cantidad: null as number | null,
+    total_final: null as number | null,
     observaciones: "",
   }
 }
@@ -257,22 +279,44 @@ function ordenToForm(orden: OrdenTrabajo): ReturnType<typeof emptyForm> {
     estado: orden.estado,
     responsable_id: orden.responsable_id ?? null,
 
+    // Extrusión
     extrusion_ancho: orden.extrusion_ancho,
     extrusion_color: orden.extrusion_color ?? "Blanco",
     extrusion_trat: orden.extrusion_trat ?? "Con",
     extrusion_espesor: orden.extrusion_espesor ?? 60,
     extrusion_cant_bob: orden.extrusion_cant_bob,
     extrusion_formulacion: orden.extrusion_formulacion ?? "2045/208",
+    extrusion_maquina: orden.extrusion_maquina ?? "",
+    extrusion_observaciones: orden.extrusion_observaciones ?? "",
+    operador_extrusion: orden.operador_extrusion ?? "",
     bobinas,
 
+    // Impresión
     impresion_frente: orden.impresion_frente ?? "",
+    impresion_retroverso: orden.impresion_retroverso ?? "",
     impresion_observaciones: orden.impresion_observaciones ?? "",
     impresion_cilindro: orden.impresion_cilindro,
     impresion_colores: colores,
+    operador_impresion: orden.operador_impresion ?? "",
 
+    // Troquelado
     troquelado_ancho: orden.troquelado_ancho,
     troquelado_alto: orden.troquelado_alto,
     troquelado_envase: orden.troquelado_envase ?? "",
+    troquelado_maquina: orden.troquelado_maquina ?? "",
+    troquelado_observaciones: orden.troquelado_observaciones ?? "",
+    operador_troquelado: orden.operador_troquelado ?? "",
+
+    // Control de calidad
+    control_calidad: orden.control_calidad ?? "",
+
+    // Fechas por etapa
+    fecha_diseno: orden.fecha_diseno ?? "",
+    fecha_preprensa: orden.fecha_preprensa ?? "",
+    fecha_extrusion: orden.fecha_extrusion ?? "",
+    fecha_impresion: orden.fecha_impresion ?? "",
+    fecha_troquelado: orden.fecha_troquelado ?? "",
+    fecha_entrega: orden.fecha_entrega ?? "",
 
     cantidad: orden.cantidad,
     total_final: orden.total_final,
@@ -290,8 +334,7 @@ interface Props {
 }
 
 export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
-  type Form = ReturnType<typeof emptyForm>
-  const [form, setForm]                   = useState<Form>(emptyForm())
+  const [form, setForm]                   = useState(emptyForm())
   const [clienteName, setClienteName]     = useState("")
   const [clienteProductos, setClienteProductos] = useState<ClienteProducto[]>([])
   const [usuarios, setUsuarios]           = useState<UserAdmin[]>([])
@@ -321,6 +364,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
     setError("")
   }, [open, orden])
 
+  type Form = ReturnType<typeof emptyForm>
   const set = (key: keyof Form, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }))
 
@@ -612,6 +656,22 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
                 />
               </Field>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Máquina">
+                <Input value={form.extrusion_maquina ?? ""} placeholder="Ej: EXT-01"
+                  onChange={(e) => set("extrusion_maquina", e.target.value)} className="h-9 text-sm" />
+              </Field>
+              <Field label="Operador">
+                <Input value={form.operador_extrusion ?? ""} placeholder="Nombre del operador"
+                  onChange={(e) => set("operador_extrusion", e.target.value)} className="h-9 text-sm" />
+              </Field>
+            </div>
+            <Field label="Observaciones de Extrusión">
+              <textarea value={form.extrusion_observaciones ?? ""} placeholder="Notas de extrusión"
+                onChange={(e) => set("extrusion_observaciones", e.target.value)}
+                rows={2}
+                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
+            </Field>
           </div>
 
           {/* ── Impresión ── */}
@@ -631,10 +691,16 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
                   className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
               </Field>
             </div>
-            <Field label="Cilindro (mm)">
-              <Input type="number" step="0.01" value={form.impresion_cilindro ?? ""} placeholder="0.00"
-                onChange={(e) => set("impresion_cilindro", num(e.target.value))} className="h-9 text-sm w-48" />
-            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Cilindro (mm)">
+                <Input type="number" step="0.01" value={form.impresion_cilindro ?? ""} placeholder="0.00"
+                  onChange={(e) => set("impresion_cilindro", num(e.target.value))} className="h-9 text-sm" />
+              </Field>
+              <Field label="Operador">
+                <Input value={form.operador_impresion ?? ""} placeholder="Nombre del operador"
+                  onChange={(e) => set("operador_impresion", e.target.value)} className="h-9 text-sm" />
+              </Field>
+            </div>
             <div>
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
                 Colores (hasta 6)
@@ -661,18 +727,76 @@ export function OrdenFormDialog({ open, onOpenChange, orden, onSaved }: Props) {
 
           {/* ── Troquelado ── */}
           {sectionTitle("Troquelado")}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 -mt-4">
-            <Field label="Ancho (mm)">
-              <Input type="number" step="0.01" value={form.troquelado_ancho ?? ""} placeholder="0.00"
-                onChange={(e) => set("troquelado_ancho", num(e.target.value))} className="h-9 text-sm" />
+          <div className="space-y-4 -mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Field label="Ancho (mm)">
+                <Input type="number" step="0.01" value={form.troquelado_ancho ?? ""} placeholder="0.00"
+                  onChange={(e) => set("troquelado_ancho", num(e.target.value))} className="h-9 text-sm" />
+              </Field>
+              <Field label="Alto (mm)">
+                <Input type="number" step="0.01" value={form.troquelado_alto ?? ""} placeholder="0.00"
+                  onChange={(e) => set("troquelado_alto", num(e.target.value))} className="h-9 text-sm" />
+              </Field>
+              <Field label="Envase">
+                <Input value={form.troquelado_envase ?? ""} placeholder="Tipo de envase"
+                  onChange={(e) => set("troquelado_envase", e.target.value)} className="h-9 text-sm" />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Máquina">
+                <Input value={form.troquelado_maquina ?? ""} placeholder="Ej: TRQ-01"
+                  onChange={(e) => set("troquelado_maquina", e.target.value)} className="h-9 text-sm" />
+              </Field>
+              <Field label="Operador">
+                <Input value={form.operador_troquelado ?? ""} placeholder="Nombre del operador"
+                  onChange={(e) => set("operador_troquelado", e.target.value)} className="h-9 text-sm" />
+              </Field>
+            </div>
+            <Field label="Observaciones de Troquelado">
+              <textarea value={form.troquelado_observaciones ?? ""} placeholder="Notas de troquelado"
+                onChange={(e) => set("troquelado_observaciones", e.target.value)}
+                rows={2}
+                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
             </Field>
-            <Field label="Alto (mm)">
-              <Input type="number" step="0.01" value={form.troquelado_alto ?? ""} placeholder="0.00"
-                onChange={(e) => set("troquelado_alto", num(e.target.value))} className="h-9 text-sm" />
+          </div>
+
+          {/* ── Control de Calidad ── */}
+          {sectionTitle("Control de Calidad")}
+          <div className="-mt-4">
+            <Field label="Observaciones de Control de Calidad">
+              <textarea value={form.control_calidad ?? ""} placeholder="Notas de control de calidad..."
+                onChange={(e) => set("control_calidad", e.target.value)}
+                rows={3}
+                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
             </Field>
-            <Field label="Envase">
-              <Input value={form.troquelado_envase ?? ""} placeholder="Tipo de envase"
-                onChange={(e) => set("troquelado_envase", e.target.value)} className="h-9 text-sm" />
+          </div>
+
+          {/* ── Fechas por Etapa ── */}
+          {sectionTitle("Fechas por Etapa")}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 -mt-4">
+            <Field label="Diseño">
+              <Input type="date" value={form.fecha_diseno ?? ""}
+                onChange={(e) => set("fecha_diseno", e.target.value)} className="h-9 text-sm" />
+            </Field>
+            <Field label="Preprensa">
+              <Input type="date" value={form.fecha_preprensa ?? ""}
+                onChange={(e) => set("fecha_preprensa", e.target.value)} className="h-9 text-sm" />
+            </Field>
+            <Field label="Extrusión">
+              <Input type="date" value={form.fecha_extrusion ?? ""}
+                onChange={(e) => set("fecha_extrusion", e.target.value)} className="h-9 text-sm" />
+            </Field>
+            <Field label="Impresión">
+              <Input type="date" value={form.fecha_impresion ?? ""}
+                onChange={(e) => set("fecha_impresion", e.target.value)} className="h-9 text-sm" />
+            </Field>
+            <Field label="Troquelado">
+              <Input type="date" value={form.fecha_troquelado ?? ""}
+                onChange={(e) => set("fecha_troquelado", e.target.value)} className="h-9 text-sm" />
+            </Field>
+            <Field label="Entrega">
+              <Input type="date" value={form.fecha_entrega ?? ""}
+                onChange={(e) => set("fecha_entrega", e.target.value)} className="h-9 text-sm" />
             </Field>
           </div>
 

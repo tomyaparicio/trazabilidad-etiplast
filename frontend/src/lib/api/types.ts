@@ -63,6 +63,7 @@ export type OrdenTrabajo = {
   numero: string
   cliente_id: number
   cliente_nombre: string | null
+  cliente_numero: number | null
   cliente_producto_id: number | null
   fecha: string | null
   estado: EstadoOrden
@@ -71,23 +72,44 @@ export type OrdenTrabajo = {
   responsable_id: number | null
   responsable_nombre: string | null
 
+  // Extrusión
   extrusion_ancho: number | null
   extrusion_color: string | null
   extrusion_trat: string | null
   extrusion_espesor: number | null
   extrusion_cant_bob: number | null
   extrusion_formulacion: string | null
+  extrusion_maquina: string | null
+  extrusion_observaciones: string | null
+  operador_extrusion: string | null
   bobinas: Bobina[]
 
+  // Impresión
   impresion_frente: string | null
   impresion_retroverso: string | null
   impresion_observaciones: string | null
   impresion_cilindro: number | null
   impresion_colores: string[]
+  operador_impresion: string | null
 
+  // Troquelado
   troquelado_ancho: number | null
   troquelado_alto: number | null
   troquelado_envase: string | null
+  troquelado_maquina: string | null
+  troquelado_observaciones: string | null
+  operador_troquelado: string | null
+
+  // Control de calidad
+  control_calidad: string | null
+
+  // Fechas por etapa
+  fecha_diseno: string | null
+  fecha_preprensa: string | null
+  fecha_extrusion: string | null
+  fecha_impresion: string | null
+  fecha_troquelado: string | null
+  fecha_entrega: string | null
 
   cantidad: number | null
   total_final: number | null

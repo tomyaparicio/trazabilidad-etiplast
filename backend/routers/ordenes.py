@@ -187,6 +187,15 @@ async def crear_orden(
     fecha_raw = datos.get("fecha")
     fecha = date.fromisoformat(fecha_raw) if fecha_raw else date.today()
 
+    def _parse_date(key: str) -> Optional[date]:
+        raw = datos.get(key)
+        if not raw:
+            return None
+        try:
+            return date.fromisoformat(raw)
+        except (ValueError, TypeError):
+            return None
+
     orden = OrdenTrabajo(
         numero=numero,
         cliente_id=cliente_id,
@@ -202,15 +211,32 @@ async def crear_orden(
         extrusion_espesor=_to_float(datos.get("extrusion_espesor")),
         extrusion_cant_bob=_to_int(datos.get("extrusion_cant_bob")),
         extrusion_formulacion=datos.get("extrusion_formulacion"),
+        extrusion_maquina=datos.get("extrusion_maquina"),
+        extrusion_observaciones=datos.get("extrusion_observaciones"),
+        operador_extrusion=datos.get("operador_extrusion"),
 
         impresion_frente=datos.get("impresion_frente"),
         impresion_retroverso=datos.get("impresion_retroverso"),
+        impresion_observaciones=datos.get("impresion_observaciones"),
         impresion_cilindro=_to_float(datos.get("impresion_cilindro")),
         impresion_colores=colores_json,
+        operador_impresion=datos.get("operador_impresion"),
 
         troquelado_ancho=_to_float(datos.get("troquelado_ancho")),
         troquelado_alto=_to_float(datos.get("troquelado_alto")),
         troquelado_envase=datos.get("troquelado_envase"),
+        troquelado_maquina=datos.get("troquelado_maquina"),
+        troquelado_observaciones=datos.get("troquelado_observaciones"),
+        operador_troquelado=datos.get("operador_troquelado"),
+
+        control_calidad=datos.get("control_calidad"),
+
+        fecha_diseno=_parse_date("fecha_diseno"),
+        fecha_preprensa=_parse_date("fecha_preprensa"),
+        fecha_extrusion=_parse_date("fecha_extrusion"),
+        fecha_impresion=_parse_date("fecha_impresion"),
+        fecha_troquelado=_parse_date("fecha_troquelado"),
+        fecha_entrega=_parse_date("fecha_entrega"),
 
         cantidad=_to_int(datos.get("cantidad")),
         total_final=_to_float(datos.get("total_final")),
@@ -268,38 +294,58 @@ async def actualizar_orden(
     if "fecha" in datos and datos["fecha"]:
         orden.fecha = date.fromisoformat(datos["fecha"])
 
-    campos_extrusion = [
-        "extrusion_ancho", "extrusion_color", "extrusion_trat",
-        "extrusion_espesor", "extrusion_cant_bob", "extrusion_formulacion",
+    campos_extrusion_text = [
+        "extrusion_color", "extrusion_trat", "extrusion_formulacion",
+        "extrusion_maquina", "extrusion_observaciones", "operador_extrusion",
     ]
-    for campo in campos_extrusion:
+    for campo in campos_extrusion_text:
         if campo in datos:
-            if campo in ("extrusion_ancho", "extrusion_espesor"):
-                setattr(orden, campo, _to_float(datos[campo]))
-            elif campo == "extrusion_cant_bob":
-                setattr(orden, campo, _to_int(datos[campo]))
-            else:
-                setattr(orden, campo, datos[campo])
+            setattr(orden, campo, datos[campo])
+    if "extrusion_ancho" in datos:
+        orden.extrusion_ancho = _to_float(datos["extrusion_ancho"])
+    if "extrusion_espesor" in datos:
+        orden.extrusion_espesor = _to_float(datos["extrusion_espesor"])
+    if "extrusion_cant_bob" in datos:
+        orden.extrusion_cant_bob = _to_int(datos["extrusion_cant_bob"])
 
-    campos_impresion = ["impresion_frente", "impresion_retroverso", "impresion_cilindro"]
-    for campo in campos_impresion:
+    campos_impresion_text = [
+        "impresion_frente", "impresion_retroverso",
+        "impresion_observaciones", "operador_impresion",
+    ]
+    for campo in campos_impresion_text:
         if campo in datos:
-            if campo == "impresion_cilindro":
-                setattr(orden, campo, _to_float(datos[campo]))
-            else:
-                setattr(orden, campo, datos[campo])
+            setattr(orden, campo, datos[campo])
+    if "impresion_cilindro" in datos:
+        orden.impresion_cilindro = _to_float(datos["impresion_cilindro"])
 
     if "impresion_colores" in datos:
         colores = datos["impresion_colores"]
         orden.impresion_colores = json.dumps(colores) if colores else None
 
-    campos_troquelado = ["troquelado_ancho", "troquelado_alto", "troquelado_envase"]
-    for campo in campos_troquelado:
+    campos_troquelado_text = [
+        "troquelado_envase", "troquelado_maquina",
+        "troquelado_observaciones", "operador_troquelado",
+    ]
+    for campo in campos_troquelado_text:
         if campo in datos:
-            if campo in ("troquelado_ancho", "troquelado_alto"):
-                setattr(orden, campo, _to_float(datos[campo]))
-            else:
-                setattr(orden, campo, datos[campo])
+            setattr(orden, campo, datos[campo])
+    if "troquelado_ancho" in datos:
+        orden.troquelado_ancho = _to_float(datos["troquelado_ancho"])
+    if "troquelado_alto" in datos:
+        orden.troquelado_alto = _to_float(datos["troquelado_alto"])
+
+    if "control_calidad" in datos:
+        orden.control_calidad = datos["control_calidad"]
+
+    # Fechas por etapa
+    for fecha_campo in ("fecha_diseno", "fecha_preprensa", "fecha_extrusion",
+                        "fecha_impresion", "fecha_troquelado", "fecha_entrega"):
+        if fecha_campo in datos:
+            raw = datos[fecha_campo]
+            try:
+                setattr(orden, fecha_campo, date.fromisoformat(raw) if raw else None)
+            except (ValueError, TypeError):
+                setattr(orden, fecha_campo, None)
 
     if "cantidad" in datos:
         orden.cantidad = _to_int(datos["cantidad"])

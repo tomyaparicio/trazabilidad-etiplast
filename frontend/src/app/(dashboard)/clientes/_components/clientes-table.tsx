@@ -207,6 +207,12 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
     setTotal((t) => t + 1)
   }
 
+  const handleClienteDeleted = (id: number) => {
+    setClientes((prev) => prev.filter((c) => c.id !== id))
+    setTotal((t) => t - 1)
+    setSelectedCliente(null)
+  }
+
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
 
@@ -381,6 +387,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
         cliente={selectedCliente}
         onClose={() => setSelectedCliente(null)}
         onUpdate={handleClienteUpdate}
+        onDelete={handleClienteDeleted}
       />
       <ClienteNuevoDialog
         open={nuevoDialogOpen}

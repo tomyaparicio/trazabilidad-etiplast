@@ -3,6 +3,7 @@ export interface ClienteProducto {
   cliente_id: number
   nombre: string | null
   envase: string | null
+  envase_codificado: string | null
   volumen_cantidad: number | null
   volumen_unidad: string | null
   lamina: string | null
@@ -43,6 +44,8 @@ export interface Cliente {
   envase: string | null
   observaciones: string | null
   transporte: string | null
+  latitud: number | null
+  longitud: number | null
   created_at: string | null
   productos: ClienteProducto[]
 }

@@ -89,7 +89,11 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
         <div className="space-y-6 py-2">
           {/* Generales */}
           <Section title="Datos Generales">
-            <Row label="Cliente" value={orden.cliente_nombre ?? `#${orden.cliente_id}`} />
+            <Row label="Cliente" value={
+              orden.cliente_nombre
+                ? (orden.cliente_numero != null ? `#${orden.cliente_numero} · ${orden.cliente_nombre}` : orden.cliente_nombre)
+                : `#${orden.cliente_id}`
+            } />
             <Row label="Fecha" value={orden.fecha
               ? new Date(orden.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })
               : undefined}
@@ -126,6 +130,9 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
             <Row label="Micronaje (µ)" value={orden.extrusion_espesor != null ? `${orden.extrusion_espesor} µ` : "60 µ"} />
             <Row label="Cant. Bobinas" value={orden.extrusion_cant_bob} />
             <Row label="Formulación" value={orden.extrusion_formulacion} />
+            <Row label="Máquina" value={orden.extrusion_maquina} />
+            <Row label="Operador" value={orden.operador_extrusion} />
+            <Row label="Observaciones" value={orden.extrusion_observaciones} />
           </Section>
 
           {/* Impresión */}
@@ -133,6 +140,7 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
             <Row label="Frente" value={orden.impresion_frente} />
             <Row label="Observación" value={orden.impresion_observaciones} />
             <Row label="Cilindro" value={orden.impresion_cilindro != null ? `${orden.impresion_cilindro} mm` : null} />
+            <Row label="Operador" value={orden.operador_impresion} />
             {coloresActivos.length > 0 && (
               <div className="flex items-baseline gap-2">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-36 shrink-0">Colores</span>
@@ -152,7 +160,35 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
             <Row label="Ancho" value={orden.troquelado_ancho != null ? `${orden.troquelado_ancho} mm` : null} />
             <Row label="Alto" value={orden.troquelado_alto != null ? `${orden.troquelado_alto} mm` : null} />
             <Row label="Envase" value={orden.troquelado_envase} />
+            <Row label="Máquina" value={orden.troquelado_maquina} />
+            <Row label="Operador" value={orden.operador_troquelado} />
+            <Row label="Observaciones" value={orden.troquelado_observaciones} />
           </Section>
+
+          {/* Control de Calidad */}
+          {orden.control_calidad && (
+            <Section title="Control de Calidad">
+              <Row label="Observaciones" value={orden.control_calidad} />
+            </Section>
+          )}
+
+          {/* Fechas por Etapa */}
+          {(orden.fecha_diseno || orden.fecha_preprensa || orden.fecha_extrusion ||
+            orden.fecha_impresion || orden.fecha_troquelado || orden.fecha_entrega) && (
+            <Section title="Fechas por Etapa">
+              {[
+                ["Diseño",      orden.fecha_diseno],
+                ["Preprensa",   orden.fecha_preprensa],
+                ["Extrusión",   orden.fecha_extrusion],
+                ["Impresión",   orden.fecha_impresion],
+                ["Troquelado",  orden.fecha_troquelado],
+                ["Entrega",     orden.fecha_entrega],
+              ].filter(([, v]) => v).map(([label, val]) => (
+                <Row key={label as string} label={label as string}
+                  value={new Date((val as string) + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })} />
+              ))}
+            </Section>
+          )}
 
           {/* Totales */}
           <Section title="Totales">

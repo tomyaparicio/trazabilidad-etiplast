@@ -154,6 +154,8 @@ class Cliente(Base):
             "provincia_id": ub.provincia_id if ub else None,
             "pais":         ub.pais         if ub else "Argentina",
             "transporte":   ub.transporte   if ub else None,
+            "latitud":      float(ub.latitud)  if (ub and ub.latitud)  else None,
+            "longitud":     float(ub.longitud) if (ub and ub.longitud) else None,
             # — Contacto —
             "telefono":      ct.telefono      if ct else None,
             "observaciones": ct.observaciones if ct else None,
@@ -190,6 +192,8 @@ class ClienteUbicacion(Base):
     provincia_id = Column(Integer, ForeignKey("provincias.id", ondelete="SET NULL"), nullable=True, index=True)
     pais        = Column(String(100), default="Argentina")
     transporte  = Column(String(200))
+    latitud     = Column(Numeric(10, 6))
+    longitud    = Column(Numeric(10, 6))
 
     # Relaciones
     cliente      = relationship("Cliente", back_populates="ubicacion")
@@ -235,17 +239,18 @@ class ClienteProducto(Base):
         ForeignKey("clientes.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
-    nombre          = Column(String(200))
-    envase          = Column(String(200))
-    volumen_cantidad = Column(Numeric(12, 4))
-    volumen_unidad  = Column(String(50))
-    lamina          = Column(String(200))
-    muestra         = Column(String(200))
-    alto            = Column(Numeric(10, 2))
-    cilindro        = Column(Numeric(10, 2))
-    cierre          = Column(Numeric(10, 2))
-    created_at      = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at      = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    nombre            = Column(String(200))
+    envase            = Column(String(200))
+    envase_codificado = Column(String(100))
+    volumen_cantidad  = Column(Numeric(12, 4))
+    volumen_unidad    = Column(String(50))
+    lamina            = Column(String(200))
+    muestra           = Column(String(200))
+    alto              = Column(Numeric(10, 2))
+    cilindro          = Column(Numeric(10, 2))
+    cierre            = Column(Numeric(10, 2))
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at        = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relaciones
     cliente = relationship("Cliente", back_populates="productos")
@@ -259,6 +264,7 @@ class ClienteProducto(Base):
             "cliente_id":       self.cliente_id,
             "nombre":           self.nombre,
             "envase":           self.envase,
+            "envase_codificado": self.envase_codificado,
             "volumen_cantidad": float(self.volumen_cantidad) if self.volumen_cantidad else None,
             "volumen_unidad":   self.volumen_unidad,
             "lamina":           self.lamina,
@@ -266,6 +272,31 @@ class ClienteProducto(Base):
             "alto":             float(self.alto)     if self.alto     else None,
             "cilindro":         float(self.cilindro) if self.cilindro else None,
             "cierre":           float(self.cierre)   if self.cierre   else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Máquinas (catálogo)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Maquina(Base):
+    """Catálogo de máquinas de producción (extrusión, troquelado, impresión)."""
+    __tablename__ = "maquinas"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    codigo     = Column(String(50), unique=True, nullable=False, index=True)
+    nombre     = Column(String(200), nullable=False)
+    tipo       = Column(String(50))   # 'extrusion' | 'troquelado' | 'impresion'
+    activa     = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def to_dict(self) -> dict:
+        return {
+            "id":     self.id,
+            "codigo": self.codigo,
+            "nombre": self.nombre,
+            "tipo":   self.tipo,
+            "activa": self.activa,
         }
 
 
@@ -327,29 +358,47 @@ class OrdenTrabajo(Base):
     responsable_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # — Extrusión —
-    extrusion_ancho         = Column(Numeric(10, 2))
-    extrusion_color         = Column(String(100))
-    extrusion_trat          = Column(String(100))
-    extrusion_espesor       = Column(Numeric(10, 3))
-    extrusion_cant_bob      = Column(Integer)
-    extrusion_formulacion   = Column(String(300))
+    extrusion_ancho              = Column(Numeric(10, 2))
+    extrusion_color              = Column(String(100))
+    extrusion_trat               = Column(String(100))
+    extrusion_espesor            = Column(Numeric(10, 3))
+    extrusion_cant_bob           = Column(Integer)
+    extrusion_formulacion        = Column(String(300))
+    extrusion_maquina            = Column(String(100))
+    extrusion_observaciones      = Column(Text)
+    operador_extrusion           = Column(String(150))
 
     # — Impresión —
-    impresion_frente        = Column(Text)
-    impresion_retroverso    = Column(Text)
-    impresion_observaciones = Column(Text)
-    impresion_cilindro      = Column(Numeric(10, 2))   # auto-fill desde cliente_producto
-    impresion_colores       = Column(Text)              # JSON array de hasta 6 colores
+    impresion_frente             = Column(Text)
+    impresion_retroverso         = Column(Text)
+    impresion_observaciones      = Column(Text)
+    impresion_cilindro           = Column(Numeric(10, 2))
+    impresion_colores            = Column(Text)
+    operador_impresion           = Column(String(150))
 
     # — Troquelado —
-    troquelado_ancho        = Column(Numeric(10, 2))
-    troquelado_alto         = Column(Numeric(10, 2))   # auto-fill desde cliente_producto
-    troquelado_envase       = Column(String(200))       # auto-fill desde cliente_producto
+    troquelado_ancho             = Column(Numeric(10, 2))
+    troquelado_alto              = Column(Numeric(10, 2))
+    troquelado_envase            = Column(String(200))
+    troquelado_maquina           = Column(String(100))
+    troquelado_observaciones     = Column(Text)
+    operador_troquelado          = Column(String(150))
+
+    # — Control de calidad —
+    control_calidad              = Column(Text)
+
+    # — Fechas por etapa —
+    fecha_diseno                 = Column(Date)
+    fecha_preprensa              = Column(Date)
+    fecha_extrusion              = Column(Date)
+    fecha_impresion              = Column(Date)
+    fecha_troquelado             = Column(Date)
+    fecha_entrega                = Column(Date)
 
     # — Totales —
-    cantidad                = Column(Integer)
-    total_final             = Column(Numeric(14, 2))
-    observaciones           = Column(Text)
+    cantidad                     = Column(Integer)
+    total_final                  = Column(Numeric(14, 2))
+    observaciones                = Column(Text)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -384,7 +433,8 @@ class OrdenTrabajo(Base):
             "id":               self.id,
             "numero":           self.numero,
             "cliente_id":       self.cliente_id,
-            "cliente_nombre":   cliente.marca if cliente else None,
+            "cliente_nombre":   cliente.marca     if cliente else None,
+            "cliente_numero":   cliente.id_cliente if cliente else None,
             "cliente_producto_id": self.cliente_producto_id,
             "fecha":            self.fecha.isoformat() if self.fecha else None,
             "estado":           self.estado,
@@ -393,29 +443,45 @@ class OrdenTrabajo(Base):
             "responsable_id":      self.responsable_id,
             "responsable_nombre":  self.responsable.nombre_completo if self.responsable else None,
             # Extrusión
-            "extrusion_ancho":       float(self.extrusion_ancho)    if self.extrusion_ancho    else None,
-            "extrusion_color":       self.extrusion_color,
-            "extrusion_trat":        self.extrusion_trat,
-            "extrusion_espesor":     float(self.extrusion_espesor)  if self.extrusion_espesor  else None,
-            "extrusion_cant_bob":    self.extrusion_cant_bob,
-            "extrusion_formulacion": self.extrusion_formulacion,
+            "extrusion_ancho":           float(self.extrusion_ancho)   if self.extrusion_ancho   else None,
+            "extrusion_color":           self.extrusion_color,
+            "extrusion_trat":            self.extrusion_trat,
+            "extrusion_espesor":         float(self.extrusion_espesor) if self.extrusion_espesor else None,
+            "extrusion_cant_bob":        self.extrusion_cant_bob,
+            "extrusion_formulacion":     self.extrusion_formulacion,
+            "extrusion_maquina":         self.extrusion_maquina,
+            "extrusion_observaciones":   self.extrusion_observaciones,
+            "operador_extrusion":        self.operador_extrusion,
             "bobinas": [b.to_dict() for b in self.bobinas],
             # Impresión
-            "impresion_frente":         self.impresion_frente,
-            "impresion_retroverso":     self.impresion_retroverso,
-            "impresion_observaciones":  self.impresion_observaciones,
-            "impresion_cilindro":       float(self.impresion_cilindro) if self.impresion_cilindro else None,
-            "impresion_colores":     colores,
+            "impresion_frente":          self.impresion_frente,
+            "impresion_retroverso":      self.impresion_retroverso,
+            "impresion_observaciones":   self.impresion_observaciones,
+            "impresion_cilindro":        float(self.impresion_cilindro) if self.impresion_cilindro else None,
+            "impresion_colores":         colores,
+            "operador_impresion":        self.operador_impresion,
             # Troquelado
-            "troquelado_ancho":      float(self.troquelado_ancho)   if self.troquelado_ancho   else None,
-            "troquelado_alto":       float(self.troquelado_alto)    if self.troquelado_alto    else None,
-            "troquelado_envase":     self.troquelado_envase,
+            "troquelado_ancho":          float(self.troquelado_ancho)  if self.troquelado_ancho  else None,
+            "troquelado_alto":           float(self.troquelado_alto)   if self.troquelado_alto   else None,
+            "troquelado_envase":         self.troquelado_envase,
+            "troquelado_maquina":        self.troquelado_maquina,
+            "troquelado_observaciones":  self.troquelado_observaciones,
+            "operador_troquelado":       self.operador_troquelado,
+            # Control de calidad
+            "control_calidad":           self.control_calidad,
+            # Fechas por etapa
+            "fecha_diseno":              self.fecha_diseno.isoformat()     if self.fecha_diseno     else None,
+            "fecha_preprensa":           self.fecha_preprensa.isoformat()  if self.fecha_preprensa  else None,
+            "fecha_extrusion":           self.fecha_extrusion.isoformat()  if self.fecha_extrusion  else None,
+            "fecha_impresion":           self.fecha_impresion.isoformat()  if self.fecha_impresion  else None,
+            "fecha_troquelado":          self.fecha_troquelado.isoformat() if self.fecha_troquelado else None,
+            "fecha_entrega":             self.fecha_entrega.isoformat()    if self.fecha_entrega    else None,
             # Totales
-            "cantidad":              self.cantidad,
-            "total_final":           float(self.total_final)        if self.total_final        else None,
-            "observaciones":         self.observaciones,
-            "created_at":            self.created_at.isoformat()    if self.created_at         else None,
-            "updated_at":            self.updated_at.isoformat()    if self.updated_at         else None,
+            "cantidad":                  self.cantidad,
+            "total_final":               float(self.total_final)           if self.total_final       else None,
+            "observaciones":             self.observaciones,
+            "created_at":                self.created_at.isoformat()       if self.created_at        else None,
+            "updated_at":                self.updated_at.isoformat()       if self.updated_at        else None,
         }
 
 

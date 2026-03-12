@@ -515,6 +515,78 @@ MIGRATIONS_RESPONSABLE = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# V2 — Nuevas funcionalidades industriales y logísticas
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_V2 = [
+
+    # ── Clientes ──────────────────────────────────────────────────────────────
+
+    ("V2: Agregar envase_codificado a cliente_productos",
+     "ALTER TABLE cliente_productos ADD COLUMN IF NOT EXISTS envase_codificado VARCHAR(100)"),
+
+    ("V2: Agregar latitud y longitud a cliente_ubicaciones",
+     """
+     ALTER TABLE cliente_ubicaciones
+         ADD COLUMN IF NOT EXISTS latitud  NUMERIC(10, 6),
+         ADD COLUMN IF NOT EXISTS longitud NUMERIC(10, 6);
+     """),
+
+    # ── Maquinas (catálogo) ───────────────────────────────────────────────────
+
+    ("V2: Crear tabla maquinas",
+     """
+     CREATE TABLE IF NOT EXISTS maquinas (
+         id         SERIAL PRIMARY KEY,
+         codigo     VARCHAR(50) UNIQUE NOT NULL,
+         nombre     VARCHAR(200) NOT NULL,
+         tipo       VARCHAR(50),
+         activa     BOOLEAN DEFAULT TRUE,
+         created_at TIMESTAMPTZ DEFAULT NOW()
+     );
+     CREATE INDEX IF NOT EXISTS ix_maquinas_codigo ON maquinas (codigo);
+     CREATE INDEX IF NOT EXISTS ix_maquinas_tipo   ON maquinas (tipo);
+     """),
+
+    # ── Órdenes de Trabajo ────────────────────────────────────────────────────
+
+    ("V2: Agregar fechas de etapas a ordenes_trabajo",
+     """
+     ALTER TABLE ordenes_trabajo
+         ADD COLUMN IF NOT EXISTS fecha_diseno     DATE,
+         ADD COLUMN IF NOT EXISTS fecha_preprensa  DATE,
+         ADD COLUMN IF NOT EXISTS fecha_extrusion  DATE,
+         ADD COLUMN IF NOT EXISTS fecha_impresion  DATE,
+         ADD COLUMN IF NOT EXISTS fecha_troquelado DATE,
+         ADD COLUMN IF NOT EXISTS fecha_entrega    DATE;
+     """),
+
+    ("V2: Agregar máquinas a ordenes_trabajo",
+     """
+     ALTER TABLE ordenes_trabajo
+         ADD COLUMN IF NOT EXISTS extrusion_maquina  VARCHAR(100),
+         ADD COLUMN IF NOT EXISTS troquelado_maquina VARCHAR(100);
+     """),
+
+    ("V2: Agregar operadores a ordenes_trabajo",
+     """
+     ALTER TABLE ordenes_trabajo
+         ADD COLUMN IF NOT EXISTS operador_extrusion  VARCHAR(150),
+         ADD COLUMN IF NOT EXISTS operador_impresion  VARCHAR(150),
+         ADD COLUMN IF NOT EXISTS operador_troquelado VARCHAR(150);
+     """),
+
+    ("V2: Agregar observaciones por proceso a ordenes_trabajo",
+     """
+     ALTER TABLE ordenes_trabajo
+         ADD COLUMN IF NOT EXISTS extrusion_observaciones  TEXT,
+         ADD COLUMN IF NOT EXISTS troquelado_observaciones TEXT,
+         ADD COLUMN IF NOT EXISTS control_calidad          TEXT;
+     """),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -532,7 +604,7 @@ def run_migrations():
     Base.metadata.create_all(bind=engine)
     print("  ✓ Esquema verificado\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2
 
     with engine.connect() as conn:
         for name, sql in all_migrations:
