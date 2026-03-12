@@ -480,29 +480,41 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
       case "ubicacion": {
         const lat = d?.latitud as number | null
         const lng = d?.longitud as number | null
+        // URL con coordenadas exactas si están disponibles, sino búsqueda por dirección
+        const domicilio = d?.domicilio as string | null
+        const localidad = d?.localidad as string | null
+        const provincia = d?.provincia as string | null
+        const addressParts = [domicilio, localidad, provincia, "Argentina"].filter(Boolean)
         const mapsUrl = lat != null && lng != null
           ? `https://www.google.com/maps?q=${lat},${lng}`
-          : null
+          : addressParts.length > 1
+            ? `https://www.google.com/maps/search/${encodeURIComponent(addressParts.join(", "))}`
+            : null
         return (
           <div className="grid grid-cols-3 gap-4">
-            <FieldCard label="Domicilio" fieldKey="domicilio" value={d?.domicilio as string} full {...fieldProps} />
-            <FieldCard label="Localidad" fieldKey="localidad" value={d?.localidad as string} {...fieldProps} />
-            <FieldCard label="Provincia" fieldKey="provincia" value={d?.provincia as string} {...fieldProps} />
-            <FieldCard label="País"      fieldKey="pais"      value={d?.pais as string}      {...fieldProps} />
-            <FieldCard label="Latitud"   fieldKey="latitud"   value={lat}   type="number" {...fieldProps} />
-            <div className="relative">
-              <FieldCard label="Longitud" fieldKey="longitud" value={lng} type="number" {...fieldProps} />
-              {!editing && mapsUrl && (
+            <FieldCard label="Domicilio" fieldKey="domicilio" value={domicilio} full {...fieldProps} />
+            <FieldCard label="Localidad" fieldKey="localidad" value={localidad} {...fieldProps} />
+            <FieldCard label="Provincia" fieldKey="provincia" value={provincia} {...fieldProps} />
+            <FieldCard label="País"      fieldKey="pais"      value={d?.pais as string} {...fieldProps} />
+            <FieldCard label="Latitud"   fieldKey="latitud"   value={lat}  type="number" {...fieldProps} />
+            <FieldCard label="Longitud"  fieldKey="longitud"  value={lng}  type="number" {...fieldProps} />
+            {!editing && mapsUrl && (
+              <div className="col-span-full">
                 <a
                   href={mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/8 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/15 hover:border-emerald-500/50 transition-all"
                 >
-                  <Navigation className="w-3 h-3" />Ver
+                  <Navigation className="w-4 h-4" />
+                  Ver en Google Maps
+                  {lat != null && lng != null
+                    ? <span className="text-xs text-emerald-400/60 font-normal ml-1">· coordenadas exactas</span>
+                    : <span className="text-xs text-emerald-400/60 font-normal ml-1">· búsqueda por dirección</span>
+                  }
                 </a>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )
       }
