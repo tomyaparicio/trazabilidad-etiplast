@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { api } from "@/lib/api"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 
-export default function LoginPage() {
+// ── Componente interno que usa useSearchParams ────────────────────────────────
+function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -50,6 +51,124 @@ export default function LoginPage() {
     }
   }
 
+  return (
+    <div className="w-full max-w-[420px]">
+      {/* Mobile logo */}
+      <div className="lg:hidden text-center mb-10">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent border border-border mb-5 overflow-hidden">
+          <Image src="/logoSOLO.png" alt="Etiplast" width={44} height={44} className="object-contain" />
+        </div>
+        <h1 className="text-2xl font-bold text-foreground">
+          eti<span className="text-gold">plast</span>
+        </h1>
+      </div>
+
+      {/* Card */}
+      <div className="bg-card/90 backdrop-blur-2xl border border-border rounded-2xl p-8 shadow-xl">
+        <div className="mb-8">
+          <h2 className="text-[22px] font-semibold text-foreground mb-1.5">
+            Bienvenido de vuelta
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Ingresá tus credenciales para continuar
+          </p>
+        </div>
+
+        {sessionExpired && (
+          <div className="mb-6 flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-sm" role="alert">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>Tu sesión ha expirado. Ingresá de nuevo para continuar.</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-6 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm" role="alert">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <div className="space-y-2">
+            <label htmlFor="login-email" className="block text-sm font-medium text-secondary-foreground">
+              Email
+            </label>
+            <Input
+              id="login-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              spellCheck={false}
+              placeholder="usuario@etiplast.com"
+              className="h-12 rounded-xl bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/20 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="login-password" className="block text-sm font-medium text-secondary-foreground">
+              Contraseña
+            </label>
+            <div className="relative">
+              <Input
+                id="login-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="h-12 rounded-xl pr-12 bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/20 transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-secondary-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-1">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full h-12 rounded-xl font-medium text-sm transition-all duration-300
+                bg-gradient-to-r from-[#1a1866] to-[#292d96]
+                hover:from-[#292d96] hover:to-[#3832b0]
+                text-white border border-[#3832b0]/50
+                hover:border-[#f5eb4a]/30
+                shadow-[0_4px_20px_rgba(30,27,75,0.4)]
+                hover:shadow-[0_4px_30px_rgba(30,27,75,0.6)]
+                disabled:opacity-50"
+            >
+              {loading ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Ingresando…</>
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  Ingresar
+                  <span className="text-[#f5eb4a]">→</span>
+                </span>
+              )}
+            </Button>
+          </div>
+        </form>
+      </div>
+
+      <p className="text-center text-muted-foreground/70 text-xs mt-7">
+        Etiplast ERP · © {new Date().getFullYear()} Todos los derechos reservados
+      </p>
+    </div>
+  )
+}
+
+// ── Página principal — envuelve LoginForm en Suspense ─────────────────────────
+export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-background relative overflow-hidden">
       {/* Theme toggle */}
@@ -124,120 +243,11 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right form panel */}
+      {/* Right form panel — Suspense requerido por useSearchParams */}
       <div className="flex-1 flex items-center justify-center p-8 relative z-10">
-        <div className="w-full max-w-[420px]">
-          {/* Mobile logo */}
-          <div className="lg:hidden text-center mb-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent border border-border mb-5 overflow-hidden">
-              <Image src="/logoSOLO.png" alt="Etiplast" width={44} height={44} className="object-contain" />
-            </div>
-            <h1 className="text-2xl font-bold text-foreground">
-              eti<span className="text-gold">plast</span>
-            </h1>
-          </div>
-
-          {/* Card */}
-          <div className="bg-card/90 backdrop-blur-2xl border border-border rounded-2xl p-8 shadow-xl">
-            <div className="mb-8">
-              <h2 className="text-[22px] font-semibold text-foreground mb-1.5">
-                Bienvenido de vuelta
-              </h2>
-              <p className="text-muted-foreground text-sm">
-                Ingresá tus credenciales para continuar
-              </p>
-            </div>
-
-            {sessionExpired && (
-              <div className="mb-6 flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-sm" role="alert">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>Tu sesión ha expirado. Ingresá de nuevo para continuar.</span>
-              </div>
-            )}
-
-            {error && (
-              <div className="mb-6 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm" role="alert">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-              <div className="space-y-2">
-                <label htmlFor="login-email" className="block text-sm font-medium text-secondary-foreground">
-                  Email
-                </label>
-                <Input
-                  id="login-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  spellCheck={false}
-                  placeholder="usuario@etiplast.com"
-                  className="h-12 rounded-xl bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/20 transition-colors"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="login-password" className="block text-sm font-medium text-secondary-foreground">
-                  Contraseña
-                </label>
-                <div className="relative">
-                  <Input
-                    id="login-password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="••••••••"
-                    className="h-12 rounded-xl pr-12 bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/20 transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-secondary-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="pt-1">
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full h-12 rounded-xl font-medium text-sm transition-all duration-300
-                    bg-gradient-to-r from-[#1a1866] to-[#292d96]
-                    hover:from-[#292d96] hover:to-[#3832b0]
-                    text-white border border-[#3832b0]/50
-                    hover:border-[#f5eb4a]/30
-                    shadow-[0_4px_20px_rgba(30,27,75,0.4)]
-                    hover:shadow-[0_4px_30px_rgba(30,27,75,0.6)]
-                    disabled:opacity-50"
-                >
-                  {loading ? (
-                    <><Loader2 className="w-4 h-4 animate-spin mr-2" />Ingresando…</>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2">
-                      Ingresar
-                      <span className="text-[#f5eb4a]">→</span>
-                    </span>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </div>
-
-          <p className="text-center text-muted-foreground/70 text-xs mt-7">
-            Etiplast ERP · © {new Date().getFullYear()} Todos los derechos reservados
-          </p>
-        </div>
+        <Suspense fallback={<div className="w-full max-w-[420px] h-96 animate-pulse rounded-2xl bg-muted/30" />}>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   )
