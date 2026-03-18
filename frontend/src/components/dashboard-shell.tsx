@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { Sidebar } from "@/components/sidebar"
+import { VoiceAgent } from "@/components/voice-agent"
 
 const SIDEBAR_STORAGE_KEY = "etiplast-sidebar-open"
 
@@ -46,8 +47,9 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
           onMenuOpenChange={(open) => setMenuOpen(open)}
           visible={sidebarOpen}
         />
-        <main className="flex-1 overflow-auto min-w-0">{children}</main>
+        {children}
       </div>
+      <VoiceAgent />
     </div>
   )
 }

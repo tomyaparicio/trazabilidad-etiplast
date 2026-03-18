@@ -44,6 +44,8 @@ export interface Cliente {
   envase: string | null
   observaciones: string | null
   transporte: string | null
+  transporte_domicilio: string | null
+  transporte_localidad: string | null
   latitud: number | null
   longitud: number | null
   created_at: string | null

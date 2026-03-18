@@ -23,7 +23,7 @@ export default async function DashboardLayout({
 
   return (
     <DashboardShell userEmail={userEmail} userRole={userRole}>
-      {children}
+      <main className="flex-1 overflow-auto min-w-0">{children}</main>
     </DashboardShell>
   )
 }

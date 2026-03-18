@@ -153,7 +153,9 @@ class Cliente(Base):
             "provincia":    ub.provincia_obj.nombre if (ub and ub.provincia_obj) else None,
             "provincia_id": ub.provincia_id if ub else None,
             "pais":         ub.pais         if ub else "Argentina",
-            "transporte":   ub.transporte   if ub else None,
+            "transporte":           ub.transporte           if ub else None,
+            "transporte_domicilio": ub.transporte_domicilio if ub else None,
+            "transporte_localidad": ub.transporte_localidad if ub else None,
             "latitud":      float(ub.latitud)  if (ub and ub.latitud)  else None,
             "longitud":     float(ub.longitud) if (ub and ub.longitud) else None,
             # — Contacto —
@@ -191,7 +193,9 @@ class ClienteUbicacion(Base):
     localidad   = Column(String(150))
     provincia_id = Column(Integer, ForeignKey("provincias.id", ondelete="SET NULL"), nullable=True, index=True)
     pais        = Column(String(100), default="Argentina")
-    transporte  = Column(String(200))
+    transporte            = Column(String(200))
+    transporte_domicilio  = Column(String(300))
+    transporte_localidad  = Column(String(150))
     latitud     = Column(Numeric(10, 6))
     longitud    = Column(Numeric(10, 6))
 
@@ -356,6 +360,7 @@ class OrdenTrabajo(Base):
     # estados: borrador | pendiente | en_proceso | completada | cancelada
     created_by     = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     responsable_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    operador       = Column(String(150))
 
     # — Extrusión —
     extrusion_ancho              = Column(Numeric(10, 2))
@@ -442,6 +447,7 @@ class OrdenTrabajo(Base):
             "creador_nombre":      self.creador.nombre_completo if self.creador else None,
             "responsable_id":      self.responsable_id,
             "responsable_nombre":  self.responsable.nombre_completo if self.responsable else None,
+            "operador":            self.operador,
             # Extrusión
             "extrusion_ancho":           float(self.extrusion_ancho)   if self.extrusion_ancho   else None,
             "extrusion_color":           self.extrusion_color,
