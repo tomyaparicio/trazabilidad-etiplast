@@ -204,6 +204,7 @@ async def crear_orden(
         estado=datos.get("estado", "borrador"),
         created_by=_user.get("id"),
         responsable_id=_to_int(datos.get("responsable_id")),
+        operador=datos.get("operador"),
 
         extrusion_ancho=_to_float(datos.get("extrusion_ancho")),
         extrusion_color=datos.get("extrusion_color"),
@@ -289,6 +290,8 @@ async def actualizar_orden(
         orden.estado = datos["estado"]
     if "responsable_id" in datos:
         orden.responsable_id = _to_int(datos["responsable_id"])
+    if "operador" in datos:
+        orden.operador = datos["operador"]
     if "cliente_producto_id" in datos:
         orden.cliente_producto_id = datos["cliente_producto_id"]
     if "fecha" in datos and datos["fecha"]:

@@ -583,6 +583,45 @@ MIGRATIONS_V2 = [
          ADD COLUMN IF NOT EXISTS troquelado_observaciones TEXT,
          ADD COLUMN IF NOT EXISTS control_calidad          TEXT;
      """),
+
+    # ── Transporte ────────────────────────────────────────────────────────────
+
+    ("V2: Agregar domicilio y localidad de transporte a cliente_ubicaciones",
+     """
+     ALTER TABLE cliente_ubicaciones
+         ADD COLUMN IF NOT EXISTS transporte_domicilio VARCHAR(300),
+         ADD COLUMN IF NOT EXISTS transporte_localidad VARCHAR(150);
+     """),
+
+    ("V2: Agregar operador general a ordenes_trabajo",
+     """
+     ALTER TABLE ordenes_trabajo
+         ADD COLUMN IF NOT EXISTS operador VARCHAR(150);
+     """),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Fuzzy Search — pg_trgm para búsqueda fonética/aproximada (agente de voz)
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_FUZZY = [
+
+    ("Fuzzy: Habilitar extensión pg_trgm",
+     "CREATE EXTENSION IF NOT EXISTS pg_trgm"),
+
+    ("Fuzzy: Índice trigrama en clientes.marca",
+     """
+     CREATE INDEX IF NOT EXISTS idx_clientes_marca_trgm
+     ON clientes USING gin(lower(coalesce(marca, '')) gin_trgm_ops)
+     """),
+
+    ("Fuzzy: Índice trigrama en clientes.razon_social",
+     """
+     CREATE INDEX IF NOT EXISTS idx_clientes_razon_social_trgm
+     ON clientes USING gin(lower(coalesce(razon_social, '')) gin_trgm_ops)
+     """),
 ]
 
 
@@ -604,7 +643,7 @@ def run_migrations():
     Base.metadata.create_all(bind=engine)
     print("  ✓ Esquema verificado\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_FUZZY
 
     with engine.connect() as conn:
         for name, sql in all_migrations:

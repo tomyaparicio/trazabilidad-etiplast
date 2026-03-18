@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { OrdenFormDialog } from "./orden-form-dialog"
 import { OrdenDetailDialog } from "./orden-detail-dialog"
+import type { OrderPrefill } from "@/lib/voice/types"
 
 // ─── Helpers de estado ─────────────────────────────────────────────────────
 
@@ -58,6 +59,19 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
   const [formOpen, setFormOpen] = useState(false)
   const [editOrden, setEditOrden] = useState<OrdenTrabajo | null>(null)
   const [detailOrden, setDetailOrden] = useState<OrdenTrabajo | null>(null)
+  const [prefill, setPrefill] = useState<OrderPrefill | null>(null)
+
+  // ── Escuchar evento del agente de voz ─────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const payload = (e as CustomEvent<OrderPrefill>).detail
+      setPrefill(payload)
+      setEditOrden(null)
+      setFormOpen(true)
+    }
+    window.addEventListener("eti:open-order-form", handler)
+    return () => window.removeEventListener("eti:open-order-form", handler)
+  }, [])
 
   const PER_PAGE = 20
 
@@ -104,6 +118,7 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
       setTotal((t) => t + 1)
     }
     setEditOrden(null)
+    setPrefill(null)
     setFormOpen(false)
   }
 
@@ -313,8 +328,9 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
       {/* ── Dialogs ── */}
       <OrdenFormDialog
         open={formOpen}
-        onOpenChange={(o) => { setFormOpen(o); if (!o) setEditOrden(null) }}
+        onOpenChange={(o) => { setFormOpen(o); if (!o) { setEditOrden(null); setPrefill(null) } }}
         orden={editOrden}
+        prefill={prefill}
         onSaved={handleOrdenSaved}
       />
       {detailOrden && (

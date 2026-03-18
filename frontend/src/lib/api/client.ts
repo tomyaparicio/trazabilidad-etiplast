@@ -43,6 +43,11 @@ async function request<T>(
     ...(body !== undefined && { body: JSON.stringify(body) }),
   })
   if (!res.ok) {
+    if (res.status === 401) {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" })
+      window.location.href = "/login?session=expired"
+      throw new Error("Sesión expirada") // no alcanza: la página ya redirige
+    }
     const text = await res.text()
     let msg = text || `Error ${res.status}`
     try {

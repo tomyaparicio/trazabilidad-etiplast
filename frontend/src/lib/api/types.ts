@@ -71,6 +71,7 @@ export type OrdenTrabajo = {
   creador_nombre: string | null
   responsable_id: number | null
   responsable_nombre: string | null
+  operador: string | null
 
   // Extrusión
   extrusion_ancho: number | null

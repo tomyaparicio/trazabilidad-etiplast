@@ -84,6 +84,7 @@ async def listar_clientes(
     page: int = Query(1, ge=1, description="Número de página"),
     per_page: int = Query(20, ge=1, le=100, description="Registros por página"),
     search: Optional[str] = Query(None, description="Búsqueda por marca, razón social, localidad o producto"),
+    fuzzy: bool = Query(False, description="Búsqueda aproximada con pg_trgm (para reconocimiento de voz)"),
     rubro: Optional[str] = Query(None, description="Filtrar por rubro"),
     provincia: Optional[str] = Query(None, description="Filtrar por provincia"),
     sort_by: Optional[str] = Query("marca", description="Campo de ordenamiento: id, marca, razon_social, localidad"),
@@ -99,16 +100,32 @@ async def listar_clientes(
 
     # — Filtro de búsqueda textual —
     if search:
-        f = f"%{search}%"
-        query = query.filter(or_(
-            cast(Cliente.id_cliente, String).ilike(f),
-            cast(Cliente.id, String).ilike(f),
-            Cliente.marca.ilike(f),
-            Cliente.razon_social.ilike(f),
-            RazonSocial.razon_social.ilike(f),
-            ClienteUbicacion.localidad.ilike(f),
-            ClienteProducto.nombre.ilike(f),
-        )).distinct()
+        if fuzzy:
+            # Búsqueda aproximada con trigrama — útil cuando el texto viene de reconocimiento de voz
+            # Umbral bajo (0.15) para capturar errores fonéticos como "jaugeri" → "jauregui"
+            TRGM_THRESHOLD = 0.15
+            s = search.lower()
+            query = query.filter(or_(
+                func.similarity(func.lower(func.coalesce(Cliente.marca, "")), s) > TRGM_THRESHOLD,
+                func.similarity(func.lower(func.coalesce(Cliente.razon_social, "")), s) > TRGM_THRESHOLD,
+                func.similarity(func.lower(func.coalesce(RazonSocial.razon_social, "")), s) > TRGM_THRESHOLD,
+            )).order_by(
+                func.greatest(
+                    func.similarity(func.lower(func.coalesce(Cliente.marca, "")), s),
+                    func.similarity(func.lower(func.coalesce(Cliente.razon_social, "")), s),
+                ).desc()
+            ).distinct()
+        else:
+            f = f"%{search}%"
+            query = query.filter(or_(
+                cast(Cliente.id_cliente, String).ilike(f),
+                cast(Cliente.id, String).ilike(f),
+                Cliente.marca.ilike(f),
+                Cliente.razon_social.ilike(f),
+                RazonSocial.razon_social.ilike(f),
+                ClienteUbicacion.localidad.ilike(f),
+                ClienteProducto.nombre.ilike(f),
+            )).distinct()
 
     # — Filtro por rubro (catálogo) —
     if rubro:
@@ -125,20 +142,21 @@ async def listar_clientes(
 
     total = query.count()
 
-    # — Ordenamiento dinámico —
-    SORT_FIELDS = {
-        "id":           Cliente.id_cliente,
-        "marca":        func.upper(Cliente.marca),
-        "razon_social": func.coalesce(func.upper(RazonSocial.razon_social), func.upper(Cliente.razon_social)),
-        "localidad":    func.upper(ClienteUbicacion.localidad),
-    }
-    sort_col = SORT_FIELDS.get(sort_by or "marca", func.upper(Cliente.marca))
-    order_expr = sort_col.desc().nulls_last() if sort_dir == "desc" else sort_col.asc().nulls_last()
+    # — Ordenamiento dinámico (no aplica cuando fuzzy ya ordenó por score) —
+    if not fuzzy:
+        SORT_FIELDS = {
+            "id":           Cliente.id_cliente,
+            "marca":        func.upper(Cliente.marca),
+            "razon_social": func.coalesce(func.upper(RazonSocial.razon_social), func.upper(Cliente.razon_social)),
+            "localidad":    func.upper(ClienteUbicacion.localidad),
+        }
+        sort_col = SORT_FIELDS.get(sort_by or "marca", func.upper(Cliente.marca))
+        order_expr = sort_col.desc().nulls_last() if sort_dir == "desc" else sort_col.asc().nulls_last()
+        query = query.order_by(order_expr)
 
     clientes = (
         query
         .options(*_eager_options())
-        .order_by(order_expr)
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()
@@ -227,6 +245,8 @@ async def crear_cliente(
         provincia_id=provincia_id,
         pais=datos.get("pais") or "Argentina",
         transporte=datos.get("transporte"),
+        transporte_domicilio=datos.get("transporte_domicilio"),
+        transporte_localidad=datos.get("transporte_localidad"),
         latitud=_to_float(datos.get("latitud")),
         longitud=_to_float(datos.get("longitud")),
     ))
@@ -313,7 +333,7 @@ async def actualizar_cliente(
         ub = ClienteUbicacion(cliente_id=cliente.id)
         db.add(ub)
 
-    for campo in ("domicilio", "localidad", "pais", "transporte"):
+    for campo in ("domicilio", "localidad", "pais", "transporte", "transporte_domicilio", "transporte_localidad"):
         if campo in datos:
             setattr(ub, campo, datos[campo])
 

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { api } from "@/lib/api"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,9 +13,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [sessionExpired, setSessionExpired] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get("session") === "expired") {
+      setSessionExpired(true)
+      router.replace("/login", { scroll: false })
+    }
+  }, [searchParams, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -138,6 +147,13 @@ export default function LoginPage() {
                 Ingresá tus credenciales para continuar
               </p>
             </div>
+
+            {sessionExpired && (
+              <div className="mb-6 flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-sm" role="alert">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Tu sesión ha expirado. Ingresá de nuevo para continuar.</span>
+              </div>
+            )}
 
             {error && (
               <div className="mb-6 flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm" role="alert">

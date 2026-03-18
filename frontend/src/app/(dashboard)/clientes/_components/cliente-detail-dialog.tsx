@@ -166,25 +166,23 @@ const toBody = (f: ProdForm) => ({
   cierre: f.cierre ? Number(f.cierre) : null,
 })
 
-const CARD_COLORS = [
-  "border-amber-500/40  bg-amber-500/8",
-  "border-cyan-500/40   bg-cyan-500/8",
-  "border-violet-500/40 bg-violet-500/8",
-  "border-emerald-500/40 bg-emerald-500/8",
-  "border-rose-500/40   bg-rose-500/8",
-  "border-sky-500/40    bg-sky-500/8",
-]
+const ACCENT_COLORS = ["#f59e0b","#06b6d4","#8b5cf6","#10b981","#f43f5e","#0ea5e9"]
+
+const SPEC_STYLES: Record<string, string> = {
+  "Lámina":    "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/25",
+  "Envase":    "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25",
+  "Cód. Env.": "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25",
+  "Alto":      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25",
+  "Cilindro":  "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/25",
+  "Cierre":    "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25",
+  "Muestra":   "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/25",
+}
 
 function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   producto: ClienteProducto; idx: number
   onEdit: () => void; onDelete: () => void; deleting: boolean; disabled: boolean
 }) {
-  const color = CARD_COLORS[idx % CARD_COLORS.length]
-  const title = [
-    producto.nombre,
-    producto.volumen_cantidad != null ? `${producto.volumen_cantidad}${producto.volumen_unidad ?? ""}` : null,
-  ].filter(Boolean).join(" · ")
-
+  const accent = ACCENT_COLORS[idx % ACCENT_COLORS.length]
   const specs = [
     producto.lamina            && { k: "Lámina",    v: producto.lamina },
     producto.envase            && { k: "Envase",    v: producto.envase },
@@ -196,33 +194,62 @@ function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   ].filter(Boolean) as { k: string; v: string }[]
 
   return (
-    <div className={`group relative rounded-xl border p-5 transition-all hover:shadow-lg ${color}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-base font-bold text-foreground leading-tight truncate">
-            {title || <span className="text-muted-foreground font-normal italic text-sm">Sin nombre</span>}
-          </p>
-          {specs.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {specs.map(({ k, v }) => (
-                <span key={k} className="inline-flex items-center gap-1.5 bg-background/60 border border-border/60 rounded-lg px-2.5 py-1 text-xs">
-                  <span className="text-muted-foreground font-medium">{k}</span>
-                  <span className="text-foreground font-semibold">{v}</span>
-                </span>
-              ))}
-            </div>
-          )}
+    <div
+      className="group relative rounded-xl bg-card border border-border overflow-hidden transition-all duration-200 hover:shadow-xl hover:-translate-y-px"
+      style={{ borderLeftColor: `${accent}80`, borderLeftWidth: "3px" }}
+    >
+      {/* Ambient glow from accent */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `radial-gradient(ellipse at top left, ${accent}0d, transparent 55%)` }}
+      />
+      {/* Index watermark */}
+      <span
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-7xl font-black pointer-events-none select-none leading-none"
+        style={{ color: `${accent}0a` }}
+      >
+        {String(idx + 1).padStart(2, "0")}
+      </span>
+
+      <div className="relative p-5">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-baseline gap-2.5 flex-wrap min-w-0">
+            <p className="text-[15px] font-bold text-foreground leading-tight">
+              {producto.nombre || <span className="text-muted-foreground/40 font-normal italic text-sm">Sin nombre</span>}
+            </p>
+            {producto.volumen_cantidad != null && (
+              <span
+                className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
+                style={{ background: `${accent}1a`, color: accent, border: `1px solid ${accent}40` }}
+              >
+                {producto.volumen_cantidad}{producto.volumen_unidad ?? ""}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-0.5 opacity-20 group-hover:opacity-100 transition-opacity shrink-0">
+            <button type="button" onClick={onEdit} disabled={disabled}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30">
+              <Pencil className="w-3 h-3" />
+            </button>
+            <button type="button" onClick={onDelete} disabled={deleting || disabled}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30">
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+            </button>
+          </div>
         </div>
-        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
-          <button type="button" onClick={onEdit} disabled={disabled}
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors disabled:opacity-30">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={onDelete} disabled={deleting || disabled}
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30">
-            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
+
+        {specs.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {specs.map(({ k, v }) => (
+              <span key={k} className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border ${SPEC_STYLES[k] ?? "bg-muted/40 text-muted-foreground border-border"}`}>
+                <span className="opacity-55 font-medium">{k}</span>
+                <span className="font-semibold">{v}</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground/25 italic">Sin especificaciones</p>
+        )}
       </div>
     </div>
   )
@@ -353,8 +380,9 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
 // ─── Main dialog ──────────────────────────────────────────────────────────────
 const CAMPOS_EDITABLES = [
   "id_cliente","marca","rubro","razon_social","razon_social_id",
-  "cuit","telefono","domicilio","localidad","provincia","pais","transporte","observaciones",
-  "latitud","longitud",
+  "cuit","telefono","domicilio","localidad","provincia","pais",
+  "transporte","transporte_domicilio","transporte_localidad",
+  "observaciones","latitud","longitud",
 ]
 
 interface ClienteDetailDialogProps {
@@ -480,7 +508,6 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
       case "ubicacion": {
         const lat = d?.latitud as number | null
         const lng = d?.longitud as number | null
-        // URL con coordenadas exactas si están disponibles, sino búsqueda por dirección
         const domicilio = d?.domicilio as string | null
         const localidad = d?.localidad as string | null
         const provincia = d?.provincia as string | null
@@ -490,6 +517,12 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
           : addressParts.length > 1
             ? `https://www.google.com/maps/search/${encodeURIComponent(addressParts.join(", "))}`
             : null
+        // Mapa Google Maps embebido (sin API key vía maps.google.com)
+        const gmEmbedUrl = lat != null && lng != null
+          ? `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed&hl=es`
+          : addressParts.length > 1
+            ? `https://maps.google.com/maps?q=${encodeURIComponent(addressParts.join(", "))}&output=embed&hl=es`
+            : null
         return (
           <div className="grid grid-cols-3 gap-4">
             <FieldCard label="Domicilio" fieldKey="domicilio" value={domicilio} full {...fieldProps} />
@@ -498,21 +531,30 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
             <FieldCard label="País"      fieldKey="pais"      value={d?.pais as string} {...fieldProps} />
             <FieldCard label="Latitud"   fieldKey="latitud"   value={lat}  type="number" {...fieldProps} />
             <FieldCard label="Longitud"  fieldKey="longitud"  value={lng}  type="number" {...fieldProps} />
-            {!editing && mapsUrl && (
-              <div className="col-span-full">
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/8 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/15 hover:border-emerald-500/50 transition-all"
-                >
-                  <Navigation className="w-4 h-4" />
-                  Ver en Google Maps
-                  {lat != null && lng != null
-                    ? <span className="text-xs text-emerald-400/60 font-normal ml-1">· coordenadas exactas</span>
-                    : <span className="text-xs text-emerald-400/60 font-normal ml-1">· búsqueda por dirección</span>
-                  }
-                </a>
+            {!editing && gmEmbedUrl && (
+              <div className="col-span-full rounded-xl overflow-hidden border border-border shadow-sm relative group">
+                <iframe
+                  src={gmEmbedUrl}
+                  width="100%"
+                  height="300"
+                  style={{ border: 0, display: "block" }}
+                  loading="lazy"
+                  title="Mapa de ubicación"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+                {/* Botón que abre Google Maps al hacer clic */}
+                {mapsUrl && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-background/90 backdrop-blur-sm border border-border text-xs font-semibold text-foreground hover:bg-background shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                    Abrir en Google Maps
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -541,12 +583,50 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
           </div>
         )
       }
-      case "transporte":
+      case "transporte": {
+        const transp = d?.transporte as string | null
+        const transpDom = d?.transporte_domicilio as string | null
+        const transpLoc = d?.transporte_localidad as string | null
+        const transpParts = [transpDom, transpLoc, "Argentina"].filter(Boolean)
+        const transpMapsUrl = transpParts.length > 1
+          ? `https://www.google.com/maps/search/${encodeURIComponent(transpParts.join(", "))}`
+          : null
+        const transpEmbedUrl = transpParts.length > 1
+          ? `https://maps.google.com/maps?q=${encodeURIComponent(transpParts.join(", "))}&output=embed&hl=es`
+          : null
         return (
           <div className="grid grid-cols-3 gap-4">
-            <FieldCard label="Transporte" fieldKey="transporte" value={d?.transporte as string} full {...fieldProps} />
+            <FieldCard label="Empresa de Transporte" fieldKey="transporte"           value={transp}    full {...fieldProps} />
+            <FieldCard label="Domicilio"              fieldKey="transporte_domicilio" value={transpDom} full {...fieldProps} />
+            <FieldCard label="Localidad"              fieldKey="transporte_localidad" value={transpLoc}      {...fieldProps} />
+            {!editing && transpEmbedUrl && (
+              <div className="col-span-full rounded-xl overflow-hidden border border-border shadow-sm relative group">
+                <iframe
+                  src={transpEmbedUrl}
+                  width="100%"
+                  height="280"
+                  style={{ border: 0, display: "block" }}
+                  loading="lazy"
+                  title="Mapa de transporte"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+                {transpMapsUrl && (
+                  <a
+                    href={transpMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-background/90 backdrop-blur-sm border border-border text-xs font-semibold text-foreground hover:bg-background shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                    Abrir en Google Maps
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         )
+      }
       case "notas":
         return (
           <div className="grid grid-cols-1 gap-4">
