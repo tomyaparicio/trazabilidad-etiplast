@@ -8,6 +8,7 @@ env/
 
 # Archivos de entorno (contienen credenciales - NUNCA subir)
 .env
+.env.prod
 .env.local
 .env.*.local
 

@@ -1,15 +1,36 @@
 """
 Script de migraciones — Etiplast ERP
 =====================================
-Ejecutar desde la carpeta backend: python3 migrate.py
+Ejecutar desde la carpeta backend:
+
+  python migrate.py           → base de datos LOCAL (backend/.env)
+  python migrate.py --prod    → base de datos RAILWAY (backend/.env.prod)
 
 Las migraciones son idempotentes (pueden correrse múltiples veces sin error).
 """
 import os
 import sys
-from sqlalchemy import text
-from database import engine, Base
-import models  # noqa — registra todos los modelos para create_all
+
+# ── Cargar el .env correcto ANTES de importar database (que lee DATABASE_URL) ──
+_here = os.path.dirname(os.path.abspath(__file__))
+_prod = "--prod" in sys.argv
+
+if _prod:
+    _env_file = os.path.join(_here, ".env.prod")
+    if not os.path.exists(_env_file):
+        print("❌  No existe backend/.env.prod")
+        print("   Crealo con:")
+        print("   DATABASE_URL=postgresql://postgres:<pass>@<host>:<port>/railway")
+        sys.exit(1)
+    from dotenv import load_dotenv
+    load_dotenv(_env_file, override=True)
+    print("🚀  Modo PRODUCCIÓN — Railway")
+else:
+    print("💻  Modo LOCAL")
+
+from sqlalchemy import text   # noqa: E402
+from database import engine, Base  # noqa: E402
+import models  # noqa: E402 — registra todos los modelos para create_all
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -634,8 +655,8 @@ def run_migrations():
     print("   ETIPLAST ERP — Migraciones de base de datos")
     print("=" * 52)
 
-    db_url = os.getenv("DATABASE_URL", "(no configurada)")
-    db_host = "Railway" if "railway" in db_url.lower() else "local"
+    db_url  = os.getenv("DATABASE_URL", "(no configurada)")
+    db_host = "Railway (PRODUCCIÓN)" if "railway" in db_url.lower() else "local"
     print(f"\n  Conectando a: {db_host}...\n")
 
     # Crear tablas nuevas si no existen (modelos actuales)
@@ -661,11 +682,6 @@ def run_migrations():
 
 
 if __name__ == "__main__":
-    db = os.getenv("DATABASE_URL") or os.getenv("RAILWAY_ENVIRONMENT")
-    if not db and not os.path.exists(os.path.join(os.path.dirname(__file__), ".env")):
-        print("⚠️  DATABASE_URL no configurada. Creá backend/.env con:")
-        print("   DATABASE_URL=postgresql://...  (desde Railway → Postgres → Variables)")
-        print()
     try:
         run_migrations()
     except Exception as e:
