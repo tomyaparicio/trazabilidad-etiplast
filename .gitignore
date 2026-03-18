@@ -27,6 +27,7 @@ pnpm-debug.log*
 
 # Editor / sistema
 .vscode/*
+.claude/worktrees/
 !.vscode/extensions.json
 .idea
 .DS_Store
