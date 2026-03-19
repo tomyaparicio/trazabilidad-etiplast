@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, Users, User, LogOut, Shield, ClipboardList, Building2 } from "lucide-react"
+import { LayoutDashboard, Users, User, LogOut, Shield, ClipboardList, Building2, Tag } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useState } from "react"
 
@@ -17,6 +17,7 @@ const navigation = [
 const adminNavigation = [
   { name: "Usuarios",         href: "/admin/usuarios",         icon: Shield    },
   { name: "Razones Sociales", href: "/admin/razones-sociales", icon: Building2 },
+  { name: "Rubros",           href: "/admin/rubros",           icon: Tag       },
 ]
 
 interface SidebarProps {

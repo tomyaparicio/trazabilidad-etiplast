@@ -1,14 +1,15 @@
-"""Rutas de administración de usuarios (solo admin)."""
+"""Rutas de administración de usuarios y catálogos (solo admin)."""
 import logging
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import get_db
-from models import User
+from models import User, Rubro, Cliente
 from dependencies import verify_admin
 
 logger = logging.getLogger(__name__)
@@ -98,3 +99,104 @@ def actualizar_usuario(
     db.refresh(user)
     logger.info("Admin %s actualizó usuario %s: role=%s, active=%s", admin["email"], user.email, user.role, user.is_active)
     return user.to_dict()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rubros
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RubroRequest(BaseModel):
+    nombre: str
+
+
+@router.get("/rubros", summary="Listar rubros con cantidad de clientes")
+def listar_rubros(
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(Rubro, func.count(Cliente.id).label("cantidad"))
+        .outerjoin(Cliente, Cliente.rubro_id == Rubro.id)
+        .group_by(Rubro.id)
+        .order_by(Rubro.nombre)
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "nombre": r.nombre,
+            "cantidad_clientes": cantidad,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r, cantidad in rows
+    ]
+
+
+@router.post("/rubros", summary="Crear rubro", status_code=201)
+def crear_rubro(
+    data: RubroRequest,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    nombre = data.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre es requerido")
+    if db.query(Rubro).filter(func.lower(Rubro.nombre) == nombre.lower()).first():
+        raise HTTPException(status_code=400, detail="Ya existe un rubro con ese nombre")
+    rubro = Rubro(nombre=nombre)
+    db.add(rubro)
+    db.commit()
+    db.refresh(rubro)
+    return {"id": rubro.id, "nombre": rubro.nombre, "cantidad_clientes": 0}
+
+
+@router.put("/rubros/{rubro_id}", summary="Renombrar rubro")
+def renombrar_rubro(
+    rubro_id: int,
+    data: RubroRequest,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    rubro = db.query(Rubro).filter(Rubro.id == rubro_id).first()
+    if not rubro:
+        raise HTTPException(status_code=404, detail="Rubro no encontrado")
+    nombre = data.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre es requerido")
+    existente = db.query(Rubro).filter(func.lower(Rubro.nombre) == nombre.lower(), Rubro.id != rubro_id).first()
+    if existente:
+        raise HTTPException(status_code=400, detail="Ya existe un rubro con ese nombre")
+    rubro.nombre = nombre
+    db.commit()
+    db.refresh(rubro)
+    return {"id": rubro.id, "nombre": rubro.nombre}
+
+
+@router.delete("/rubros/{rubro_id}", summary="Eliminar rubro (opcionalmente mover clientes)")
+def eliminar_rubro(
+    rubro_id: int,
+    mover_a: Optional[int] = None,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    rubro = db.query(Rubro).filter(Rubro.id == rubro_id).first()
+    if not rubro:
+        raise HTTPException(status_code=404, detail="Rubro no encontrado")
+
+    clientes_count = db.query(func.count(Cliente.id)).filter(Cliente.rubro_id == rubro_id).scalar()
+
+    if clientes_count > 0:
+        if mover_a is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"El rubro tiene {clientes_count} cliente(s). Indicá ?mover_a=<id> para moverlos antes de eliminar."
+            )
+        destino = db.query(Rubro).filter(Rubro.id == mover_a).first()
+        if not destino:
+            raise HTTPException(status_code=404, detail="Rubro destino no encontrado")
+        db.query(Cliente).filter(Cliente.rubro_id == rubro_id).update({"rubro_id": mover_a})
+
+    db.delete(rubro)
+    db.commit()
+    logger.info("Admin %s eliminó rubro '%s' (id=%s)", admin["email"], rubro.nombre, rubro_id)
+    return {"ok": True}

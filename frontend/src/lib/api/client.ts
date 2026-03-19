@@ -137,11 +137,17 @@ export const api = {
       return res.json()
     },
   },
-  /** Admin (gestión de usuarios) */
+  /** Admin (gestión de usuarios y catálogos) */
   admin: {
     listUsers: () => get<UserAdmin[]>("/api/admin/usuarios"),
     createUser: (data: CreateUserRequest) => post<UserAdmin>("/api/admin/usuarios", data),
     updateUser: (id: number, data: UpdateUserRequest) => put<UserAdmin>(`/api/admin/usuarios/${id}`, data),
+    rubros: {
+      list: () => get<{ id: number; nombre: string; cantidad_clientes: number }[]>("/api/admin/rubros"),
+      create: (nombre: string) => post<{ id: number; nombre: string; cantidad_clientes: number }>("/api/admin/rubros", { nombre }),
+      rename: (id: number, nombre: string) => put<{ id: number; nombre: string }>(`/api/admin/rubros/${id}`, { nombre }),
+      delete: (id: number, moverA?: number) => del<{ ok: boolean }>(`/api/admin/rubros/${id}${moverA != null ? `?mover_a=${moverA}` : ""}`),
+    },
   },
   /** Razones Sociales (entidades legales que agrupan marcas) */
   razonessociales: {
