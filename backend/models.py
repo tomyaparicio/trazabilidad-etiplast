@@ -39,6 +39,18 @@ class Rubro(Base):
         return f"<Rubro id={self.id} nombre={self.nombre!r}>"
 
 
+class Envase(Base):
+    """Catálogo de tipos de envase."""
+    __tablename__ = "envases"
+
+    id     = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(200), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<Envase id={self.id} nombre={self.nombre!r}>"
+
+
 class Provincia(Base):
     """Catálogo de provincias (Argentina + internacional)."""
     __tablename__ = "provincias"

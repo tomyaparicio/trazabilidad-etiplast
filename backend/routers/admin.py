@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import get_db
-from models import User, Rubro, Cliente
+from models import User, Rubro, Cliente, Envase, ClienteProducto
 from dependencies import verify_admin
 
 logger = logging.getLogger(__name__)
@@ -199,4 +199,86 @@ def eliminar_rubro(
     db.delete(rubro)
     db.commit()
     logger.info("Admin %s eliminó rubro '%s' (id=%s)", admin["email"], rubro.nombre, rubro_id)
+    return {"ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Envases
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/envases", summary="Listar envases con cantidad de productos")
+def listar_envases(
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(Envase, func.count(ClienteProducto.id).label("cantidad"))
+        .outerjoin(ClienteProducto, func.lower(func.trim(ClienteProducto.envase)) == func.lower(Envase.nombre))
+        .group_by(Envase.id)
+        .order_by(Envase.nombre)
+        .all()
+    )
+    return [
+        {
+            "id": e.id,
+            "nombre": e.nombre,
+            "cantidad_productos": cantidad,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e, cantidad in rows
+    ]
+
+
+@router.post("/envases", summary="Crear envase", status_code=201)
+def crear_envase(
+    data: RubroRequest,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    nombre = data.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre es requerido")
+    if db.query(Envase).filter(func.lower(Envase.nombre) == nombre.lower()).first():
+        raise HTTPException(status_code=400, detail="Ya existe un envase con ese nombre")
+    envase = Envase(nombre=nombre)
+    db.add(envase)
+    db.commit()
+    db.refresh(envase)
+    return {"id": envase.id, "nombre": envase.nombre, "cantidad_productos": 0}
+
+
+@router.put("/envases/{envase_id}", summary="Renombrar envase")
+def renombrar_envase(
+    envase_id: int,
+    data: RubroRequest,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    envase = db.query(Envase).filter(Envase.id == envase_id).first()
+    if not envase:
+        raise HTTPException(status_code=404, detail="Envase no encontrado")
+    nombre = data.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="El nombre es requerido")
+    existente = db.query(Envase).filter(func.lower(Envase.nombre) == nombre.lower(), Envase.id != envase_id).first()
+    if existente:
+        raise HTTPException(status_code=400, detail="Ya existe un envase con ese nombre")
+    envase.nombre = nombre
+    db.commit()
+    db.refresh(envase)
+    return {"id": envase.id, "nombre": envase.nombre}
+
+
+@router.delete("/envases/{envase_id}", summary="Eliminar envase")
+def eliminar_envase(
+    envase_id: int,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    envase = db.query(Envase).filter(Envase.id == envase_id).first()
+    if not envase:
+        raise HTTPException(status_code=404, detail="Envase no encontrado")
+    db.delete(envase)
+    db.commit()
+    logger.info("Admin %s eliminó envase '%s' (id=%s)", admin["email"], envase.nombre, envase_id)
     return {"ok": True}

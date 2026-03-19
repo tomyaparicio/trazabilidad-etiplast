@@ -148,6 +148,12 @@ export const api = {
       rename: (id: number, nombre: string) => put<{ id: number; nombre: string }>(`/api/admin/rubros/${id}`, { nombre }),
       delete: (id: number, moverA?: number) => del<{ ok: boolean }>(`/api/admin/rubros/${id}${moverA != null ? `?mover_a=${moverA}` : ""}`),
     },
+    envases: {
+      list: () => get<{ id: number; nombre: string; cantidad_productos: number }[]>("/api/admin/envases"),
+      create: (nombre: string) => post<{ id: number; nombre: string; cantidad_productos: number }>("/api/admin/envases", { nombre }),
+      rename: (id: number, nombre: string) => put<{ id: number; nombre: string }>(`/api/admin/envases/${id}`, { nombre }),
+      delete: (id: number) => del<{ ok: boolean }>(`/api/admin/envases/${id}`),
+    },
   },
   /** Razones Sociales (entidades legales que agrupan marcas) */
   razonessociales: {

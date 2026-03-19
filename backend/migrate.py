@@ -623,6 +623,32 @@ MIGRATIONS_V2 = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Catálogo de Envases
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_ENVASES = [
+
+    ("Crear tabla envases",
+     """
+     CREATE TABLE IF NOT EXISTS envases (
+         id         SERIAL PRIMARY KEY,
+         nombre     VARCHAR(200) UNIQUE NOT NULL,
+         created_at TIMESTAMPTZ DEFAULT NOW()
+     );
+     CREATE INDEX IF NOT EXISTS ix_envases_nombre ON envases (nombre);
+     """),
+
+    ("Poblar envases desde cliente_productos",
+     """
+     INSERT INTO envases (nombre)
+     SELECT DISTINCT TRIM(envase)
+     FROM cliente_productos
+     WHERE envase IS NOT NULL AND TRIM(envase) <> ''
+     ON CONFLICT (nombre) DO NOTHING;
+     """),
+]
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Fuzzy Search — pg_trgm para búsqueda fonética/aproximada (agente de voz)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -664,7 +690,7 @@ def run_migrations():
     Base.metadata.create_all(bind=engine)
     print("  ✓ Esquema verificado\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_FUZZY
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_FUZZY
 
     with engine.connect() as conn:
         for name, sql in all_migrations:
