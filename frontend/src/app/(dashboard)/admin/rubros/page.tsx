@@ -226,47 +226,65 @@ export default function AdminRubrosPage() {
         </div>
       ) : error ? (
         <p className="text-sm text-red-400 text-center py-8">{error}</p>
-      ) : rubros.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8">No hay rubros cargados.</p>
       ) : (
-        <div className="space-y-2">
-          {rubros.map((rubro) => (
-            <div
-              key={rubro.id}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-card hover:bg-accent/30 transition-colors"
-            >
-              {/* Badge */}
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${rubroClass(rubro.nombre)}`}>
-                {rubro.nombre}
-              </span>
-
-              {/* Clientes count */}
-              <span className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
-                <Users className="w-3.5 h-3.5" />
-                {rubro.cantidad_clientes} cliente{rubro.cantidad_clientes !== 1 ? "s" : ""}
-              </span>
-
-              {/* Actions */}
-              <div className="ml-auto flex items-center gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="w-8 h-8 text-muted-foreground hover:text-foreground"
-                  onClick={() => setFormRubro(rubro)}
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="w-8 h-8 text-muted-foreground hover:text-red-400"
-                  onClick={() => setDeleteRubro(rubro)}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-          ))}
+        <div className="rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Clientes</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {rubros.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="text-center py-10 text-muted-foreground text-sm">
+                    No hay rubros cargados.
+                  </td>
+                </tr>
+              ) : (
+                rubros.map((rubro, i) => (
+                  <tr
+                    key={rubro.id}
+                    className={`border-b border-border last:border-0 hover:bg-accent/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}
+                  >
+                    <td className="px-4 py-3">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${rubroClass(rubro.nombre)}`}>
+                        {rubro.nombre}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
+                        <Users className="w-3.5 h-3.5" />
+                        {rubro.cantidad_clientes}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-8 h-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => setFormRubro(rubro)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-8 h-8 text-muted-foreground hover:text-red-400"
+                          onClick={() => setDeleteRubro(rubro)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 
