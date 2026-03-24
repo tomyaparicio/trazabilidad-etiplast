@@ -82,6 +82,7 @@ export interface DashboardStats {
 export interface Filtros {
   rubros: string[]
   provincias: string[]
+  envases: string[]
 }
 
 export interface Usuario {

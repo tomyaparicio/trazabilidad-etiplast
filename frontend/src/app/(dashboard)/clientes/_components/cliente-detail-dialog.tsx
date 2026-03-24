@@ -255,9 +255,10 @@ function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   )
 }
 
-function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew }: {
+function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, envases }: {
   data: ProdForm; onChange: (d: ProdForm) => void
   onSave: () => void; onCancel: () => void; saving: boolean; isNew?: boolean
+  envases: string[]
 }) {
   const set = (k: keyof ProdForm) => (e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...data, [k]: e.target.value })
   const inp = "h-9 rounded-lg bg-input border-border text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10"
@@ -273,7 +274,7 @@ function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew }: 
         {([
           ["volumen_cantidad","Volumen","number"],["volumen_unidad","Unidad","text"],
           ["lamina","Lámina","text"],["muestra","Muestra","text"],
-          ["envase","Envase","text"],["envase_codificado","Cód. Envase","text"],
+          ["envase_codificado","Cód. Envase","text"],
           ["alto","Alto","number"],["cilindro","Cilindro","number"],["cierre","Cierre","number"],
         ] as [keyof ProdForm, string, string][]).map(([k, label, type]) => (
           <div key={k}>
@@ -281,6 +282,13 @@ function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew }: 
             <Input type={type} value={data[k]} onChange={set(k)} className={inp} />
           </div>
         ))}
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Envase</label>
+          <Input list="envases-inline-list" value={data.envase} onChange={set("envase")} autoComplete="off" className={inp} />
+          <datalist id="envases-inline-list">
+            {envases.map((e) => <option key={e} value={e} />)}
+          </datalist>
+        </div>
       </div>
       <div className="flex justify-end gap-2 mt-4">
         <Button variant="outline" size="sm" onClick={onCancel}
@@ -303,6 +311,11 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
   const [error, setError] = useState("")
+  const [envases, setEnvases] = useState<string[]>([])
+
+  useEffect(() => {
+    api.admin.envases.list().then((r) => setEnvases(r.map((e: { nombre: string }) => e.nombre))).catch(() => {})
+  }, [])
 
   const startEdit = (p: ClienteProducto) => { setForm(toForm(p)); setEditingId(p.id); setError("") }
   const startNew  = () => { setForm(EMPTY); setEditingId("new"); setError("") }
@@ -360,12 +373,12 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {productos.map((p, i) =>
           editingId === p.id
-            ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} />
+            ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} envases={envases} />
             : <ProductCard key={p.id} producto={p} idx={i} onEdit={() => startEdit(p)} onDelete={() => remove(p.id)} deleting={deleting === p.id} disabled={editingId !== null} />
         )}
 
         {editingId === "new"
-          ? <ProductInlineForm data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} isNew />
+          ? <ProductInlineForm data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} isNew envases={envases} />
           : productos.length > 0 && (
             <button type="button" onClick={startNew} disabled={editingId !== null}
               className="flex items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed border-border hover:border-gold/40 hover:bg-gold/5 text-muted-foreground hover:text-gold text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed">

@@ -443,6 +443,25 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                           ))}
                         </datalist>
                       </>
+                    ) : field.key === "envase" && filtros.envases?.length > 0 ? (
+                      <>
+                        <Input
+                          id={`nuevo-${field.key}`}
+                          type="text"
+                          list="envases-list"
+                          autoComplete="off"
+                          value={String(formData[field.key] ?? "")}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, [field.key]: e.target.value || null }))
+                          }
+                          className="h-10 rounded-lg bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/10 text-sm"
+                        />
+                        <datalist id="envases-list">
+                          {filtros.envases.map((e) => (
+                            <option key={e} value={e} />
+                          ))}
+                        </datalist>
+                      </>
                     ) : (
                       <Input
                         id={`nuevo-${field.key}`}

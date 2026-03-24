@@ -159,5 +159,10 @@ async def obtener_filtros(
         p.nombre for p in
         db.query(Provincia).order_by(Provincia.nombre).all()
     ]
+    from models import Envase
+    envases = [
+        e.nombre for e in
+        db.query(Envase).order_by(Envase.nombre).all()
+    ]
 
-    return {"rubros": rubros, "provincias": provincias}
+    return {"rubros": rubros, "provincias": provincias, "envases": envases}
