@@ -74,6 +74,7 @@ class RazonSocial(Base):
     __tablename__ = "razones_sociales"
 
     id           = Column(Integer, primary_key=True, autoincrement=True)
+    numero       = Column(Integer, index=True)   # N° de cliente (compartido por todas sus marcas)
     razon_social = Column(String(300), nullable=False, index=True)
     cuit         = Column(String(20))
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
@@ -87,6 +88,7 @@ class RazonSocial(Base):
     def to_dict(self) -> dict:
         return {
             "id":           self.id,
+            "numero":       self.numero,
             "razon_social": self.razon_social,
             "cuit":         self.cuit,
         }
@@ -152,7 +154,7 @@ class Cliente(Base):
         return {
             # — Identidad —
             "id":               self.id,
-            "id_cliente":       self.id_cliente,
+            "id_cliente":       rs.numero if rs and rs.numero is not None else self.id_cliente,
             "marca":            self.marca,
             "razon_social_id":  self.razon_social_id,
             "razon_social":     rs.razon_social if rs else self.razon_social,

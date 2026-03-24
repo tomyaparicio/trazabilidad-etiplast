@@ -650,6 +650,35 @@ MIGRATIONS_ENVASES = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Número de cliente en razones_sociales
+# El número pertenece a la entidad legal, no a cada marca individualmente.
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_RS_NUMERO = [
+
+    ("RS: Agregar columna numero a razones_sociales",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS numero INTEGER"),
+
+    ("RS: Poblar numero desde id_cliente de clientes asociados",
+     """
+     UPDATE razones_sociales rs
+     SET numero = sub.numero
+     FROM (
+         SELECT razon_social_id, MIN(id_cliente) AS numero
+         FROM clientes
+         WHERE razon_social_id IS NOT NULL AND id_cliente IS NOT NULL
+         GROUP BY razon_social_id
+     ) sub
+     WHERE rs.id = sub.razon_social_id
+       AND rs.numero IS NULL;
+     """),
+
+    ("RS: Índice en razones_sociales.numero",
+     "CREATE INDEX IF NOT EXISTS ix_razones_sociales_numero ON razones_sociales (numero)"),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Fuzzy Search — pg_trgm para búsqueda fonética/aproximada (agente de voz)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -690,7 +719,7 @@ def run_migrations():
     Base.metadata.create_all(bind=engine)
     print("  ✓ Esquema verificado\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_FUZZY
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY
 
     with engine.connect() as conn:
         for name, sql in all_migrations:
