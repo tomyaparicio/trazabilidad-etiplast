@@ -43,7 +43,16 @@ async def listar_razones_sociales(
     count_q = db.query(func.count(RazonSocial.id))
 
     if term:
-        filter_expr = RazonSocial.razon_social.ilike(term) | RazonSocial.cuit.ilike(term)
+        # Intentar búsqueda por número si el término es numérico
+        try:
+            num = int(search.strip())
+            filter_expr = (
+                RazonSocial.razon_social.ilike(term) |
+                RazonSocial.cuit.ilike(term) |
+                (RazonSocial.numero == num)
+            )
+        except ValueError:
+            filter_expr = RazonSocial.razon_social.ilike(term) | RazonSocial.cuit.ilike(term)
         base_q  = base_q.filter(filter_expr)
         count_q = count_q.filter(filter_expr)
 

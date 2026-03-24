@@ -19,6 +19,7 @@ const PER_PAGE = 30
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RazonSocialRow {
   id: number
+  numero: number | null
   razon_social: string
   cuit: string | null
   cantidad_marcas: number
@@ -291,7 +292,7 @@ export default function RazonesSocialesPage() {
         <Input
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Buscar razón social o CUIT…"
+          placeholder="Buscar por nombre, CUIT o número…"
           className="pl-9 h-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/10"
         />
       </div>
@@ -309,7 +310,7 @@ export default function RazonesSocialesPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                {["Razón Social", "CUIT", "Marcas", "Acciones"].map((h) => (
+                {["N°", "Razón Social", "CUIT", "Marcas", "Acciones"].map((h) => (
                   <th key={h} scope="col"
                     className="text-left px-5 py-3.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
                     {h}
@@ -321,6 +322,7 @@ export default function RazonesSocialesPage() {
               {loading ? (
                 Array.from({ length: PER_PAGE }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50 last:border-0">
+                    <td className="px-5 py-4"><div className="h-3.5 w-10 rounded-full bg-muted animate-pulse" /></td>
                     <td className="px-5 py-4"><div className="h-3.5 w-56 rounded-full bg-muted animate-pulse" /></td>
                     <td className="px-5 py-4"><div className="h-3.5 w-32 rounded-full bg-muted animate-pulse" /></td>
                     <td className="px-5 py-4"><div className="h-6 w-10 rounded-full bg-muted animate-pulse" /></td>
@@ -329,7 +331,7 @@ export default function RazonesSocialesPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-20 text-center">
+                  <td colSpan={5} className="px-5 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="rounded-2xl bg-muted/50 border border-border p-5">
                         <Building2 className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
@@ -343,6 +345,11 @@ export default function RazonesSocialesPage() {
               ) : (
                 rows.map((rs) => (
                   <tr key={rs.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors duration-150">
+
+                    {/* N° */}
+                    <td className="px-5 py-3.5 text-sm font-mono text-muted-foreground whitespace-nowrap">
+                      {rs.numero ?? <span className="text-muted-foreground/30">—</span>}
+                    </td>
 
                     {/* Nombre */}
                     <td className="px-5 py-3.5">
