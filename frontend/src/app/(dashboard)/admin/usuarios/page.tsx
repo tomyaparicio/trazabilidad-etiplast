@@ -160,11 +160,14 @@ export default function AdminUsuariosPage() {
                           className={`h-8 pl-3 pr-8 rounded-lg text-xs font-medium border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-gold/20 transition-all ${
                             user.role === "admin"
                               ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                              : user.role === "operario"
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                               : "bg-blue-500/10 text-blue-400 border-blue-500/20"
                           }`}
                         >
                           <option value="admin">Admin</option>
                           <option value="user">Usuario</option>
+                          <option value="operario">Operario</option>
                         </select>
                         <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
                       </div>
@@ -304,6 +307,7 @@ function CrearUsuarioDialog({ open, onClose, onCreated }: {
             <div className="relative">
               <select value={form.role} onChange={(e) => set("role", e.target.value)} className="h-10 w-full pl-4 pr-10 bg-input border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-gold/40 appearance-none cursor-pointer">
                 <option value="user">Usuario</option>
+                <option value="operario">Operario</option>
                 <option value="admin">Administrador</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />

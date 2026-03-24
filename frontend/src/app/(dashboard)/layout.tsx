@@ -11,6 +11,7 @@ export default async function DashboardLayout({
 
   let userEmail: string | undefined
   let userRole: string | undefined
+  let userName: string | undefined
 
   try {
     if (token) {
@@ -18,11 +19,13 @@ export default async function DashboardLayout({
       const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
       userEmail = payload.sub
       userRole  = payload.role
+      const parts = [payload.nombre, payload.apellido].filter(Boolean)
+      if (parts.length > 0) userName = parts.join(" ")
     }
   } catch { /* ignorar si el token es inválido */ }
 
   return (
-    <DashboardShell userEmail={userEmail} userRole={userRole}>
+    <DashboardShell userEmail={userEmail} userRole={userRole} userName={userName}>
       <main className="flex-1 overflow-auto min-w-0">{children}</main>
     </DashboardShell>
   )

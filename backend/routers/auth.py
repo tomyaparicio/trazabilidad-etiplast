@@ -32,11 +32,15 @@ def _verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def _create_token(email: str, role: str = "user", user_id: int | None = None) -> str:
+def _create_token(email: str, role: str = "user", user_id: int | None = None, nombre: str | None = None, apellido: str | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     payload: dict = {"sub": email, "role": role, "exp": expire}
     if user_id is not None:
         payload["user_id"] = user_id
+    if nombre:
+        payload["nombre"] = nombre
+    if apellido:
+        payload["apellido"] = apellido
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -47,7 +51,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Usuario inactivo")
-    return {"access_token": _create_token(user.email, user.role or "user", user.id), "token_type": "bearer"}
+    return {"access_token": _create_token(user.email, user.role or "user", user.id, user.nombre, user.apellido), "token_type": "bearer"}
 
 
 @router.get("/me", summary="Datos del usuario autenticado")

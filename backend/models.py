@@ -107,7 +107,7 @@ class Cliente(Base):
     __tablename__ = "clientes"
 
     id         = Column(Integer, primary_key=True, autoincrement=True)
-    id_cliente = Column(Integer, unique=True, index=True)
+    id_cliente = Column(Integer, index=True)   # no único: varias marcas pueden compartir el mismo número
     marca      = Column(String(200), index=True)
     razon_social = Column(String(300))   # legacy — se mantiene por compat; fuente de verdad: razon_social_obj
     cuit         = Column(String(20))    # legacy — idem

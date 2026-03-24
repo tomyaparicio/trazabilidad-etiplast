@@ -55,8 +55,8 @@ def crear_usuario(
         raise HTTPException(status_code=400, detail="El email es requerido")
     if not data.password or len(data.password) < 6:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
-    if data.role not in ("admin", "user"):
-        raise HTTPException(status_code=400, detail="El rol debe ser 'admin' o 'user'")
+    if data.role not in ("admin", "user", "operario"):
+        raise HTTPException(status_code=400, detail="El rol debe ser 'admin', 'user' u 'operario'")
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
 
@@ -90,8 +90,8 @@ def actualizar_usuario(
     if data.apellido is not None:
         user.apellido = data.apellido.strip() or None
     if data.role is not None:
-        if data.role not in ("admin", "user"):
-            raise HTTPException(status_code=400, detail="El rol debe ser 'admin' o 'user'")
+        if data.role not in ("admin", "user", "operario"):
+            raise HTTPException(status_code=400, detail="El rol debe ser 'admin', 'user' u 'operario'")
         user.role = data.role
     if data.is_active is not None:
         user.is_active = data.is_active
