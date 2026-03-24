@@ -117,15 +117,21 @@ async def listar_clientes(
             ).distinct()
         else:
             f = f"%{search}%"
-            query = query.filter(or_(
-                cast(Cliente.id_cliente, String).ilike(f),
-                cast(Cliente.id, String).ilike(f),
+            try:
+                num = int(search.strip())
+                id_filter = Cliente.id_cliente == num
+            except ValueError:
+                id_filter = None
+            conditions = [
                 Cliente.marca.ilike(f),
                 Cliente.razon_social.ilike(f),
                 RazonSocial.razon_social.ilike(f),
                 ClienteUbicacion.localidad.ilike(f),
                 ClienteProducto.nombre.ilike(f),
-            )).distinct()
+            ]
+            if id_filter is not None:
+                conditions.insert(0, id_filter)
+            query = query.filter(or_(*conditions)).distinct()
 
     # — Filtro por rubro (catálogo) —
     if rubro:
