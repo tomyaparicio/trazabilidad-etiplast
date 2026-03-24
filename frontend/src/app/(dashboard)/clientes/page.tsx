@@ -7,7 +7,7 @@ export default function ClientesPage() {
     <ClientesTable
       initialClientes={[]}
       initialTotal={0}
-      filtros={{ rubros: [], provincias: [] }}
+      filtros={{ rubros: [], provincias: [], envases: [] }}
     />
   )
 }
