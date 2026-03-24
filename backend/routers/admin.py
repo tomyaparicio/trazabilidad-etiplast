@@ -1,5 +1,7 @@
 """Rutas de administración de usuarios y catálogos (solo admin)."""
 import logging
+import re
+import unicodedata
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,7 +11,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import get_db
-from models import User, Rubro, Cliente, Envase, ClienteProducto
+from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina
 from dependencies import verify_admin
 
 logger = logging.getLogger(__name__)
@@ -281,4 +283,87 @@ def eliminar_envase(
     db.delete(envase)
     db.commit()
     logger.info("Admin %s eliminó envase '%s' (id=%s)", admin["email"], envase.nombre, envase_id)
+    return {"ok": True}
+
+
+# ─── Máquinas ─────────────────────────────────────────────────────────────────
+
+def _siguiente_codigo_maquina(db: Session, nombre: str) -> str:
+    """Código interno único derivado del nombre (no se muestra en la UI)."""
+    nfkd = unicodedata.normalize("NFKD", nombre or "")
+    ascii_str = "".join(c for c in nfkd if not unicodedata.combining(c))
+    base = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_str).strip("-").lower()[:36]
+    if not base:
+        base = "maq"
+    codigo = base
+    n = 0
+    while db.query(Maquina).filter(Maquina.codigo == codigo).first():
+        n += 1
+        codigo = f"{base}-{n}"
+    return codigo[:50]
+
+
+@router.get("/maquinas", summary="Listar máquinas")
+def listar_maquinas(
+    tipo: Optional[str] = None,
+    _admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Maquina)
+    if tipo:
+        q = q.filter(Maquina.tipo == tipo)
+    return [m.to_dict() for m in q.order_by(Maquina.nombre).all()]
+
+
+@router.post("/maquinas", summary="Crear máquina", status_code=201)
+def crear_maquina(
+    datos: dict,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    nombre = (datos.get("nombre") or "").strip()
+    tipo   = (datos.get("tipo") or "impresion").strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="nombre es requerido")
+    codigo = _siguiente_codigo_maquina(db, nombre)
+    m = Maquina(codigo=codigo, nombre=nombre, tipo=tipo, activa=True)
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    logger.info("Admin %s creó máquina '%s' (id=%s)", admin["email"], m.nombre, m.id)
+    return m.to_dict()
+
+
+@router.put("/maquinas/{maquina_id}", summary="Actualizar máquina")
+def actualizar_maquina(
+    maquina_id: int,
+    datos: dict,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    m = db.query(Maquina).filter(Maquina.id == maquina_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Máquina no encontrada")
+    for campo in ("nombre", "tipo"):
+        if campo in datos and datos[campo]:
+            setattr(m, campo, datos[campo].strip())
+    if "activa" in datos:
+        m.activa = bool(datos["activa"])
+    db.commit()
+    db.refresh(m)
+    return m.to_dict()
+
+
+@router.delete("/maquinas/{maquina_id}", summary="Eliminar máquina")
+def eliminar_maquina(
+    maquina_id: int,
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    m = db.query(Maquina).filter(Maquina.id == maquina_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Máquina no encontrada")
+    db.delete(m)
+    db.commit()
+    logger.info("Admin %s eliminó máquina '%s' (id=%s)", admin["email"], m.nombre, maquina_id)
     return {"ok": True}

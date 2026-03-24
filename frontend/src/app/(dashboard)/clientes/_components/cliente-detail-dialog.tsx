@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { api } from "@/lib/api"
-import type { Cliente, ClienteProducto, RazonSocial } from "@/types/database"
+import type { Cliente, ClienteProducto, Maquina, RazonSocial } from "@/types/database"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -145,8 +145,9 @@ type ProdForm = {
   nombre: string; envase: string; envase_codificado: string
   volumen_cantidad: string; volumen_unidad: string
   lamina: string; muestra: string; alto: string; cilindro: string; cierre: string
+  maquina_impresora_id: string
 }
-const EMPTY: ProdForm = { nombre:"", envase:"", envase_codificado:"", volumen_cantidad:"", volumen_unidad:"", lamina:"", muestra:"", alto:"", cilindro:"", cierre:"" }
+const EMPTY: ProdForm = { nombre:"", envase:"", envase_codificado:"", volumen_cantidad:"", volumen_unidad:"", lamina:"", muestra:"", alto:"", cilindro:"", cierre:"", maquina_impresora_id:"" }
 const toForm = (p: ClienteProducto): ProdForm => ({
   nombre: p.nombre ?? "", envase: p.envase ?? "",
   envase_codificado: p.envase_codificado ?? "",
@@ -155,6 +156,7 @@ const toForm = (p: ClienteProducto): ProdForm => ({
   alto: p.alto != null ? String(p.alto) : "",
   cilindro: p.cilindro != null ? String(p.cilindro) : "",
   cierre: p.cierre != null ? String(p.cierre) : "",
+  maquina_impresora_id: p.maquina_impresora_id != null ? String(p.maquina_impresora_id) : "",
 })
 const toBody = (f: ProdForm) => ({
   nombre: f.nombre || null, envase: f.envase || null,
@@ -164,6 +166,7 @@ const toBody = (f: ProdForm) => ({
   alto: f.alto ? Number(f.alto) : null,
   cilindro: f.cilindro ? Number(f.cilindro) : null,
   cierre: f.cierre ? Number(f.cierre) : null,
+  maquina_impresora_id: f.maquina_impresora_id ? Number(f.maquina_impresora_id) : null,
 })
 
 const ACCENT_COLORS = ["#f59e0b","#06b6d4","#8b5cf6","#10b981","#f43f5e","#0ea5e9"]
@@ -176,6 +179,7 @@ const SPEC_STYLES: Record<string, string> = {
   "Cilindro":  "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/25",
   "Cierre":    "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25",
   "Muestra":   "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/25",
+  "Impresora": "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/25",
 }
 
 function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
@@ -184,13 +188,14 @@ function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
 }) {
   const accent = ACCENT_COLORS[idx % ACCENT_COLORS.length]
   const specs = [
-    producto.lamina            && { k: "Lámina",    v: producto.lamina },
-    producto.envase            && { k: "Envase",    v: producto.envase },
-    producto.envase_codificado && { k: "Cód. Env.", v: producto.envase_codificado },
-    producto.alto              && { k: "Alto",      v: String(producto.alto) },
-    producto.cilindro          && { k: "Cilindro",  v: String(producto.cilindro) },
-    producto.cierre            && { k: "Cierre",    v: String(producto.cierre) },
-    producto.muestra           && { k: "Muestra",   v: producto.muestra },
+    producto.lamina                 && { k: "Lámina",    v: producto.lamina },
+    producto.envase                 && { k: "Envase",    v: producto.envase },
+    producto.envase_codificado      && { k: "Cód. Env.", v: producto.envase_codificado },
+    producto.alto                   && { k: "Alto",      v: String(producto.alto) },
+    producto.cilindro               && { k: "Cilindro",  v: String(producto.cilindro) },
+    producto.cierre                 && { k: "Cierre",    v: String(producto.cierre) },
+    producto.muestra                && { k: "Muestra",   v: producto.muestra },
+    producto.maquina_impresora_nombre && { k: "Impresora", v: producto.maquina_impresora_nombre },
   ].filter(Boolean) as { k: string; v: string }[]
 
   return (
@@ -255,13 +260,15 @@ function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   )
 }
 
-function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, envases }: {
+function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, envases, impresoras }: {
   data: ProdForm; onChange: (d: ProdForm) => void
   onSave: () => void; onCancel: () => void; saving: boolean; isNew?: boolean
   envases: string[]
+  impresoras: Maquina[]
 }) {
   const set = (k: keyof ProdForm) => (e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...data, [k]: e.target.value })
   const inp = "h-9 rounded-lg bg-input border-border text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10"
+  const sel = `${inp} w-full px-3 py-1.5`
 
   return (
     <div className="col-span-full rounded-xl border border-gold/30 bg-gold/5 p-5">
@@ -289,6 +296,27 @@ function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, en
             {envases.map((e) => <option key={e} value={e} />)}
           </datalist>
         </div>
+        <div className="col-span-4 sm:col-span-2">
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Impresora</label>
+          <select
+            value={data.maquina_impresora_id}
+            onChange={(e) => onChange({ ...data, maquina_impresora_id: e.target.value })}
+            className={sel}
+          >
+            <option value="">Sin asignar</option>
+            {data.maquina_impresora_id
+              && !impresoras.some((m) => String(m.id) === data.maquina_impresora_id) && (
+              <option value={data.maquina_impresora_id}>
+                Impresora guardada (id {data.maquina_impresora_id})
+              </option>
+            )}
+            {impresoras.map((m) => (
+              <option key={m.id} value={String(m.id)}>
+                {m.nombre}{m.activa ? "" : " (inactiva)"}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="flex justify-end gap-2 mt-4">
         <Button variant="outline" size="sm" onClick={onCancel}
@@ -312,9 +340,14 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
   const [deleting, setDeleting] = useState<number | null>(null)
   const [error, setError] = useState("")
   const [envases, setEnvases] = useState<string[]>([])
+  const [impresoras, setImpresoras] = useState<Maquina[]>([])
 
   useEffect(() => {
     api.admin.envases.list().then((r) => setEnvases(r.map((e: { nombre: string }) => e.nombre))).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    api.admin.maquinas.list("impresion").then(setImpresoras).catch(() => {})
   }, [])
 
   const startEdit = (p: ClienteProducto) => { setForm(toForm(p)); setEditingId(p.id); setError("") }
@@ -373,12 +406,12 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {productos.map((p, i) =>
           editingId === p.id
-            ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} envases={envases} />
+            ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} envases={envases} impresoras={impresoras} />
             : <ProductCard key={p.id} producto={p} idx={i} onEdit={() => startEdit(p)} onDelete={() => remove(p.id)} deleting={deleting === p.id} disabled={editingId !== null} />
         )}
 
         {editingId === "new"
-          ? <ProductInlineForm data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} isNew envases={envases} />
+          ? <ProductInlineForm data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} isNew envases={envases} impresoras={impresoras} />
           : productos.length > 0 && (
             <button type="button" onClick={startNew} disabled={editingId !== null}
               className="flex items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed border-border hover:border-gold/40 hover:bg-gold/5 text-muted-foreground hover:text-gold text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed">

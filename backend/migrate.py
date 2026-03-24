@@ -700,6 +700,19 @@ MIGRATIONS_FUZZY = [
      """),
 ]
 
+MIGRATIONS_MAQUINA_PRODUCTO = [
+
+    ("Producto: Agregar maquina_impresora_id a cliente_productos",
+     """
+     ALTER TABLE cliente_productos
+     ADD COLUMN IF NOT EXISTS maquina_impresora_id INTEGER
+         REFERENCES maquinas(id) ON DELETE SET NULL
+     """),
+
+    ("Producto: Índice en maquina_impresora_id",
+     "CREATE INDEX IF NOT EXISTS ix_cliente_productos_maquina_impresora_id ON cliente_productos (maquina_impresora_id)"),
+]
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
@@ -719,7 +732,7 @@ def run_migrations():
     Base.metadata.create_all(bind=engine)
     print("  ✓ Esquema verificado\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO
 
     with engine.connect() as conn:
         for name, sql in all_migrations:

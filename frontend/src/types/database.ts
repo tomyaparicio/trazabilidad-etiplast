@@ -11,6 +11,16 @@ export interface ClienteProducto {
   alto: number | null
   cilindro: number | null
   cierre: number | null
+  maquina_impresora_id: number | null
+  maquina_impresora_nombre: string | null
+}
+
+export interface Maquina {
+  id: number
+  codigo: string
+  nombre: string
+  tipo: string
+  activa: boolean
 }
 
 export interface RazonSocial {

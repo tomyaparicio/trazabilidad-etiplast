@@ -328,6 +328,12 @@ async def actualizar_cliente(
         rs = _get_or_create_razon_social(db, datos["razon_social"], datos.get("cuit"))
         cliente.razon_social_id = rs.id
 
+    # Si viene cuit, actualizarlo también en la razón social vinculada
+    if "cuit" in datos and cliente.razon_social_id:
+        rs_obj = db.query(RazonSocial).filter(RazonSocial.id == cliente.razon_social_id).first()
+        if rs_obj:
+            rs_obj.cuit = datos["cuit"]
+
     if "rubro" in datos and datos["rubro"]:
         cliente.rubro_id = _get_or_create_rubro(db, datos["rubro"]).id
     elif "rubro" in datos and not datos["rubro"]:
@@ -419,6 +425,7 @@ async def crear_producto_cliente(
         alto=_to_float(datos.get("alto")),
         cilindro=_to_float(datos.get("cilindro")),
         cierre=_to_float(datos.get("cierre")),
+        maquina_impresora_id=datos.get("maquina_impresora_id"),
     )
     db.add(producto)
     db.commit()
@@ -447,6 +454,8 @@ async def actualizar_producto_cliente(
     for campo in ("volumen_cantidad", "alto", "cilindro", "cierre"):
         if campo in datos:
             setattr(producto, campo, _to_float(datos[campo]))
+    if "maquina_impresora_id" in datos:
+        producto.maquina_impresora_id = datos["maquina_impresora_id"]
 
     db.commit()
     db.refresh(producto)

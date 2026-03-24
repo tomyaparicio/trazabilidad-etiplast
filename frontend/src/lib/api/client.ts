@@ -154,6 +154,12 @@ export const api = {
       rename: (id: number, nombre: string) => put<{ id: number; nombre: string }>(`/api/admin/envases/${id}`, { nombre }),
       delete: (id: number) => del<{ ok: boolean }>(`/api/admin/envases/${id}`),
     },
+    maquinas: {
+      list: (tipo?: string) => get<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }[]>("/api/admin/maquinas", tipo ? { tipo } : undefined),
+      create: (data: { nombre: string; tipo?: string }) => post<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }>("/api/admin/maquinas", data),
+      update: (id: number, data: { nombre?: string; tipo?: string; activa?: boolean }) => put<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }>(`/api/admin/maquinas/${id}`, data),
+      delete: (id: number) => del<{ ok: boolean }>(`/api/admin/maquinas/${id}`),
+    },
   },
   /** Razones Sociales (entidades legales que agrupan marcas) */
   razonessociales: {

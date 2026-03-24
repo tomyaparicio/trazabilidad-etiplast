@@ -257,39 +257,43 @@ class ClienteProducto(Base):
         ForeignKey("clientes.id", ondelete="CASCADE"),
         nullable=False, index=True,
     )
-    nombre            = Column(String(200))
-    envase            = Column(String(200))
-    envase_codificado = Column(String(100))
-    volumen_cantidad  = Column(Numeric(12, 4))
-    volumen_unidad    = Column(String(50))
-    lamina            = Column(String(200))
-    muestra           = Column(String(200))
-    alto              = Column(Numeric(10, 2))
-    cilindro          = Column(Numeric(10, 2))
-    cierre            = Column(Numeric(10, 2))
-    created_at        = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at        = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    nombre                = Column(String(200))
+    envase                = Column(String(200))
+    envase_codificado     = Column(String(100))
+    volumen_cantidad      = Column(Numeric(12, 4))
+    volumen_unidad        = Column(String(50))
+    lamina                = Column(String(200))
+    muestra               = Column(String(200))
+    alto                  = Column(Numeric(10, 2))
+    cilindro              = Column(Numeric(10, 2))
+    cierre                = Column(Numeric(10, 2))
+    maquina_impresora_id  = Column(Integer, ForeignKey("maquinas.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at            = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at            = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relaciones
-    cliente = relationship("Cliente", back_populates="productos")
+    cliente            = relationship("Cliente", back_populates="productos")
+    maquina_impresora  = relationship("Maquina", foreign_keys=[maquina_impresora_id])
 
     def __repr__(self):
         return f"<ClienteProducto cliente_id={self.cliente_id} nombre={self.nombre!r}>"
 
     def to_dict(self) -> dict:
         return {
-            "id":               self.id,
-            "cliente_id":       self.cliente_id,
-            "nombre":           self.nombre,
-            "envase":           self.envase,
-            "envase_codificado": self.envase_codificado,
-            "volumen_cantidad": float(self.volumen_cantidad) if self.volumen_cantidad else None,
-            "volumen_unidad":   self.volumen_unidad,
-            "lamina":           self.lamina,
-            "muestra":          self.muestra,
-            "alto":             float(self.alto)     if self.alto     else None,
-            "cilindro":         float(self.cilindro) if self.cilindro else None,
-            "cierre":           float(self.cierre)   if self.cierre   else None,
+            "id":                    self.id,
+            "cliente_id":            self.cliente_id,
+            "nombre":                self.nombre,
+            "envase":                self.envase,
+            "envase_codificado":     self.envase_codificado,
+            "volumen_cantidad":      float(self.volumen_cantidad) if self.volumen_cantidad else None,
+            "volumen_unidad":        self.volumen_unidad,
+            "lamina":                self.lamina,
+            "muestra":               self.muestra,
+            "alto":                  float(self.alto)     if self.alto     else None,
+            "cilindro":              float(self.cilindro) if self.cilindro else None,
+            "cierre":                float(self.cierre)   if self.cierre   else None,
+            "maquina_impresora_id":  self.maquina_impresora_id,
+            "maquina_impresora_nombre": self.maquina_impresora.nombre if self.maquina_impresora else None,
         }
 
 
