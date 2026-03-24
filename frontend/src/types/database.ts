@@ -15,6 +15,7 @@ export interface ClienteProducto {
 
 export interface RazonSocial {
   id: number
+  numero: number | null
   razon_social: string
   cuit: string | null
   created_at: string | null

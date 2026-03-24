@@ -106,7 +106,7 @@ function RazonSocialSelector({
   onChange,
 }: {
   value: string
-  onChange: (id: number | null, razonSocial: string, cuit?: string | null) => void
+  onChange: (id: number | null, razonSocial: string, cuit?: string | null, numero?: number | null) => void
 }) {
   const [query, setQuery] = useState(value)
   const [results, setResults] = useState<RazonSocial[]>([])
@@ -134,7 +134,7 @@ function RazonSocialSelector({
   const handleSelect = (rs: RazonSocial) => {
     setQuery(rs.razon_social)
     setOpen(false)
-    onChange(rs.id, rs.razon_social, rs.cuit)
+    onChange(rs.id, rs.razon_social, rs.cuit, rs.numero)
   }
 
   const handleCreate = async () => {
@@ -395,12 +395,13 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                     {field.key === "razon_social" ? (
                       <RazonSocialSelector
                         value={String(formData.razon_social ?? "")}
-                        onChange={(id, rs, cuit) => {
+                        onChange={(id, rs, cuit, numero) => {
                           setFormData((prev) => ({
                             ...prev,
                             razon_social_id: id,
                             razon_social: rs,
                             ...(cuit !== undefined ? { cuit: cuit ?? "" } : {}),
+                            ...(numero != null ? { id_cliente: numero } : {}),
                           }))
                         }}
                       />
