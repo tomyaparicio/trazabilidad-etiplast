@@ -3,7 +3,10 @@
 import Link from "next/link"
 import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
-import { LayoutDashboard, Users, User, LogOut, Shield, ClipboardList, Building2, Tag, Package, Cog } from "lucide-react"
+import {
+  LayoutDashboard, Users, User, LogOut, Shield, ClipboardList, Building2, Tag, Package, Cog,
+  FileText, Boxes, Truck, CalendarRange, BarChart3, ClipboardCheck, ScrollText,
+} from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { useState } from "react"
 
@@ -11,15 +14,22 @@ const navigation = [
   { name: "Panel de Control", href: "/", icon: LayoutDashboard },
   { name: "Clientes", href: "/clientes", icon: Users },
   { name: "Órdenes de Trabajo", href: "/ordenes", icon: ClipboardList },
+  { name: "Presupuestos", href: "/presupuestos", icon: FileText },
+  { name: "Stock", href: "/stock", icon: Boxes },
+  { name: "Remitos", href: "/remitos", icon: Truck },
+  { name: "Planificación", href: "/planificacion", icon: CalendarRange },
+  { name: "Reportes", href: "/reportes", icon: BarChart3 },
   { name: "Mi perfil", href: "/perfil", icon: User },
 ]
 
 const adminNavigation = [
-  { name: "Usuarios",         href: "/admin/usuarios",         icon: Shield    },
-  { name: "Razones Sociales", href: "/admin/razones-sociales", icon: Building2 },
-  { name: "Rubros",           href: "/admin/rubros",           icon: Tag       },
-  { name: "Envases",          href: "/admin/envases",          icon: Package   },
-  { name: "Máquinas",         href: "/admin/maquinas",         icon: Cog       },
+  { name: "Usuarios",         href: "/admin/usuarios",         icon: Shield         },
+  { name: "Razones Sociales", href: "/admin/razones-sociales", icon: Building2      },
+  { name: "Rubros",           href: "/admin/rubros",           icon: Tag            },
+  { name: "Envases",          href: "/admin/envases",          icon: Package        },
+  { name: "Máquinas",         href: "/admin/maquinas",         icon: Cog            },
+  { name: "Calidad",          href: "/admin/calidad",          icon: ClipboardCheck },
+  { name: "Auditoría",        href: "/admin/auditoria",        icon: ScrollText     },
 ]
 
 interface SidebarProps {

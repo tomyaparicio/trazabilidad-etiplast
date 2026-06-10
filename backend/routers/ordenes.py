@@ -16,6 +16,7 @@ from dependencies import verify_token
 from models import (
     Cliente, ClienteProducto, OrdenExtrusionBobina, OrdenTrabajo,
 )
+from services.numeracion import generar_numero
 
 router = APIRouter(prefix="/api", tags=["ordenes"])
 
@@ -32,19 +33,6 @@ def _eager_options():
         joinedload(OrdenTrabajo.creador),
         joinedload(OrdenTrabajo.responsable),
     ]
-
-
-def _generar_numero(db: Session) -> str:
-    """Genera el siguiente número correlativo OT-NNNN."""
-    rows = db.query(OrdenTrabajo.numero).all()
-    nums = []
-    for (n,) in rows:
-        try:
-            nums.append(int(n.split("-")[1]))
-        except Exception:
-            pass
-    siguiente = (max(nums) + 1) if nums else 1
-    return f"OT-{siguiente:04d}"
 
 
 def _to_float(value) -> Optional[float]:
@@ -177,7 +165,7 @@ async def crear_orden(
         if not db.query(ClienteProducto).filter(ClienteProducto.id == cliente_producto_id).first():
             raise HTTPException(status_code=404, detail="Producto de cliente no encontrado")
 
-    numero = _generar_numero(db)
+    numero = generar_numero(db, OrdenTrabajo, "OT")
 
     # Colores: lista de hasta 6 strings
     colores = datos.get("impresion_colores", [])

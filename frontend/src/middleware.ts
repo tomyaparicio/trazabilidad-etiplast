@@ -14,13 +14,13 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("auth-token")?.value
 
-  if (!token && !request.nextUrl.pathname.startsWith("/login") && !request.nextUrl.pathname.startsWith("/register")) {
+  if (!token && !request.nextUrl.pathname.startsWith("/login")) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     return NextResponse.redirect(url)
   }
 
-  if (token && (request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/register"))) {
+  if (token && request.nextUrl.pathname.startsWith("/login")) {
     const url = request.nextUrl.clone()
     url.pathname = "/"
     return NextResponse.redirect(url)

@@ -2,7 +2,16 @@
  * Tipos para la API.
  */
 
-export type { Cliente, ClienteProducto, DashboardStats, Filtros, RazonSocial } from "@/types/database"
+export type { Cliente, ClienteProducto, DashboardStats, Filtros, RazonSocial, Maquina } from "@/types/database"
+
+/** Respuesta paginada genérica del backend */
+export type Paginated<T> = {
+  data: T[]
+  total: number
+  page: number
+  per_page: number
+  total_pages: number
+}
 
 export type ClientesListResponse = {
   data: unknown[]
@@ -139,4 +148,179 @@ export type CreateOrdenRequest = Partial<OrdenTrabajo> & {
   cliente_id: number
   bobinas?: Bobina[]
   impresion_colores?: string[]
+}
+
+// ─── Presupuestos ──────────────────────────────────────────────────────────
+
+export type EstadoPresupuesto = "borrador" | "enviado" | "aprobado" | "rechazado" | "vencido" | "convertido"
+
+export type PresupuestoItem = {
+  id: number
+  cliente_producto_id: number | null
+  descripcion: string | null
+  cantidad: number | null
+  unidad: string | null
+  precio_unitario: number | null
+  subtotal: number | null
+}
+
+export type Presupuesto = {
+  id: number
+  numero: string
+  cliente_id: number | null
+  cliente_marca?: string | null
+  prospecto_nombre: string | null
+  fecha: string | null
+  validez_dias: number | null
+  estado: EstadoPresupuesto
+  moneda: string | null
+  condiciones_pago: string | null
+  subtotal: number | null
+  descuento_porcentaje: number | null
+  iva_porcentaje: number | null
+  total: number | null
+  observaciones: string | null
+  orden_trabajo_id: number | null
+  items: PresupuestoItem[]
+}
+
+// ─── Stock ─────────────────────────────────────────────────────────────────
+
+export type TipoStockItem = "materia_prima" | "producto_terminado" | "insumo"
+
+export type TipoStockMovimiento = "ingreso" | "egreso" | "ajuste"
+
+export type StockItem = {
+  id: number
+  codigo: string
+  nombre: string
+  tipo: TipoStockItem
+  categoria: string | null
+  unidad: string | null
+  stock_actual: number | null
+  stock_minimo: number | null
+  cliente_id: number | null
+  cliente_producto_id: number | null
+  activo: boolean
+}
+
+export type StockMovimiento = {
+  id: number
+  stock_item_id: number
+  tipo: TipoStockMovimiento
+  cantidad: number | null
+  motivo: string | null
+  stock_anterior: number | null
+  stock_resultante: number | null
+  orden_trabajo_id: number | null
+  remito_id: number | null
+  lote: string | null
+  observaciones: string | null
+  created_at: string | null
+}
+
+// ─── Remitos ───────────────────────────────────────────────────────────────
+
+export type EstadoRemito = "pendiente" | "despachado" | "entregado" | "anulado"
+
+export type RemitoItem = {
+  id: number
+  orden_trabajo_id: number | null
+  orden_numero?: string | null
+  descripcion: string | null
+  cantidad: number | null
+  unidad: string | null
+  lote: string | null
+}
+
+export type Remito = {
+  id: number
+  numero: string
+  cliente_id: number | null
+  cliente_marca?: string | null
+  fecha: string | null
+  estado: EstadoRemito
+  transporte: string | null
+  domicilio_entrega: string | null
+  observaciones: string | null
+  items: RemitoItem[]
+}
+
+// ─── Planificación de producción ───────────────────────────────────────────
+
+export type PlanProduccion = {
+  id: number
+  orden_trabajo_id: number
+  orden_numero?: string | null
+  cliente_marca?: string | null
+  maquina_id: number | null
+  maquina_nombre?: string | null
+  etapa: string
+  fecha_inicio: string | null
+  fecha_fin: string | null
+  orden_prioridad: number | null
+  estado: string
+  notas: string | null
+}
+
+// ─── Control de calidad ────────────────────────────────────────────────────
+
+export type ResultadoQc = "aprobado" | "rechazado" | "observado"
+
+export type QcPlantillaItem = {
+  id: number
+  descripcion: string
+  orden: number | null
+}
+
+export type QcPlantilla = {
+  id: number
+  etapa: string
+  nombre: string
+  activa: boolean
+  items: QcPlantillaItem[]
+}
+
+export type QcRegistroItem = {
+  id: number
+  item_descripcion: string | null
+  cumple: boolean | null
+  valor: string | null
+  observacion: string | null
+}
+
+export type QcRegistro = {
+  id: number
+  orden_trabajo_id: number
+  etapa: string
+  plantilla_id: number | null
+  user_email?: string | null
+  resultado: ResultadoQc
+  observaciones: string | null
+  created_at: string | null
+  items: QcRegistroItem[]
+}
+
+// ─── Notificaciones ────────────────────────────────────────────────────────
+
+export type Notificacion = {
+  id: number
+  tipo: string
+  titulo: string
+  mensaje: string | null
+  link: string | null
+  leida: boolean
+  created_at: string | null
+}
+
+// ─── Auditoría ─────────────────────────────────────────────────────────────
+
+export type AuditEntry = {
+  id: number
+  user_email: string | null
+  accion: string
+  entidad: string
+  entidad_id: number | null
+  descripcion: string | null
+  created_at: string | null
 }

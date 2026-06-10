@@ -4,14 +4,14 @@ import re
 import unicodedata
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import get_db
-from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina
+from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina, AuditLog
 from dependencies import verify_admin
 
 logger = logging.getLogger(__name__)
@@ -367,3 +367,42 @@ def eliminar_maquina(
     db.commit()
     logger.info("Admin %s eliminó máquina '%s' (id=%s)", admin["email"], m.nombre, maquina_id)
     return {"ok": True}
+
+
+# ─── Auditoría ────────────────────────────────────────────────────────────────
+
+@router.get("/auditoria", summary="Listar registros de auditoría")
+def listar_auditoria(
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+    entidad: Optional[str] = Query(None, description="Filtrar por entidad"),
+    entidad_id: Optional[int] = Query(None, description="Filtrar por ID de entidad"),
+    user_id: Optional[int] = Query(None, description="Filtrar por usuario"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+):
+    query = db.query(AuditLog)
+
+    if entidad:
+        query = query.filter(AuditLog.entidad == entidad)
+    if entidad_id is not None:
+        query = query.filter(AuditLog.entidad_id == entidad_id)
+    if user_id is not None:
+        query = query.filter(AuditLog.user_id == user_id)
+
+    total = query.count()
+    registros = (
+        query
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    return {
+        "data":        [r.to_dict() for r in registros],
+        "total":       total,
+        "page":        page,
+        "per_page":    per_page,
+        "total_pages": -(-total // per_page) if total else 0,
+    }

@@ -13,9 +13,10 @@ Esquema normalizado (3FN):
 """
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, ForeignKey,
+    Boolean, Column, Date, DateTime, ForeignKey, Index,
     Integer, Numeric, String, Text, UniqueConstraint, func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -379,6 +380,7 @@ class OrdenTrabajo(Base):
     created_by     = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     responsable_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     operador       = Column(String(150))
+    lote           = Column(String(50), index=True)   # L-YYYYMMDD-OTNNNN (trazabilidad)
 
     # — Extrusión —
     extrusion_ancho              = Column(Numeric(10, 2))
@@ -466,6 +468,7 @@ class OrdenTrabajo(Base):
             "responsable_id":      self.responsable_id,
             "responsable_nombre":  self.responsable.nombre_completo if self.responsable else None,
             "operador":            self.operador,
+            "lote":                self.lote,
             # Extrusión
             "extrusion_ancho":           float(self.extrusion_ancho)   if self.extrusion_ancho   else None,
             "extrusion_color":           self.extrusion_color,
@@ -516,10 +519,11 @@ class OrdenExtrusionBobina(Base):
     """
     __tablename__ = "orden_extrusion_bobinas"
 
-    id       = Column(Integer, primary_key=True, autoincrement=True)
-    orden_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="CASCADE"), nullable=False, index=True)
-    metros   = Column(Numeric(10, 2))
-    kg_bob   = Column(Numeric(10, 3))
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    orden_id    = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="CASCADE"), nullable=False, index=True)
+    metros      = Column(Numeric(10, 2))
+    kg_bob      = Column(Numeric(10, 3))
+    numero_lote = Column(String(50))
 
     # Relaciones
     orden = relationship("OrdenTrabajo", back_populates="bobinas")
@@ -529,8 +533,535 @@ class OrdenExtrusionBobina(Base):
 
     def to_dict(self) -> dict:
         return {
-            "id":       self.id,
-            "orden_id": self.orden_id,
-            "metros":   float(self.metros)  if self.metros  else None,
-            "kg_bob":   float(self.kg_bob)  if self.kg_bob  else None,
+            "id":          self.id,
+            "orden_id":    self.orden_id,
+            "metros":      float(self.metros)  if self.metros  else None,
+            "kg_bob":      float(self.kg_bob)  if self.kg_bob  else None,
+            "numero_lote": self.numero_lote,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Auditoría
+# ──────────────────────────────────────────────────────────────────────────────
+
+class AuditLog(Base):
+    """Registro de auditoría de acciones sobre entidades del sistema."""
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_entidad_entidad_id", "entidad", "entidad_id"),
+    )
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, nullable=True, index=True)
+    user_email  = Column(String(255))
+    accion      = Column(String(20))    # crear | actualizar | eliminar | convertir | despachar...
+    entidad     = Column(String(50))    # presupuesto | remito | orden_trabajo | stock_item...
+    entidad_id  = Column(Integer)
+    descripcion = Column(String(300))
+    datos       = Column(JSONB, nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def __repr__(self):
+        return f"<AuditLog id={self.id} accion={self.accion!r} entidad={self.entidad!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":          self.id,
+            "user_id":     self.user_id,
+            "user_email":  self.user_email,
+            "accion":      self.accion,
+            "entidad":     self.entidad,
+            "entidad_id":  self.entidad_id,
+            "descripcion": self.descripcion,
+            "datos":       self.datos,
+            "created_at":  self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Notificaciones
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Notificacion(Base):
+    """Notificación interna materializada por usuario destino."""
+    __tablename__ = "notificaciones"
+    __table_args__ = (
+        Index("ix_notificaciones_user_id_leida", "user_id", "leida"),
+    )
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    tipo       = Column(String(30))     # stock_bajo | orden_estado | presupuesto | remito...
+    titulo     = Column(String(200))
+    mensaje    = Column(Text)
+    link       = Column(String(300))
+    leida      = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<Notificacion id={self.id} user_id={self.user_id} tipo={self.tipo!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":         self.id,
+            "user_id":    self.user_id,
+            "tipo":       self.tipo,
+            "titulo":     self.titulo,
+            "mensaje":    self.mensaje,
+            "link":       self.link,
+            "leida":      self.leida,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Presupuestos
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Presupuesto(Base):
+    """Presupuesto / cotización (PRES-0001). Puede convertirse en orden de trabajo."""
+    __tablename__ = "presupuestos"
+
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    numero               = Column(String(20), unique=True, index=True)   # PRES-0001
+    cliente_id           = Column(Integer, ForeignKey("clientes.id", ondelete="SET NULL"), nullable=True, index=True)
+    prospecto_nombre     = Column(String(200))   # cliente potencial aún no cargado
+    fecha                = Column(Date)
+    validez_dias         = Column(Integer, default=30)
+    estado               = Column(String(20), default="borrador", index=True)
+    # estados: borrador | enviado | aprobado | rechazado | vencido | convertido
+    moneda               = Column(String(10), default="ARS")
+    condiciones_pago     = Column(String(200))
+    subtotal             = Column(Numeric(14, 2))
+    descuento_porcentaje = Column(Numeric(5, 2), default=0)
+    iva_porcentaje       = Column(Numeric(5, 2), default=21)
+    total                = Column(Numeric(14, 2))
+    observaciones        = Column(Text)
+    orden_trabajo_id     = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="SET NULL"), nullable=True)
+    created_by           = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at           = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at           = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relaciones
+    cliente = relationship("Cliente")
+    creador = relationship("User", foreign_keys=[created_by])
+    items   = relationship(
+        "PresupuestoItem", back_populates="presupuesto",
+        cascade="all, delete-orphan",
+        order_by="PresupuestoItem.id",
+    )
+
+    def __repr__(self):
+        return f"<Presupuesto numero={self.numero!r} estado={self.estado!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":                   self.id,
+            "numero":               self.numero,
+            "cliente_id":           self.cliente_id,
+            "cliente_nombre":       self.cliente.marca if self.cliente else None,
+            "prospecto_nombre":     self.prospecto_nombre,
+            "fecha":                self.fecha.isoformat() if self.fecha else None,
+            "validez_dias":         self.validez_dias,
+            "estado":               self.estado,
+            "moneda":               self.moneda,
+            "condiciones_pago":     self.condiciones_pago,
+            "subtotal":             float(self.subtotal)             if self.subtotal             is not None else None,
+            "descuento_porcentaje": float(self.descuento_porcentaje) if self.descuento_porcentaje is not None else None,
+            "iva_porcentaje":       float(self.iva_porcentaje)       if self.iva_porcentaje       is not None else None,
+            "total":                float(self.total)                if self.total                is not None else None,
+            "observaciones":        self.observaciones,
+            "orden_trabajo_id":     self.orden_trabajo_id,
+            "created_by":           self.created_by,
+            "creador_nombre":       self.creador.nombre_completo if self.creador else None,
+            "items":                [i.to_dict() for i in self.items],
+            "created_at":           self.created_at.isoformat() if self.created_at else None,
+            "updated_at":           self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class PresupuestoItem(Base):
+    """Línea de detalle de un presupuesto."""
+    __tablename__ = "presupuesto_items"
+
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    presupuesto_id      = Column(Integer, ForeignKey("presupuestos.id", ondelete="CASCADE"), nullable=False, index=True)
+    cliente_producto_id = Column(Integer, ForeignKey("cliente_productos.id", ondelete="SET NULL"), nullable=True)
+    descripcion         = Column(String(300))
+    cantidad            = Column(Numeric(12, 2))
+    unidad              = Column(String(20))
+    precio_unitario     = Column(Numeric(14, 4))
+    subtotal            = Column(Numeric(14, 2))
+
+    # Relaciones
+    presupuesto = relationship("Presupuesto", back_populates="items")
+
+    def __repr__(self):
+        return f"<PresupuestoItem presupuesto_id={self.presupuesto_id} descripcion={self.descripcion!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":                  self.id,
+            "presupuesto_id":      self.presupuesto_id,
+            "cliente_producto_id": self.cliente_producto_id,
+            "descripcion":         self.descripcion,
+            "cantidad":            float(self.cantidad)        if self.cantidad        is not None else None,
+            "unidad":              self.unidad,
+            "precio_unitario":     float(self.precio_unitario) if self.precio_unitario is not None else None,
+            "subtotal":            float(self.subtotal)        if self.subtotal        is not None else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Stock
+# ──────────────────────────────────────────────────────────────────────────────
+
+class StockItem(Base):
+    """Ítem de inventario: materia prima, producto terminado o insumo."""
+    __tablename__ = "stock_items"
+
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    codigo              = Column(String(50), unique=True, index=True)
+    nombre              = Column(String(200), nullable=False)
+    tipo                = Column(String(30), nullable=False, index=True)
+    # tipos: materia_prima | producto_terminado | insumo
+    categoria           = Column(String(100))
+    unidad              = Column(String(20), default="kg")
+    stock_actual        = Column(Numeric(14, 3), default=0)
+    stock_minimo        = Column(Numeric(14, 3), default=0)
+    cliente_id          = Column(Integer, ForeignKey("clientes.id", ondelete="SET NULL"), nullable=True, index=True)
+    cliente_producto_id = Column(Integer, ForeignKey("cliente_productos.id", ondelete="SET NULL"), nullable=True)
+    activo              = Column(Boolean, default=True)
+    created_at          = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at          = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relaciones
+    cliente = relationship("Cliente")
+
+    def __repr__(self):
+        return f"<StockItem codigo={self.codigo!r} nombre={self.nombre!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":                  self.id,
+            "codigo":              self.codigo,
+            "nombre":              self.nombre,
+            "tipo":                self.tipo,
+            "categoria":           self.categoria,
+            "unidad":              self.unidad,
+            "stock_actual":        float(self.stock_actual) if self.stock_actual is not None else None,
+            "stock_minimo":        float(self.stock_minimo) if self.stock_minimo is not None else None,
+            "cliente_id":          self.cliente_id,
+            "cliente_nombre":      self.cliente.marca if self.cliente else None,
+            "cliente_producto_id": self.cliente_producto_id,
+            "activo":              self.activo,
+            "bajo_minimo":         (
+                float(self.stock_actual or 0) < float(self.stock_minimo or 0)
+            ),
+            "created_at":          self.created_at.isoformat() if self.created_at else None,
+            "updated_at":          self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Remitos (no fiscales)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Remito(Base):
+    """Remito de entrega (REM-0001). Documento no fiscal."""
+    __tablename__ = "remitos"
+
+    id                = Column(Integer, primary_key=True, autoincrement=True)
+    numero            = Column(String(20), unique=True, index=True)   # REM-0001
+    cliente_id        = Column(Integer, ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True)
+    fecha             = Column(Date)
+    estado            = Column(String(20), default="pendiente", index=True)
+    # estados: pendiente | despachado | entregado | anulado
+    transporte        = Column(String(200))
+    domicilio_entrega = Column(String(300))
+    observaciones     = Column(Text)
+    created_by        = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at        = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relaciones
+    cliente = relationship("Cliente")
+    creador = relationship("User", foreign_keys=[created_by])
+    items   = relationship(
+        "RemitoItem", back_populates="remito",
+        cascade="all, delete-orphan",
+        order_by="RemitoItem.id",
+    )
+
+    def __repr__(self):
+        return f"<Remito numero={self.numero!r} estado={self.estado!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":                self.id,
+            "numero":            self.numero,
+            "cliente_id":        self.cliente_id,
+            "cliente_nombre":    self.cliente.marca if self.cliente else None,
+            "fecha":             self.fecha.isoformat() if self.fecha else None,
+            "estado":            self.estado,
+            "transporte":        self.transporte,
+            "domicilio_entrega": self.domicilio_entrega,
+            "observaciones":     self.observaciones,
+            "created_by":        self.created_by,
+            "creador_nombre":    self.creador.nombre_completo if self.creador else None,
+            "items":             [i.to_dict() for i in self.items],
+            "created_at":        self.created_at.isoformat() if self.created_at else None,
+            "updated_at":        self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class RemitoItem(Base):
+    """Línea de detalle de un remito."""
+    __tablename__ = "remito_items"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    remito_id        = Column(Integer, ForeignKey("remitos.id", ondelete="CASCADE"), nullable=False, index=True)
+    orden_trabajo_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="SET NULL"), nullable=True, index=True)
+    descripcion      = Column(String(300))
+    cantidad         = Column(Numeric(14, 2))
+    unidad           = Column(String(20))
+    lote             = Column(String(50), index=True)
+
+    # Relaciones
+    remito        = relationship("Remito", back_populates="items")
+    orden_trabajo = relationship("OrdenTrabajo")
+
+    def __repr__(self):
+        return f"<RemitoItem remito_id={self.remito_id} descripcion={self.descripcion!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":               self.id,
+            "remito_id":        self.remito_id,
+            "orden_trabajo_id": self.orden_trabajo_id,
+            "orden_numero":     self.orden_trabajo.numero if self.orden_trabajo else None,
+            "descripcion":      self.descripcion,
+            "cantidad":         float(self.cantidad) if self.cantidad is not None else None,
+            "unidad":           self.unidad,
+            "lote":             self.lote,
+        }
+
+
+class StockMovimiento(Base):
+    """Movimiento de stock (kardex). Definido después de Remito por la FK remito_id."""
+    __tablename__ = "stock_movimientos"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    stock_item_id    = Column(Integer, ForeignKey("stock_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    tipo             = Column(String(20))    # ingreso | egreso | ajuste
+    cantidad         = Column(Numeric(14, 3))
+    motivo           = Column(String(50))    # produccion | despacho | compra | ajuste_inventario...
+    stock_anterior   = Column(Numeric(14, 3))
+    stock_resultante = Column(Numeric(14, 3))
+    orden_trabajo_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="SET NULL"), nullable=True)
+    remito_id        = Column(Integer, ForeignKey("remitos.id", ondelete="SET NULL"), nullable=True)
+    lote             = Column(String(50))
+    observaciones    = Column(Text)
+    user_id          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    # Relaciones
+    stock_item = relationship("StockItem")
+    usuario    = relationship("User", foreign_keys=[user_id])
+
+    def __repr__(self):
+        return f"<StockMovimiento stock_item_id={self.stock_item_id} tipo={self.tipo!r} cantidad={self.cantidad}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":               self.id,
+            "stock_item_id":    self.stock_item_id,
+            "tipo":             self.tipo,
+            "cantidad":         float(self.cantidad)         if self.cantidad         is not None else None,
+            "motivo":           self.motivo,
+            "stock_anterior":   float(self.stock_anterior)   if self.stock_anterior   is not None else None,
+            "stock_resultante": float(self.stock_resultante) if self.stock_resultante is not None else None,
+            "orden_trabajo_id": self.orden_trabajo_id,
+            "remito_id":        self.remito_id,
+            "lote":             self.lote,
+            "observaciones":    self.observaciones,
+            "user_id":          self.user_id,
+            "usuario_nombre":   self.usuario.nombre_completo if self.usuario else None,
+            "created_at":       self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Planificación de producción
+# ──────────────────────────────────────────────────────────────────────────────
+
+class PlanProduccion(Base):
+    """Asignación de una orden de trabajo a una máquina en un rango de fechas."""
+    __tablename__ = "plan_produccion"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    orden_trabajo_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="CASCADE"), nullable=False, index=True)
+    maquina_id       = Column(Integer, ForeignKey("maquinas.id", ondelete="CASCADE"), nullable=False, index=True)
+    etapa            = Column(String(20))    # extrusion | impresion | troquelado
+    fecha_inicio     = Column(Date, index=True)
+    fecha_fin        = Column(Date)
+    orden_prioridad  = Column(Integer, default=0)
+    estado           = Column(String(20), default="planificada")
+    notas            = Column(Text)
+    created_by       = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at       = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relaciones
+    orden_trabajo = relationship("OrdenTrabajo")
+    maquina       = relationship("Maquina")
+
+    def __repr__(self):
+        return f"<PlanProduccion orden_trabajo_id={self.orden_trabajo_id} maquina_id={self.maquina_id} etapa={self.etapa!r}>"
+
+    def to_dict(self) -> dict:
+        ot = self.orden_trabajo
+        return {
+            "id":               self.id,
+            "orden_trabajo_id": self.orden_trabajo_id,
+            "orden_numero":     ot.numero if ot else None,
+            "cliente_nombre":   ot.cliente.marca if (ot and ot.cliente) else None,
+            "maquina_id":       self.maquina_id,
+            "maquina_nombre":   self.maquina.nombre if self.maquina else None,
+            "etapa":            self.etapa,
+            "fecha_inicio":     self.fecha_inicio.isoformat() if self.fecha_inicio else None,
+            "fecha_fin":        self.fecha_fin.isoformat()    if self.fecha_fin    else None,
+            "orden_prioridad":  self.orden_prioridad,
+            "estado":           self.estado,
+            "notas":            self.notas,
+            "created_by":       self.created_by,
+            "created_at":       self.created_at.isoformat() if self.created_at else None,
+            "updated_at":       self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Control de calidad
+# ──────────────────────────────────────────────────────────────────────────────
+
+class QcPlantilla(Base):
+    """Plantilla de checklist de control de calidad por etapa."""
+    __tablename__ = "qc_plantillas"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    etapa      = Column(String(20), index=True)   # extrusion | impresion | troquelado
+    nombre     = Column(String(200))
+    activa     = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relaciones
+    items = relationship(
+        "QcPlantillaItem", back_populates="plantilla",
+        cascade="all, delete-orphan",
+        order_by="QcPlantillaItem.orden",
+    )
+
+    def __repr__(self):
+        return f"<QcPlantilla etapa={self.etapa!r} nombre={self.nombre!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":         self.id,
+            "etapa":      self.etapa,
+            "nombre":     self.nombre,
+            "activa":     self.activa,
+            "items":      [i.to_dict() for i in self.items],
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class QcPlantillaItem(Base):
+    """Ítem de checklist dentro de una plantilla QC."""
+    __tablename__ = "qc_plantilla_items"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    plantilla_id = Column(Integer, ForeignKey("qc_plantillas.id", ondelete="CASCADE"), nullable=False, index=True)
+    descripcion  = Column(String(300))
+    orden        = Column(Integer)
+
+    # Relaciones
+    plantilla = relationship("QcPlantilla", back_populates="items")
+
+    def __repr__(self):
+        return f"<QcPlantillaItem plantilla_id={self.plantilla_id} descripcion={self.descripcion!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":           self.id,
+            "plantilla_id": self.plantilla_id,
+            "descripcion":  self.descripcion,
+            "orden":        self.orden,
+        }
+
+
+class QcRegistro(Base):
+    """Registro de control de calidad realizado sobre una orden de trabajo."""
+    __tablename__ = "qc_registros"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    orden_trabajo_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="CASCADE"), nullable=False, index=True)
+    etapa            = Column(String(20))    # extrusion | impresion | troquelado
+    plantilla_id     = Column(Integer, ForeignKey("qc_plantillas.id", ondelete="SET NULL"), nullable=True)
+    user_id          = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    resultado        = Column(String(20))    # aprobado | rechazado | observado
+    observaciones    = Column(Text)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relaciones
+    usuario = relationship("User", foreign_keys=[user_id])
+    items   = relationship(
+        "QcRegistroItem", back_populates="registro",
+        cascade="all, delete-orphan",
+        order_by="QcRegistroItem.id",
+    )
+
+    def __repr__(self):
+        return f"<QcRegistro orden_trabajo_id={self.orden_trabajo_id} etapa={self.etapa!r} resultado={self.resultado!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":               self.id,
+            "orden_trabajo_id": self.orden_trabajo_id,
+            "etapa":            self.etapa,
+            "plantilla_id":     self.plantilla_id,
+            "user_id":          self.user_id,
+            "usuario_nombre":   self.usuario.nombre_completo if self.usuario else None,
+            "resultado":        self.resultado,
+            "observaciones":    self.observaciones,
+            "items":            [i.to_dict() for i in self.items],
+            "created_at":       self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class QcRegistroItem(Base):
+    """Resultado de un ítem de checklist dentro de un registro QC."""
+    __tablename__ = "qc_registro_items"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    registro_id      = Column(Integer, ForeignKey("qc_registros.id", ondelete="CASCADE"), nullable=False, index=True)
+    item_descripcion = Column(String(300))
+    cumple           = Column(Boolean)
+    valor            = Column(String(100))
+    observacion      = Column(String(300))
+
+    # Relaciones
+    registro = relationship("QcRegistro", back_populates="items")
+
+    def __repr__(self):
+        return f"<QcRegistroItem registro_id={self.registro_id} cumple={self.cumple}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":               self.id,
+            "registro_id":      self.registro_id,
+            "item_descripcion": self.item_descripcion,
+            "cumple":           self.cumple,
+            "valor":            self.valor,
+            "observacion":      self.observacion,
         }

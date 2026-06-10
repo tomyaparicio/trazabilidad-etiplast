@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { NotificationCenter } from "@/components/notification-center"
 
 interface HeaderProps {
   onMenuClick?: () => void
@@ -82,6 +83,7 @@ export function Header({ onMenuClick, sidebarOpen, onSidebarToggle }: HeaderProp
             {dateInfo.str}
           </time>
         )}
+        <NotificationCenter />
         <ThemeToggle className="text-white/80 hover:text-white hover:bg-white/10" />
       </div>
     </header>

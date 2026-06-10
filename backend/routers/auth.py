@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from jose import jwt
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS
 from database import get_db
 from dependencies import verify_token
+from middleware import limiter
 from models import User
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,8 @@ def _create_token(email: str, role: str = "user", user_id: int | None = None, no
 
 
 @router.post("/login", summary="Iniciar sesión")
-def login(data: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not _verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")

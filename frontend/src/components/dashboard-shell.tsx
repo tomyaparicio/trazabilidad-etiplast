@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { Sidebar } from "@/components/sidebar"
 import { VoiceAgent } from "@/components/voice-agent"
+import { AiAssistant } from "@/components/ai-assistant"
 
 const SIDEBAR_STORAGE_KEY = "etiplast-sidebar-open"
 
@@ -50,6 +51,7 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
         {children}
       </div>
       <VoiceAgent />
+      <AiAssistant />
     </div>
   )
 }

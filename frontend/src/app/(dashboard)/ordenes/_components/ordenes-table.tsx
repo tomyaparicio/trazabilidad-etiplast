@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { OrdenFormDialog } from "./orden-form-dialog"
 import { OrdenDetailDialog } from "./orden-detail-dialog"
+import { EscanearOrdenButton } from "./escanear-orden-button"
 import type { OrderPrefill } from "@/lib/voice/types"
 
 // ─── Helpers de estado ─────────────────────────────────────────────────────
@@ -246,13 +247,16 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
           </div>
         </div>
 
-        <Button
-          onClick={() => { setEditOrden(null); setFormOpen(true) }}
-          className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2 h-10 px-4 rounded-xl"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva Orden
-        </Button>
+        <div className="flex items-center gap-2">
+          <EscanearOrdenButton />
+          <Button
+            onClick={() => { setEditOrden(null); setFormOpen(true) }}
+            className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2 h-10 px-4 rounded-xl"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva Orden
+          </Button>
+        </div>
       </div>
 
       {/* ── Filtros ── */}

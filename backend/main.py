@@ -4,8 +4,15 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
-from routers import clientes, dashboard, auth, admin, ordenes, razones_sociales
+from middleware import SecurityHeadersMiddleware, limiter
+from routers import (
+    admin, auth, calidad, catalogos, clientes, dashboard, notificaciones,
+    ordenes, planificacion, presupuestos, razones_sociales, remitos,
+    reportes, stock,
+)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -20,8 +27,33 @@ app = FastAPI(
         {"name": "clientes", "description": "CRUD de clientes"},
         {"name": "ordenes", "description": "Órdenes de trabajo"},
         {"name": "dashboard", "description": "Estadísticas y filtros"},
+        {"name": "presupuestos", "description": "Presupuestos y cotizaciones"},
+        {"name": "stock", "description": "Inventario y movimientos de stock"},
+        {"name": "remitos", "description": "Remitos de entrega"},
+        {"name": "planificacion", "description": "Planificación de producción"},
+        {"name": "calidad", "description": "Control de calidad"},
+        {"name": "reportes", "description": "Reportes y KPIs"},
+        {"name": "notificaciones", "description": "Notificaciones internas"},
+        {"name": "catalogos", "description": "Catálogos de solo lectura"},
     ],
 )
+
+# ── Rate limiting (slowapi): global 120/min, login 5/min (en routers/auth.py) ──
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Demasiadas solicitudes. Esperá un momento y volvé a intentar."},
+    )
+
+
+app.add_middleware(SlowAPIMiddleware)
+
+# ── Headers de seguridad en todas las respuestas ──
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 @app.exception_handler(Exception)
@@ -44,8 +76,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -60,3 +92,11 @@ app.include_router(clientes.router)
 app.include_router(razones_sociales.router)
 app.include_router(ordenes.router)
 app.include_router(dashboard.router)
+app.include_router(presupuestos.router)
+app.include_router(stock.router)
+app.include_router(remitos.router)
+app.include_router(planificacion.router)
+app.include_router(calidad.router)
+app.include_router(reportes.router)
+app.include_router(notificaciones.router)
+app.include_router(catalogos.router)
