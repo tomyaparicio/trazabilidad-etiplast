@@ -63,7 +63,14 @@ def _sync_bobinas(db: Session, orden: OrdenTrabajo, bobinas_data: List[Dict]):
             orden_id=orden.id,
             metros=_to_float(row.get("metros")),
             kg_bob=_to_float(row.get("kg_bob")),
+            numero_lote=(row.get("numero_lote") or None),
         ))
+
+
+def _autogenerar_lote(orden: OrdenTrabajo) -> str:
+    """Genera el lote de trazabilidad: L-YYYYMMDD-NNNN (sufijo del número de OT)."""
+    sufijo = orden.numero.split("-", 1)[-1] if orden.numero else str(orden.id)
+    return f"L-{date.today().strftime('%Y%m%d')}-{sufijo}"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -240,6 +247,7 @@ async def crear_orden(
             orden_id=orden.id,
             metros=_to_float(row.get("metros")),
             kg_bob=_to_float(row.get("kg_bob")),
+            numero_lote=(row.get("numero_lote") or None),
         ))
 
     db.commit()
@@ -276,6 +284,9 @@ async def actualizar_orden(
     # Campos simples
     if "estado" in datos:
         orden.estado = datos["estado"]
+        # Trazabilidad: al pasar a producción, autogenerar lote si no tiene
+        if orden.estado == "en_proceso" and not orden.lote:
+            orden.lote = _autogenerar_lote(orden)
     if "responsable_id" in datos:
         orden.responsable_id = _to_int(datos["responsable_id"])
     if "operador" in datos:

@@ -11,6 +11,9 @@ import type { OrderPrefill } from "@/lib/voice/types"
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
+/** Bobina con n° de lote (el tipo base aún no lo expone) */
+type BobinaForm = Bobina & { numero_lote?: string | null }
+
 const COLORES_PRESET = [
   "Negro", "Blanco", "Rojo", "Azul", "Amarillo", "Verde",
   "Naranja", "Violeta", "Cyan", "Magenta", "Dorado", "Plateado",
@@ -210,7 +213,7 @@ function emptyForm() {
     extrusion_maquina: "",
     extrusion_observaciones: "",
     operador_extrusion: "",
-    bobinas: [{ metros: null, kg_bob: null }] as Bobina[],
+    bobinas: [{ metros: null, kg_bob: null, numero_lote: "" }] as BobinaForm[],
     impresion_frente: "",
     impresion_retroverso: "",
     impresion_observaciones: "",
@@ -239,7 +242,9 @@ function emptyForm() {
 function ordenToForm(orden: OrdenTrabajo): ReturnType<typeof emptyForm> {
   const colores = [...(orden.impresion_colores ?? [])]
   while (colores.length < 6) colores.push("")
-  const bobinas = orden.bobinas && orden.bobinas.length > 0 ? orden.bobinas : [{ metros: null, kg_bob: null }]
+  const bobinas: BobinaForm[] = orden.bobinas && orden.bobinas.length > 0
+    ? (orden.bobinas as BobinaForm[])
+    : [{ metros: null, kg_bob: null, numero_lote: "" }]
   return {
     cliente_id: orden.cliente_id,
     cliente_producto_id: orden.cliente_producto_id,
@@ -388,10 +393,10 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
     }))
   }
 
-  const addBobina    = () => setForm((f) => ({ ...f, bobinas: [...f.bobinas, { metros: null, kg_bob: null }] }))
+  const addBobina    = () => setForm((f) => ({ ...f, bobinas: [...f.bobinas, { metros: null, kg_bob: null, numero_lote: "" }] }))
   const removeBobina = (i: number) => setForm((f) => ({ ...f, bobinas: f.bobinas.filter((_, idx) => idx !== i) }))
-  const updateBobina = (i: number, key: "metros" | "kg_bob", v: string) =>
-    setForm((f) => ({ ...f, bobinas: f.bobinas.map((b, idx) => idx === i ? { ...b, [key]: num(v) } : b) }))
+  const updateBobina = (i: number, key: "metros" | "kg_bob" | "numero_lote", v: string) =>
+    setForm((f) => ({ ...f, bobinas: f.bobinas.map((b, idx) => idx === i ? { ...b, [key]: key === "numero_lote" ? v : num(v) } : b) }))
   const updateColor  = (i: number, v: string) =>
     setForm((f) => { const colores = [...f.impresion_colores]; colores[i] = v; return { ...f, impresion_colores: colores } })
 
@@ -405,7 +410,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
   const handleSubmit = async () => {
     setSaving(true); setError("")
     try {
-      const payload = { ...form, impresion_colores: form.impresion_colores.filter(Boolean), bobinas: form.bobinas.filter((b) => b.metros != null || b.kg_bob != null) }
+      const payload = { ...form, impresion_colores: form.impresion_colores.filter(Boolean), bobinas: form.bobinas.filter((b) => b.metros != null || b.kg_bob != null || (b as BobinaForm).numero_lote?.trim()) }
       const saved = orden ? await api.ordenes.update(orden.id, payload) : await api.ordenes.create(payload)
       setSuccess(true)
       setTimeout(() => {
@@ -486,6 +491,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
                       <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">#</th>
                       <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">Metros</th>
                       <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">KG/Bob</th>
+                      <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">N° Lote</th>
                       <th className="w-10" />
                     </tr>
                   </thead>
@@ -500,6 +506,10 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
                         <td className="px-3 py-2">
                           <Input type="number" step="0.001" placeholder="0.000" value={b.kg_bob ?? ""}
                             onChange={(e) => updateBobina(i, "kg_bob", e.target.value)} className="h-7 text-sm w-28" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input placeholder="Opcional" value={(b as BobinaForm).numero_lote ?? ""}
+                            onChange={(e) => updateBobina(i, "numero_lote", e.target.value)} className="h-7 text-sm w-32" />
                         </td>
                         <td className="px-2 py-2">
                           {form.bobinas.length > 1 && (

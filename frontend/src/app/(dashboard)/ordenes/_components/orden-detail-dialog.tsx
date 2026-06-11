@@ -1,12 +1,17 @@
 "use client"
 
-import type { EstadoOrden, OrdenTrabajo } from "@/lib/api/types"
+import { useCallback, useEffect, useState } from "react"
+import { api } from "@/lib/api"
+import type { EstadoOrden, OrdenTrabajo, QcRegistro, ResultadoQc } from "@/lib/api/types"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FileText, Pencil } from "lucide-react"
+import {
+  Check, ChevronDown, ChevronRight, FileText, Loader2, Pencil, Plus, X,
+} from "lucide-react"
+import { QcRegistroDialog } from "./qc-registro-dialog"
 
 function estadoBadge(estado: EstadoOrden) {
   const map: Record<EstadoOrden, { label: string; className: string }> = {
@@ -54,6 +59,163 @@ function FullRow({ label, value }: { label: string; value?: string | number | nu
     <div className="col-span-2 space-y-0.5">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">{label}</p>
       <p className="text-sm text-foreground font-medium">{value}</p>
+    </div>
+  )
+}
+
+// ─── Control de calidad (registros QC) ───────────────────────────────────────
+
+type QcRegistroExt = QcRegistro & {
+  plantilla_nombre?: string | null
+  usuario_nombre?: string | null
+}
+
+function resultadoBadge(resultado: ResultadoQc) {
+  const map: Record<ResultadoQc, { label: string; className: string }> = {
+    aprobado:  { label: "Aprobado",  className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+    rechazado: { label: "Rechazado", className: "bg-red-500/15 text-red-400 border-red-500/30" },
+    observado: { label: "Observado", className: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+  }
+  const s = map[resultado] ?? { label: resultado, className: "" }
+  return (
+    <Badge variant="outline" className={`text-[11px] px-2 py-0.5 font-semibold ${s.className}`}>
+      {s.label}
+    </Badge>
+  )
+}
+
+const QC_ETAPA_LABEL: Record<string, string> = {
+  extrusion:  "Extrusión",
+  impresion:  "Impresión",
+  troquelado: "Troquelado",
+}
+
+function QcControlesSection({ ordenId, open }: { ordenId: number; open: boolean }) {
+  const [registros, setRegistros] = useState<QcRegistroExt[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [expandido, setExpandido] = useState<number | null>(null)
+  const [nuevoControl, setNuevoControl] = useState(false)
+
+  const fetchRegistros = useCallback(async () => {
+    setLoading(true)
+    setError("")
+    try {
+      const data = await api.calidad.registros(ordenId)
+      setRegistros(data as QcRegistroExt[])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar controles")
+    } finally {
+      setLoading(false)
+    }
+  }, [ordenId])
+
+  useEffect(() => {
+    if (open) fetchRegistros()
+  }, [open, fetchRegistros])
+
+  const fmtFechaHora = (d?: string | null) =>
+    d ? new Date(d).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#1a1866] dark:text-[#6b7aff]">
+          Control de Calidad
+        </span>
+        <div className="flex-1 h-px bg-border/60" />
+        <Button
+          size="sm" variant="outline"
+          onClick={() => setNuevoControl(true)}
+          className="gap-1.5 text-xs h-7"
+        >
+          <Plus className="w-3.5 h-3.5" /> Nuevo control
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-4">
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+        </div>
+      ) : error ? (
+        <p className="text-sm text-red-400">{error}</p>
+      ) : registros.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin controles registrados.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {registros.map((r) => {
+            const abierto = expandido === r.id
+            return (
+              <div key={r.id} className="rounded-lg border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setExpandido(abierto ? null : r.id)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-accent/20 transition-colors"
+                >
+                  {abierto
+                    ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                  <span className="text-xs text-muted-foreground font-medium shrink-0">
+                    {fmtFechaHora(r.created_at)}
+                  </span>
+                  <span className="text-xs font-semibold shrink-0">
+                    {QC_ETAPA_LABEL[r.etapa] ?? r.etapa}
+                  </span>
+                  {resultadoBadge(r.resultado)}
+                  <span className="text-xs text-muted-foreground truncate ml-auto">
+                    {r.usuario_nombre || r.user_email || "—"}
+                  </span>
+                </button>
+
+                {abierto && (
+                  <div className="px-3 pb-3 pt-1 border-t border-border/60 space-y-2">
+                    {r.plantilla_nombre && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Plantilla: <span className="font-medium text-foreground">{r.plantilla_nombre}</span>
+                      </p>
+                    )}
+                    {r.items.length > 0 ? (
+                      <div className="space-y-1">
+                        {r.items.map((item) => (
+                          <div key={item.id} className="flex items-start gap-2 text-xs">
+                            {item.cumple
+                              ? <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                              : <X className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />}
+                            <div className="min-w-0">
+                              <span className="font-medium">{item.item_descripcion}</span>
+                              {item.valor && (
+                                <span className="text-muted-foreground"> · {item.valor}</span>
+                              )}
+                              {item.observacion && (
+                                <p className="text-muted-foreground">{item.observacion}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Sin ítems de checklist.</p>
+                    )}
+                    {r.observaciones && (
+                      <p className="text-xs text-muted-foreground border-t border-border/40 pt-2">
+                        {r.observaciones}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {nuevoControl && (
+        <QcRegistroDialog
+          ordenId={ordenId}
+          onClose={() => setNuevoControl(false)}
+          onSaved={fetchRegistros}
+        />
+      )}
     </div>
   )
 }
@@ -216,6 +378,9 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
               <FullRow label="Observaciones" value={orden.observaciones} />
             </Section>
           )}
+
+          {/* Control de Calidad — registros QC */}
+          <QcControlesSection ordenId={orden.id} open={open} />
 
           {/* Metadata */}
           <div className="text-[11px] text-muted-foreground/60 pt-3 border-t border-border/50 flex gap-4">

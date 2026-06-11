@@ -1,0 +1,399 @@
+/* ═══════════════════════════════════════════════════════════════
+   Presupuesto — Etiplast  |  Documento comercial
+   A4: 210 × 297 mm
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Reset body ── */
+.pres-body {
+  background: #d1d5db;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  color: #111;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ══ PÁGINA A4 ════════════════════════════════════════════════ */
+.pres-page {
+  background: #fff;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 24px auto;
+  padding: 0;
+  border: none;
+  box-shadow: 0 8px 40px rgba(0,0,0,.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ══ HEADER ══════════════════════════════════════════════════ */
+.pres-header {
+  background: #0f0c44;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: stretch;
+  min-height: 80px;
+}
+
+.pres-logo-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-right: 1px solid rgba(255,255,255,.15);
+}
+
+.pres-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: rgba(255,255,255,.12);
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.pres-empresa {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pres-empresa-nombre {
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.pres-empresa-sub {
+  font-size: 9px;
+  color: rgba(255,255,255,.55);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.pres-titulo-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.pres-titulo {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,.6);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.pres-numero {
+  font-size: 26px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.pres-meta-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-left: 1px solid rgba(255,255,255,.15);
+}
+
+.pres-meta-item { display: flex; flex-direction: column; gap: 1px; }
+
+.pres-meta-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255,255,255,.5);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.pres-meta-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.pres-meta-estado {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffd700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Banda cliente ── */
+.pres-cliente-band {
+  background: #f3f4f6;
+  border-bottom: 2px solid #0f0c44;
+  padding: 10px 20px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.pres-cliente-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.pres-cliente-nombre {
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f0c44;
+}
+
+.pres-cliente-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #92700a;
+  background: #fdf3d0;
+  border: 1px solid #e8d48a;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+/* ══ CUERPO ══════════════════════════════════════════════════ */
+.pres-body-grid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+/* ── Datos generales ── */
+.pres-datos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.pres-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fafafa;
+}
+
+.pres-field--full { grid-column: 1 / -1; }
+
+.pres-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.pres-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+  min-height: 15px;
+}
+
+.pres-value--empty { color: #bbb; }
+
+/* ── Tabla de ítems ── */
+.pres-items-section { display: flex; flex-direction: column; gap: 8px; }
+
+.pres-section-title {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #0f0c44;
+  border-bottom: 2px solid #0f0c44;
+  padding-bottom: 4px;
+}
+
+.pres-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+
+.pres-table th {
+  background: #0f0c44;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.pres-table th.pres-th-num,
+.pres-table td.pres-td-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.pres-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 7px 10px;
+  font-weight: 500;
+  min-height: 26px;
+}
+
+.pres-table tr:nth-child(even) td { background: #fafafa; }
+
+/* ── Totales ── */
+.pres-totales-wrap {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pres-totales-box {
+  width: 76mm;
+  border: 1.5px solid #0f0c44;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pres-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 14px;
+  font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.pres-total-row span:first-child {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.pres-total-row span:last-child {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pres-total-row--final {
+  background: #0f0c44;
+  border-bottom: none;
+}
+
+.pres-total-row--final span:first-child { color: rgba(255,255,255,.7); }
+
+.pres-total-row--final span:last-child {
+  color: #ffd700;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+/* ── Condiciones / validez ── */
+.pres-condiciones-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ── Nota legal ── */
+.pres-nota {
+  font-size: 9px;
+  color: #888;
+  font-style: italic;
+  text-align: center;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+/* ══ FOOTER ══════════════════════════════════════════════════ */
+.pres-footer {
+  background: #0f0c44;
+  padding: 6px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pres-footer-text {
+  font-size: 8px;
+  color: rgba(255,255,255,.4);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pres-footer-num {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(255,255,255,.6);
+  letter-spacing: 0.1em;
+}
+
+/* ══ BOTONES (solo pantalla) ═════════════════════════════════ */
+.pres-print-btn-wrapper {
+  width: 210mm;
+  margin: 20px auto;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.pres-print-btn {
+  background: #0f0c44;
+  color: #fff;
+  border: none;
+  padding: 12px 28px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  font-family: inherit;
+  box-shadow: 0 4px 16px rgba(15,12,68,.35);
+  transition: background .15s;
+}
+
+.pres-print-btn:hover { background: #1a1866; }
+
+.pres-close-btn {
+  background: transparent;
+  color: #555;
+  border: 1.5px solid #ccc;
+  padding: 12px 22px;
+  font-size: 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+
+.pres-close-btn:hover { background: #f3f4f6; }
+
+/* ══ PRINT ═══════════════════════════════════════════════════ */
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  .pres-body { background: #fff; }
+  .pres-page {
+    width: 100%; min-height: 100vh;
+    margin: 0; box-shadow: none;
+  }
+  .no-print { display: none !important; }
+}
