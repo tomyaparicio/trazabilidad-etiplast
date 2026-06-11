@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { QcPlantilla } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
@@ -91,9 +92,12 @@ function PlantillaFormDialog({
         await api.calidad.plantillas.create(payload)
       }
       onSaved()
+      toast.success(plantilla ? "Plantilla actualizada" : "Plantilla creada")
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar")
+      const msg = err instanceof Error ? err.message : "Error al guardar"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -241,9 +245,12 @@ function EliminarPlantillaDialog({
     try {
       await api.calidad.plantillas.delete(plantilla.id)
       onDeleted()
+      toast.success("Plantilla eliminada")
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al eliminar")
+      const msg = err instanceof Error ? err.message : "Error al eliminar"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }

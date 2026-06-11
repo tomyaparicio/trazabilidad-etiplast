@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, EstadoPresupuesto } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
@@ -231,9 +232,12 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
       const saved = editing
         ? await api.presupuestos.update(presupuesto!.id, payload)
         : await api.presupuestos.create(payload)
+      toast.success(editing ? "Presupuesto actualizado" : "Presupuesto creado")
       onSaved(saved as PresupuestoRow)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar el presupuesto")
+      const msg = err instanceof Error ? err.message : "Error al guardar el presupuesto"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }

@@ -1,10 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Toaster } from "sonner"
 import { Header } from "@/components/header"
 import { Sidebar } from "@/components/sidebar"
 import { VoiceAgent } from "@/components/voice-agent"
 import { AiAssistant } from "@/components/ai-assistant"
+import { CommandPalette } from "@/components/command-palette"
+import { useTheme } from "@/components/theme-provider"
 
 const SIDEBAR_STORAGE_KEY = "etiplast-sidebar-open"
 
@@ -18,6 +21,8 @@ interface DashboardShellProps {
 export function DashboardShell({ userEmail, userName, userRole, children }: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const themeCtx = useTheme()
+  const isAdmin = userRole === "admin"
 
   useEffect(() => {
     const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY)
@@ -52,6 +57,18 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
       </div>
       <VoiceAgent />
       <AiAssistant />
+      <CommandPalette isAdmin={isAdmin} />
+      <Toaster
+        richColors
+        position="top-right"
+        theme={themeCtx?.theme ?? "dark"}
+        toastOptions={{
+          style: {
+            borderRadius: "0.75rem",
+            fontFamily: "var(--font-plus-jakarta), sans-serif",
+          },
+        }}
+      />
     </div>
   )
 }

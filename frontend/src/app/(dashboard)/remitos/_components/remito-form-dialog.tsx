@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, OrdenTrabajo } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
@@ -250,8 +251,11 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
         ? await api.remitos.update(remito.id, payload)
         : await api.remitos.create(payload)
       onSaved(saved as RemitoX)
+      toast.success(remito ? "Remito actualizado" : "Remito creado")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar")
+      const msg = err instanceof Error ? err.message : "Error al guardar"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }

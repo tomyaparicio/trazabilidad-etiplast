@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { StockItem, TipoStockItem } from "@/lib/api/types"
 import {
@@ -93,9 +94,12 @@ export function StockItemDialog({ open, item, tipoInicial, onClose, onSaved }: S
           })
         }
       }
+      toast.success(editando ? "Ítem actualizado" : "Ítem creado")
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar el ítem")
+      const msg = err instanceof Error ? err.message : "Error al guardar el ítem"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }

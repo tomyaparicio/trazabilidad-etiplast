@@ -271,6 +271,10 @@ export const api = {
   },
   /** Reportes y KPIs */
   reportes: {
+    resumen: (params?: { desde?: string; hasta?: string }) => {
+      const p = params as Record<string, string | number | undefined> | undefined
+      return get<Record<string, unknown>>("/api/reportes/resumen", p)
+    },
     produccion: (params?: { desde?: string; hasta?: string; agrupar?: string }) => {
       const p = params as Record<string, string | number | undefined> | undefined
       return get<Record<string, unknown>>("/api/reportes/produccion", p)

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Maquina, OrdenTrabajo, PlanProduccion } from "@/lib/api/types"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -261,11 +262,15 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
       if (res.warning) {
         // Solape de máquina: se guardó igual, avisamos sin bloquear
         setWarning(res.warning)
+        toast.warning(res.warning)
       } else {
+        toast.success(esEdicion ? "Plan actualizado" : "Plan creado")
         onClose()
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al guardar el plan")
+      const msg = e instanceof Error ? e.message : "Error al guardar el plan"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
@@ -279,9 +284,12 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
     try {
       await api.planificacion.delete(plan.id)
       onSaved()
+      toast.success("Plan eliminado")
       onClose()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al eliminar el plan")
+      const msg = e instanceof Error ? e.message : "Error al eliminar el plan"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setDeleting(false)
     }

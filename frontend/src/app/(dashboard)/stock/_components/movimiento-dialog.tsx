@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { StockItem, TipoStockMovimiento } from "@/lib/api/types"
 import {
@@ -65,10 +66,13 @@ export function MovimientoDialog({ item, onClose, onSaved }: MovimientoDialogPro
         lote: lote.trim() || undefined,
         observaciones: observaciones.trim() || undefined,
       })
+      toast.success("Movimiento registrado")
       onSaved()
     } catch (err) {
       // El mensaje del backend (400) se muestra tal cual
-      setError(err instanceof Error ? err.message : "Error al registrar el movimiento")
+      const msg = err instanceof Error ? err.message : "Error al registrar el movimiento"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
