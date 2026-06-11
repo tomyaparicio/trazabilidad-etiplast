@@ -5,6 +5,7 @@ CRUD de ítems de inventario (materias primas, producto terminado, insumos),
 movimientos de stock (kardex) vía services/stock y alertas de stock bajo mínimo.
 El stock actual NUNCA se edita directo: solo cambia a través de movimientos.
 """
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -139,13 +140,16 @@ async def crear_item(
 
     _validar_codigo_unico(db, datos.codigo)
 
+    # El stock_actual NUNCA se setea directo: el ítem nace en 0 y, si se indicó
+    # un stock inicial, se materializa con un movimiento de ingreso para que el
+    # kardex sea la única fuente de verdad del inventario.
     item = StockItem(
         codigo=datos.codigo,
         nombre=datos.nombre,
         tipo=datos.tipo,
         categoria=datos.categoria,
         unidad=datos.unidad,
-        stock_actual=datos.stock_actual,
+        stock_actual=Decimal("0"),
         stock_minimo=datos.stock_minimo,
         cliente_id=datos.cliente_id,
         cliente_producto_id=datos.cliente_producto_id,
@@ -161,6 +165,37 @@ async def crear_item(
         entidad_id=item.id,
         descripcion=f"Ítem de stock creado: {item.codigo or ''} {item.nombre}".strip(),
     )
+
+    # Movimiento inicial de stock (kardex) si se indicó stock_actual > 0
+    stock_inicial = datos.stock_actual if datos.stock_actual is not None else Decimal("0")
+    if stock_inicial and stock_inicial > 0:
+        movimiento = stock_service.registrar_movimiento(
+            db,
+            stock_item_id=item.id,
+            tipo="ingreso",
+            cantidad=stock_inicial,
+            motivo="inicial",
+            user_id=_resolver_user_id(db, user),
+            observaciones="Stock inicial al crear el ítem",
+        )
+        db.flush()
+        auditoria.registrar(
+            db, user,
+            accion="movimiento",
+            entidad="stock_item",
+            entidad_id=item.id,
+            descripcion=(
+                f"Stock inicial de {stock_inicial} {item.unidad or ''} "
+                f"en {item.codigo or item.nombre}"
+            ).strip(),
+            datos={
+                "movimiento_id":    movimiento.id,
+                "tipo":             "ingreso",
+                "cantidad":         float(stock_inicial),
+                "stock_resultante": float(movimiento.stock_resultante),
+            },
+        )
+
     db.commit()
     db.refresh(item)
     return item.to_dict()
