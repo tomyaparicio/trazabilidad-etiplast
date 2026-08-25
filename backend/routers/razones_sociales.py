@@ -3,15 +3,16 @@ Router de razones sociales — Etiplast ERP
 ==========================================
 Entidad legal que agrupa múltiples marcas/clientes.
 """
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from dependencies import verify_token
 from models import RazonSocial, Cliente
+from schemas import RazonSocialCreateSchema, RazonSocialUpdateSchema
 
 router = APIRouter(prefix="/api", tags=["razones_sociales"])
 
@@ -76,15 +77,15 @@ async def listar_razones_sociales(
 
 @router.post("/razones-sociales", status_code=201, summary="Crear razón social")
 async def crear_razon_social(
-    datos: Dict[str, Any] = Body(...),
+    payload: RazonSocialCreateSchema,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
-    rs = datos.get("razon_social", "").strip()
+    rs = (payload.razon_social or "").strip()
     if not rs:
         raise HTTPException(status_code=400, detail="razon_social es requerido")
 
-    obj = RazonSocial(razon_social=rs, cuit=datos.get("cuit"))
+    obj = RazonSocial(razon_social=rs, cuit=payload.cuit)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -98,7 +99,7 @@ async def crear_razon_social(
 @router.put("/razones-sociales/{rs_id}", summary="Actualizar razón social")
 async def actualizar_razon_social(
     rs_id: int,
-    datos: Dict[str, Any] = Body(...),
+    payload: RazonSocialUpdateSchema,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
@@ -106,6 +107,7 @@ async def actualizar_razon_social(
     if not obj:
         raise HTTPException(status_code=404, detail="Razón social no encontrada")
 
+    datos = payload.model_dump(exclude_unset=True)
     if "razon_social" in datos and datos["razon_social"]:
         obj.razon_social = datos["razon_social"].strip()
     if "cuit" in datos:

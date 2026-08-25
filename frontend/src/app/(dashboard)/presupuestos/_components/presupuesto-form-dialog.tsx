@@ -267,7 +267,7 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
                   onClick={() => setTipoCliente(opt.value)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                     tipoCliente === opt.value
-                      ? "bg-[#1a1866] text-white border-[#1a1866] dark:bg-[#6b7aff]/20 dark:text-[#6b7aff] dark:border-[#6b7aff]/40"
+                      ? "bg-brand text-white border-brand dark:bg-[#6b7aff]/20 dark:text-[#6b7aff] dark:border-[#6b7aff]/40"
                       : "bg-background text-muted-foreground border-border hover:border-foreground/30"
                   }`}
                 >
@@ -331,7 +331,7 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
           {/* ── Ítems ── */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a1866] dark:text-blue-400 shrink-0">Ítems</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-brand dark:text-blue-400 shrink-0">Ítems</h3>
               <div className="flex-1 h-px bg-border" />
               <Button
                 type="button" size="sm" variant="outline"
@@ -468,7 +468,7 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
           <Button
             onClick={handleSubmit}
             disabled={saving}
-            className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2"
+            className="bg-brand hover:bg-brand-strong text-white gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {editing ? "Guardar cambios" : "Crear presupuesto"}

@@ -218,7 +218,7 @@ export default function AdminMaquinasPage() {
           type="button"
           variant={filtroTipo === "" ? "default" : "outline"}
           size="sm"
-          className={filtroTipo === "" ? "bg-[#1a1866]" : ""}
+          className={filtroTipo === "" ? "bg-brand" : ""}
           onClick={() => setFiltroTipo("")}
         >
           Todas
@@ -229,7 +229,7 @@ export default function AdminMaquinasPage() {
             type="button"
             variant={filtroTipo === t.value ? "default" : "outline"}
             size="sm"
-            className={filtroTipo === t.value ? "bg-[#1a1866]" : ""}
+            className={filtroTipo === t.value ? "bg-brand" : ""}
             onClick={() => setFiltroTipo(t.value)}
           >
             {t.label}

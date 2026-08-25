@@ -3,31 +3,14 @@
 import { useState } from "react"
 import Link from "next/link"
 import { api } from "@/lib/api"
-import type { OrdenTrabajo, Remito, StockMovimiento, Bobina } from "@/lib/api/types"
+import type { Trazabilidad } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   PackageSearch, Search, Loader2, ClipboardList, Truck, ArrowDownUp, Disc3, ExternalLink,
 } from "lucide-react"
-
-// ─── Tipos del resultado (la firma del client devuelve Record genérico) ─────
-
-type BobinaX = Bobina & { numero_lote?: string | null }
-type OrdenX = Omit<OrdenTrabajo, "bobinas"> & { lote?: string | null; bobinas: BobinaX[] }
-type RemitoX = Remito & { cliente_nombre?: string | null }
-type MovimientoX = StockMovimiento & {
-  stock_item_nombre?: string | null
-  stock_item_codigo?: string | null
-  usuario_nombre?: string | null
-}
-
-type Trazabilidad = {
-  lote: string
-  ordenes: OrdenX[]
-  remitos: RemitoX[]
-  movimientos_stock: MovimientoX[]
-}
+import { PageHeader } from "@/components/ui/page-header"
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -56,7 +39,7 @@ function TimelineSection({
       {/* Línea vertical */}
       <div className="absolute left-[18px] top-10 bottom-0 w-px bg-border" />
       {/* Punto */}
-      <div className="absolute left-0 top-0 w-9 h-9 rounded-full bg-[#1a1866] text-white flex items-center justify-center">
+      <div className="absolute left-0 top-0 w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center">
         {icon}
       </div>
       <div className="pt-1.5">
@@ -93,7 +76,7 @@ export default function TrazabilidadPage() {
     setLoading(true); setError(""); setResultado(null)
     try {
       const res = await api.trazabilidad.porLote(q)
-      setResultado(res as unknown as Trazabilidad)
+      setResultado(res)
       setBuscado(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al buscar el lote")
@@ -111,18 +94,7 @@ export default function TrazabilidadPage() {
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-[1000px] mx-auto">
       {/* ── Header ── */}
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-6 rounded-full bg-[#1a1866]" />
-        <div>
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <PackageSearch className="w-5 h-5 text-[#1a1866]" />
-            Trazabilidad
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Seguimiento por lote: órdenes, bobinas, stock y remitos
-          </p>
-        </div>
-      </div>
+      <PageHeader icon={PackageSearch} title="Trazabilidad" subtitle="Seguimiento por lote: órdenes, bobinas, stock y remitos" />
 
       {/* ── Búsqueda ── */}
       <div className="flex gap-2">
@@ -139,7 +111,7 @@ export default function TrazabilidadPage() {
         <Button
           onClick={buscar}
           disabled={loading || !lote.trim()}
-          className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2 h-10 px-5 rounded-xl"
+          className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-5 rounded-xl"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
           Buscar

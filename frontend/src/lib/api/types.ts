@@ -324,3 +324,81 @@ export type AuditEntry = {
   descripcion: string | null
   created_at: string | null
 }
+
+// ─── Reportes y KPIs ─────────────────────────────────────────────────────────
+// Fuente única de los tipos de respuesta de /api/reportes/*. Los charts y la
+// página de reportes importan estos tipos desde acá (no los redefinen).
+
+export type ReporteResumen = {
+  total_ots: number
+  completadas: number
+  en_proceso: number
+  /** Porcentaje de entregas a tiempo (0-100) o null si no es calculable. */
+  pct_a_tiempo: number | null
+  items_bajo_stock: number
+}
+
+/** Punto del chart de producción (agrupado por máquina/cliente/operador/mes). */
+export type ProduccionPunto = {
+  grupo: string
+  ots: number
+  cantidad: number
+  kg: number
+}
+export type ReporteProduccion = { data: ProduccionPunto[] }
+
+/** Tiempo promedio entre etapas de la OT. */
+export type TiempoEtapa = {
+  clave: string
+  etapa: string
+  dias_promedio: number | null
+  muestras: number
+}
+export type ReporteTiempos = { disponible: boolean; etapas: TiempoEtapa[] }
+
+/** Punto de la serie temporal de órdenes (mensual). */
+export type OrdenesSeriePunto = {
+  /** "YYYY-MM" */
+  mes: string
+  cantidad: number
+}
+export type ReporteOrdenesSeries = { data: OrdenesSeriePunto[] }
+
+export type ClienteTop = {
+  cliente_id: number
+  marca: string
+  ots: number
+  cantidad: number
+}
+export type ReporteClientesTop = { data: ClienteTop[] }
+
+export type ReporteStockResumen = {
+  total_items: number
+  bajo_minimo: number
+  por_tipo?: Array<{ tipo: string; cantidad: number }>
+}
+
+// ─── Trazabilidad por lote ───────────────────────────────────────────────────
+// La respuesta de /api/trazabilidad enriquece las entidades base con campos extra.
+
+export type TrazabilidadBobina = Bobina & { numero_lote?: string | null }
+
+export type TrazabilidadOrden = Omit<OrdenTrabajo, "bobinas"> & {
+  lote?: string | null
+  bobinas: TrazabilidadBobina[]
+}
+
+export type TrazabilidadRemito = Remito & { cliente_nombre?: string | null }
+
+export type TrazabilidadMovimiento = StockMovimiento & {
+  stock_item_nombre?: string | null
+  stock_item_codigo?: string | null
+  usuario_nombre?: string | null
+}
+
+export type Trazabilidad = {
+  lote: string
+  ordenes: TrazabilidadOrden[]
+  remitos: TrazabilidadRemito[]
+  movimientos_stock: TrazabilidadMovimiento[]
+}

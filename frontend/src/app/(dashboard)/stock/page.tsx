@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { api } from "@/lib/api"
 import type { StockItem, TipoStockItem } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
 import { Boxes, Plus, AlertTriangle } from "lucide-react"
 import { StockTable } from "./_components/stock-table"
 import { StockItemDialog } from "./_components/stock-item-dialog"
@@ -34,27 +35,20 @@ export default function StockPage() {
     <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-[#1a1866]" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <Boxes className="w-5 h-5 text-[#1a1866]" />
-              Stock
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Materias primas, producto terminado e insumos
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={() => setNuevoOpen(true)}
-          className="h-10 px-4 rounded-xl bg-[#1a1866] hover:bg-[#14115a] text-white border border-[#1a1866] text-sm font-medium gap-2 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo ítem
-        </Button>
-      </div>
+      <PageHeader
+        icon={Boxes}
+        title="Stock"
+        subtitle="Materias primas, producto terminado e insumos"
+        actions={
+          <Button
+            onClick={() => setNuevoOpen(true)}
+            className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo ítem
+          </Button>
+        }
+      />
 
       {/* ── Banner de alertas de stock bajo mínimo ── */}
       {alertas.length > 0 && (

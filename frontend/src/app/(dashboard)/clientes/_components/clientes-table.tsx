@@ -227,7 +227,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
         </div>
         <Button
           onClick={() => setNuevoDialogOpen(true)}
-          className="h-10 px-4 rounded-xl bg-[#1a1866] hover:bg-[#14115a] text-white border border-[#1a1866] text-sm font-medium gap-2 shrink-0"
+          className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
         >
           <Plus className="w-4 h-4" />
           Nuevo cliente

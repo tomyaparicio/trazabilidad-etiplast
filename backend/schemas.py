@@ -12,14 +12,35 @@ Convenciones:
 """
 from datetime import date
 from decimal import Decimal
-from typing import List, Optional
+from typing import Annotated, Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 
 class _Schema(BaseModel):
     """Base común: ignora claves extra."""
     model_config = ConfigDict(extra="ignore")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Tipos permisivos para retrofit de clientes/órdenes.
+# El frontend manda números como number|null, pero otros clientes (voz, IA,
+# scripts) pueden mandar "" para un campo vacío. `_blank_to_none` normaliza ""
+# a None ANTES de la validación, preservando el comportamiento defensivo que los
+# routers ya tenían con `_to_float`/`_to_int` (que toleraban strings vacíos).
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _blank_to_none(v: Any) -> Any:
+    if isinstance(v, str) and v.strip() == "":
+        return None
+    return v
+
+
+# Numérico laxo: acepta int/float/str-numérico, "" → None. Los routers siguen
+# aplicando _to_float/_to_int, así que un int en un campo "float" no cambia nada.
+OptNum = Annotated[Optional[float], BeforeValidator(_blank_to_none)]
+# Id opcional: acepta int/str-numérico, "" → None.
+OptId = Annotated[Optional[int], BeforeValidator(_blank_to_none)]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -209,32 +230,145 @@ class QcRegistroUpdateSchema(_Schema):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Referencia futura (retrofit Fase 3): clientes y órdenes
-# Los endpoints actuales siguen aceptando Dict[str, Any]; estos schemas quedan
-# como contrato de referencia para cuando se retrofitee la validación.
+# Clientes (retrofit de validación)
+# Todos los campos son opcionales para no romper payloads existentes. Las fechas
+# no aplican a clientes. Los routers siguen devolviendo `to_dict()` y siguen
+# usando `_to_float`/`_to_int` sobre estos valores, por lo que el shape y el
+# comportamiento defensivo se mantienen intactos.
 # ──────────────────────────────────────────────────────────────────────────────
 
-class OrdenCreateSchema(_Schema):
-    cliente_id:          int
-    cliente_producto_id: Optional[int] = None
-    fecha:               Optional[date] = None
-    estado:              str = "borrador"
-    responsable_id:      Optional[int] = None
+class ClienteUpdateSchema(_Schema):
+    # — Identidad —
+    marca:           Optional[str] = Field(None, max_length=200)
+    id_cliente:      OptId = None
+    razon_social:    Optional[str] = Field(None, max_length=300)
+    cuit:            Optional[str] = Field(None, max_length=20)
+    razon_social_id: OptId = None
+    rubro:           Optional[str] = Field(None, max_length=100)   # texto; el router hace get_or_create
+    # — Ubicación —
+    provincia:            Optional[str] = Field(None, max_length=100)  # texto; get_or_create
+    domicilio:            Optional[str] = Field(None, max_length=300)
+    localidad:            Optional[str] = Field(None, max_length=150)
+    pais:                 Optional[str] = Field(None, max_length=100)
+    transporte:           Optional[str] = Field(None, max_length=200)
+    transporte_domicilio: Optional[str] = Field(None, max_length=300)
+    transporte_localidad: Optional[str] = Field(None, max_length=150)
+    latitud:              OptNum = None
+    longitud:             OptNum = None
+    # — Contacto —
+    telefono:      Optional[str] = Field(None, max_length=100)
+    observaciones: Optional[str] = None
+    # — Producto principal —
+    producto:          Optional[str] = Field(None, max_length=200)
+    envase:            Optional[str] = Field(None, max_length=200)
+    envase_codificado: Optional[str] = Field(None, max_length=100)
+    volumen_cantidad:  OptNum = None
+    volumen_unidad:    Optional[str] = Field(None, max_length=50)
+    lamina:            Optional[str] = Field(None, max_length=200)
+    muestra:           Optional[str] = Field(None, max_length=200)
+    alto:              OptNum = None
+    cilindro:          OptNum = None
+    cierre:            OptNum = None
+
+
+class ClienteCreateSchema(ClienteUpdateSchema):
+    """Alta de cliente: mismos campos, todos opcionales (marca puede faltar como hoy)."""
+    pass
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Órdenes de trabajo (retrofit de validación)
+# Fechas como str: el router las parsea con `_parse_date` (tolera "" e inválidas).
+# La validez de `estado` se chequea en el router contra ESTADOS_ORDEN.
+# ──────────────────────────────────────────────────────────────────────────────
+
+class OrdenBobinaSchema(_Schema):
+    metros:      OptNum = None
+    kg_bob:      OptNum = None
+    numero_lote: Optional[str] = Field(None, max_length=50)
+
+
+class OrdenUpdateSchema(_Schema):
+    cliente_id:          OptId = None
+    cliente_producto_id: OptId = None
+    fecha:               Optional[str] = None
+    estado:              Optional[str] = Field(None, max_length=20)
+    responsable_id:      OptId = None
     operador:            Optional[str] = Field(None, max_length=150)
-    cantidad:            Optional[int] = None
-    total_final:         Optional[Decimal] = None
-    observaciones:       Optional[str] = None
-    fecha_entrega:       Optional[date] = None
+
+    # — Extrusión —
+    extrusion_ancho:         OptNum = None
+    extrusion_color:         Optional[str] = Field(None, max_length=100)
+    extrusion_trat:          Optional[str] = Field(None, max_length=100)
+    extrusion_espesor:       OptNum = None
+    extrusion_cant_bob:      OptNum = None
+    extrusion_formulacion:   Optional[str] = Field(None, max_length=300)
+    extrusion_maquina:       Optional[str] = Field(None, max_length=100)
+    extrusion_observaciones: Optional[str] = None
+    operador_extrusion:      Optional[str] = Field(None, max_length=150)
+    bobinas:                 Optional[List[OrdenBobinaSchema]] = None
+
+    # — Impresión —
+    impresion_frente:        Optional[str] = None
+    impresion_retroverso:    Optional[str] = None
+    impresion_observaciones: Optional[str] = None
+    impresion_cilindro:      OptNum = None
+    impresion_colores:       Optional[List[str]] = None
+    operador_impresion:      Optional[str] = Field(None, max_length=150)
+
+    # — Troquelado —
+    troquelado_ancho:         OptNum = None
+    troquelado_alto:          OptNum = None
+    troquelado_envase:        Optional[str] = Field(None, max_length=200)
+    troquelado_maquina:       Optional[str] = Field(None, max_length=100)
+    troquelado_observaciones: Optional[str] = None
+    operador_troquelado:      Optional[str] = Field(None, max_length=150)
+
+    # — Control de calidad —
+    control_calidad: Optional[str] = None
+
+    # — Fechas por etapa (str; el router parsea) —
+    fecha_diseno:     Optional[str] = None
+    fecha_preprensa:  Optional[str] = None
+    fecha_extrusion:  Optional[str] = None
+    fecha_impresion:  Optional[str] = None
+    fecha_troquelado: Optional[str] = None
+    fecha_entrega:    Optional[str] = None
+
+    # — Totales —
+    cantidad:      OptNum = None
+    total_final:   OptNum = None
+    observaciones: Optional[str] = None
 
 
-class ClienteCreateSchema(_Schema):
-    marca:           str = Field(..., max_length=200)
-    id_cliente:      Optional[int] = None
-    razon_social_id: Optional[int] = None
-    rubro_id:        Optional[int] = None
-    domicilio:       Optional[str] = Field(None, max_length=300)
-    localidad:       Optional[str] = Field(None, max_length=150)
-    provincia_id:    Optional[int] = None
-    pais:            Optional[str] = Field(None, max_length=100)
-    telefono:        Optional[str] = Field(None, max_length=100)
-    observaciones:   Optional[str] = None
+class OrdenCreateSchema(OrdenUpdateSchema):
+    """Alta de OT: cliente_id obligatorio, estado por defecto 'borrador'."""
+    cliente_id: int
+    estado:     str = "borrador"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Razones sociales
+# ──────────────────────────────────────────────────────────────────────────────
+
+class RazonSocialUpdateSchema(_Schema):
+    razon_social: Optional[str] = Field(None, max_length=300)
+    cuit:         Optional[str] = Field(None, max_length=20)
+
+
+class RazonSocialCreateSchema(RazonSocialUpdateSchema):
+    razon_social: str = Field(..., max_length=300)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Máquinas (catálogo, solo admin)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class MaquinaUpdateSchema(_Schema):
+    nombre: Optional[str] = Field(None, max_length=200)
+    tipo:   Optional[str] = Field(None, max_length=50)
+    activa: Optional[bool] = None
+
+
+class MaquinaCreateSchema(MaquinaUpdateSchema):
+    nombre: str = Field(..., max_length=200)

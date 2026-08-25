@@ -13,6 +13,8 @@ from typing import Optional
 from database import get_db
 from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina, AuditLog
 from dependencies import verify_admin
+from schemas import MaquinaCreateSchema, MaquinaUpdateSchema
+from services import auditoria
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -71,6 +73,11 @@ def crear_usuario(
         role=data.role,
     )
     db.add(user)
+    db.flush()  # obtener user.id para auditar
+    auditoria.registrar(
+        db, admin, "crear", "usuario", user.id,
+        f"Creó usuario {email} (rol={data.role})",
+    )
     db.commit()
     db.refresh(user)
     logger.info("Admin %s creó usuario: %s (rol=%s)", admin["email"], email, data.role)
@@ -87,16 +94,44 @@ def actualizar_usuario(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if data.role is not None and data.role not in ("admin", "user", "operario"):
+        raise HTTPException(status_code=400, detail="El rol debe ser 'admin', 'user' u 'operario'")
+
+    # Protección anti-lockout: no dejar el sistema sin ningún administrador activo.
+    # Si este usuario es admin activo y el cambio lo desactiva o le quita el rol,
+    # exigir que exista OTRO admin activo.
+    es_admin_activo = user.role == "admin" and user.is_active
+    pierde_admin = (
+        (data.role is not None and data.role != "admin")
+        or (data.is_active is False)
+    )
+    if es_admin_activo and pierde_admin:
+        otros_admins = (
+            db.query(func.count(User.id))
+            .filter(User.role == "admin", User.is_active.is_(True), User.id != user.id)
+            .scalar()
+        )
+        if not otros_admins:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede desactivar ni quitar el rol de administrador al último administrador activo",
+            )
+
     if data.nombre is not None:
         user.nombre = data.nombre.strip() or None
     if data.apellido is not None:
         user.apellido = data.apellido.strip() or None
     if data.role is not None:
-        if data.role not in ("admin", "user", "operario"):
-            raise HTTPException(status_code=400, detail="El rol debe ser 'admin', 'user' u 'operario'")
         user.role = data.role
     if data.is_active is not None:
         user.is_active = data.is_active
+
+    auditoria.registrar(
+        db, admin, "actualizar", "usuario", user.id,
+        f"Actualizó usuario {user.email}",
+        datos={"role": user.role, "is_active": user.is_active},
+    )
     db.commit()
     db.refresh(user)
     logger.info("Admin %s actualizó usuario %s: role=%s, active=%s", admin["email"], user.email, user.role, user.is_active)
@@ -317,12 +352,12 @@ def listar_maquinas(
 
 @router.post("/maquinas", summary="Crear máquina", status_code=201)
 def crear_maquina(
-    datos: dict,
+    payload: MaquinaCreateSchema,
     admin: dict = Depends(verify_admin),
     db: Session = Depends(get_db),
 ):
-    nombre = (datos.get("nombre") or "").strip()
-    tipo   = (datos.get("tipo") or "impresion").strip()
+    nombre = (payload.nombre or "").strip()
+    tipo   = (payload.tipo or "impresion").strip()
     if not nombre:
         raise HTTPException(status_code=400, detail="nombre es requerido")
     codigo = _siguiente_codigo_maquina(db, nombre)
@@ -337,13 +372,14 @@ def crear_maquina(
 @router.put("/maquinas/{maquina_id}", summary="Actualizar máquina")
 def actualizar_maquina(
     maquina_id: int,
-    datos: dict,
+    payload: MaquinaUpdateSchema,
     admin: dict = Depends(verify_admin),
     db: Session = Depends(get_db),
 ):
     m = db.query(Maquina).filter(Maquina.id == maquina_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Máquina no encontrada")
+    datos = payload.model_dump(exclude_unset=True)
     for campo in ("nombre", "tipo"):
         if campo in datos and datos[campo]:
             setattr(m, campo, datos[campo].strip())

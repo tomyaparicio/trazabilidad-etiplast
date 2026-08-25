@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { AlertCircle, Loader2 } from "lucide-react"
 
 const TIPOS: { value: TipoStockItem; label: string }[] = [
@@ -107,7 +108,6 @@ export function StockItemDialog({ open, item, tipoInicial, onClose, onSaved }: S
 
   const labelCls = "block text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5"
   const inputCls = "h-10 rounded-xl bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/15 transition-all"
-  const selectCls = "h-10 w-full px-3 bg-input border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-gold/40 focus:ring-2 focus:ring-gold/10 transition-all cursor-pointer appearance-none"
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
@@ -142,17 +142,17 @@ export function StockItemDialog({ open, item, tipoInicial, onClose, onSaved }: S
           </div>
           <div>
             <label className={labelCls}>Tipo</label>
-            <select
+            <Select
               value={tipo}
               onChange={(e) => setTipo(e.target.value as TipoStockItem)}
               disabled={editando}
               aria-label="Tipo de ítem"
-              className={`${selectCls} ${editando ? "opacity-60 cursor-not-allowed" : ""}`}
+              className={`${inputCls} ${editando ? "opacity-60 cursor-not-allowed" : ""}`}
             >
               {TIPOS.map((t) => (
                 <option key={t.value} value={t.value} className="bg-background">{t.label}</option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="col-span-2">
             <label className={labelCls}>Nombre *</label>
@@ -221,7 +221,7 @@ export function StockItemDialog({ open, item, tipoInicial, onClose, onSaved }: S
           <Button
             onClick={handleSubmit}
             disabled={saving}
-            className="h-10 px-4 rounded-xl bg-[#1a1866] hover:bg-[#14115a] text-white border border-[#1a1866] gap-2"
+            className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {editando ? "Guardar cambios" : "Crear ítem"}

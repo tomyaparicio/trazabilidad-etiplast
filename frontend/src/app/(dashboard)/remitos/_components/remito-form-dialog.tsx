@@ -387,7 +387,7 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
             Cancelar
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={saving}
-            className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2">
+            className="bg-brand hover:bg-brand-strong text-white gap-2">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {remito ? "Guardar cambios" : "Crear remito"}
           </Button>

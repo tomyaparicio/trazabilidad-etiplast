@@ -4,15 +4,12 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
 import { Factory } from "lucide-react"
+import type { ProduccionPunto } from "@/lib/api/types"
 
+export type { ProduccionPunto }
+
+// Paleta categórica del chart (recharts pinta `fill` como atributo SVG, donde var() no resuelve).
 const COLORS = ["#292d96", "#f5eb4a", "#4f54d6", "#8a8fe0", "#1b1e75", "#b6b9d8", "#6f74e0", "#c9a500", "#3f4488", "#9a9ec8"]
-
-export interface ProduccionPunto {
-  grupo: string
-  ots: number
-  cantidad: number
-  kg: number
-}
 
 type Metrica = "ots" | "cantidad" | "kg"
 

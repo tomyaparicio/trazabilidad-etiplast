@@ -12,11 +12,11 @@ import type { VoiceState, EtiAction } from "@/lib/voice/types"
 // ── Colores por estado ────────────────────────────────────────────────────────
 function stateStyle(s: VoiceState) {
   switch (s) {
-    case "listening":  return { btn: "bg-[#f5eb4a] text-black shadow-[0_0_20px_rgba(245,235,74,0.5)]", ring: "border-[#f5eb4a]" }
-    case "processing": return { btn: "bg-[#1a1866] text-white",                                         ring: "border-[#1a1866]" }
+    case "listening":  return { btn: "bg-gold text-black shadow-[0_0_20px_rgba(245,235,74,0.5)]", ring: "border-gold" }
+    case "processing": return { btn: "bg-brand text-white",                                         ring: "border-brand" }
     case "speaking":   return { btn: "bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]", ring: "border-emerald-500" }
     case "error":      return { btn: "bg-red-500 text-white",                                            ring: "border-red-500" }
-    default:           return { btn: "bg-[#1a1866] text-white hover:bg-[#1a1866]/90",                   ring: "border-[#1a1866]/40" }
+    default:           return { btn: "bg-brand text-white hover:bg-brand/90",                   ring: "border-brand/40" }
   }
 }
 
@@ -117,9 +117,9 @@ function VoiceAgentContent() {
         <div className="w-96 rounded-2xl border border-border bg-background shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-200">
 
           {/* Header del panel */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-[#1a1866]/5">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-brand/5">
             <div className="flex items-center gap-2">
-              <Bot className="w-4 h-4 text-[#1a1866] dark:text-[#6b7aff]" />
+              <Bot className="w-4 h-4 text-brand dark:text-[#6b7aff]" />
               <span className="text-sm font-semibold text-foreground">Asistente Etiplast</span>
               <span className="text-[10px] text-muted-foreground/50 hidden sm:block">Ctrl+Espacio</span>
             </div>
@@ -179,7 +179,7 @@ function VoiceAgentContent() {
                   <div
                     className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                       msg.role === "user"
-                        ? "bg-[#1a1866] text-white rounded-br-sm"
+                        ? "bg-brand text-white rounded-br-sm"
                         : "bg-muted text-foreground rounded-bl-sm"
                     }`}
                   >
@@ -207,7 +207,7 @@ function VoiceAgentContent() {
             {/* Transcript en tiempo real */}
             {state === "listening" && transcript && (
               <div className="flex justify-end animate-in fade-in duration-150">
-                <div className="max-w-[88%] rounded-2xl rounded-br-sm px-3 py-2 text-sm leading-relaxed bg-[#1a1866]/30 text-foreground/70 italic border border-[#1a1866]/20">
+                <div className="max-w-[88%] rounded-2xl rounded-br-sm px-3 py-2 text-sm leading-relaxed bg-brand/30 text-foreground/70 italic border border-brand/20">
                   {transcript}
                   <span className="inline-block w-1 h-3.5 ml-0.5 bg-current animate-pulse rounded-sm align-middle" />
                 </div>
@@ -241,7 +241,7 @@ function VoiceAgentContent() {
               error ? "text-red-500" : "text-muted-foreground"
             }`}>
               {state === "speaking"   && <Volume2 className="w-3 h-3 shrink-0 text-emerald-500" />}
-              {state === "listening"  && <Mic className="w-3 h-3 shrink-0 text-[#f5eb4a]" />}
+              {state === "listening"  && <Mic className="w-3 h-3 shrink-0 text-gold" />}
               {state === "error"      && <AlertCircle className="w-3 h-3 shrink-0" />}
               <span>
                 {error
@@ -263,12 +263,12 @@ function VoiceAgentContent() {
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Escribí una consulta..."
               disabled={state === "processing"}
-              className="flex-1 text-sm bg-muted/50 border border-border rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#1a1866]/50 disabled:opacity-50"
+              className="flex-1 text-sm bg-muted/50 border border-border rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-brand/50 disabled:opacity-50"
             />
             <button
               onClick={handleSend}
               disabled={!inputText.trim() || state === "processing"}
-              className="p-1.5 rounded-lg bg-[#1a1866] text-white disabled:opacity-40 hover:bg-[#1a1866]/80 transition-colors"
+              className="p-1.5 rounded-lg bg-brand text-white disabled:opacity-40 hover:bg-brand/80 transition-colors"
             >
               <Send className="w-3.5 h-3.5" />
             </button>

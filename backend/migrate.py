@@ -1097,8 +1097,48 @@ MIGRATIONS_EXPANSION_SEEDS = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Resincronización de secuencias
+# Tras un import masivo con IDs explícitos, la secuencia SERIAL queda por detrás
+# del MAX(id) y el próximo INSERT choca con la PK (duplicate key / 500). Este
+# setval la reajusta. Es idempotente: correrlo de nuevo deja el mismo valor.
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_SEQ_RESYNC = [
+    ("Resincronizar secuencias de id (users, clientes, razones_sociales)",
+     """
+     DO $$
+     DECLARE
+         tbl text;
+         seq text;
+     BEGIN
+         FOREACH tbl IN ARRAY ARRAY['users', 'clientes', 'razones_sociales'] LOOP
+             seq := pg_get_serial_sequence(tbl, 'id');
+             IF seq IS NOT NULL THEN
+                 EXECUTE format(
+                     'SELECT setval(%L, COALESCE((SELECT MAX(id) FROM %I), 1), true)',
+                     seq, tbl
+                 );
+             END IF;
+         END LOOP;
+     END $$;
+     """),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
 # ──────────────────────────────────────────────────────────────────────────────
+
+def _ensure_tracking_table(conn):
+    """Tabla de control de migraciones ya aplicadas (para saltearlas en re-runs)."""
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            nombre      TEXT PRIMARY KEY,
+            aplicada_at TIMESTAMPTZ DEFAULT now()
+        )
+    """))
+    conn.commit()
+
 
 def run_migrations():
     print("=" * 52)
@@ -1109,31 +1149,63 @@ def run_migrations():
     db_host = "Railway (PRODUCCIÓN)" if "railway" in db_url.lower() else "local"
     print(f"\n  Conectando a: {db_host}...\n")
 
-    # Crear tablas nuevas si no existen (modelos actuales)
+    # Crear tablas nuevas si no existen (modelos actuales). Defensivo: un fallo acá
+    # tampoco debe impedir el arranque.
     print("Verificando esquema...")
-    Base.metadata.create_all(bind=engine)
-    print("  ✓ Esquema verificado\n")
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("  ✓ Esquema verificado\n")
+    except Exception as e:
+        print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC
+
+    aplicadas = 0
+    salteadas = 0
+    fallidas  = 0
 
     with engine.connect() as conn:
+        # Tracking: saltear las migraciones ya aplicadas → re-runs = no-op real.
+        try:
+            _ensure_tracking_table(conn)
+            ya_aplicadas = {
+                r[0] for r in conn.execute(text("SELECT nombre FROM schema_migrations")).fetchall()
+            }
+        except Exception as e:
+            print(f"  ⚠  No se pudo leer schema_migrations (se intentarán todas): {e}")
+            ya_aplicadas = set()
+
         for name, sql in all_migrations:
+            if name in ya_aplicadas:
+                salteadas += 1
+                continue
             try:
                 conn.execute(text(sql))
+                conn.execute(
+                    text("INSERT INTO schema_migrations (nombre) VALUES (:n) ON CONFLICT (nombre) DO NOTHING"),
+                    {"n": name},
+                )
                 conn.commit()
+                ya_aplicadas.add(name)
+                aplicadas += 1
                 print(f"  ✓ {name}")
             except Exception as e:
+                # NO se relanza: un fallo de migración NO debe tumbar el arranque.
                 conn.rollback()
+                fallidas += 1
                 print(f"  ✗ {name}: {e}")
-                raise
+                print("     ↳ se omite y se continúa")
 
-    print("\nMigraciones aplicadas correctamente.")
+    print(f"\nMigraciones: {aplicadas} aplicadas, {salteadas} ya estaban, {fallidas} con error.")
     print("=" * 52)
 
 
 if __name__ == "__main__":
+    # El arranque nunca debe caerse por migraciones (Procfile: migrate && uvicorn).
+    # Los errores por migración ya se capturan y omiten dentro de run_migrations();
+    # este try extra cubre fallos de conexión para que uvicorn igual levante.
     try:
         run_migrations()
     except Exception as e:
-        print(f"\n❌ Error fatal: {e}")
-        sys.exit(1)
+        print(f"\n⚠  Error no fatal en migraciones (se continúa para no bloquear el arranque): {e}")
+    sys.exit(0)

@@ -11,11 +11,13 @@ from sqlalchemy import cast, func, or_, String
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_token
+from dependencies import verify_admin, verify_token
 from models import (
     Cliente, ClienteContacto, ClienteProducto,
     ClienteUbicacion, Provincia, RazonSocial, Rubro,
 )
+from schemas import ClienteCreateSchema, ClienteUpdateSchema
+from services import auditoria
 
 router = APIRouter(prefix="/api", tags=["clientes"])
 
@@ -204,10 +206,14 @@ async def obtener_cliente(
 
 @router.post("/clientes", status_code=201, summary="Crear nuevo cliente")
 async def crear_cliente(
-    datos: Dict[str, Any] = Body(...),
+    payload: ClienteCreateSchema,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
+    # Validación vía Pydantic; se opera sobre un dict para no cambiar la lógica.
+    # exclude_none: las claves ausentes/None se omiten, igual que antes con Body dict.
+    datos = payload.model_dump(exclude_none=True)
+
     # Determinar id_cliente
     id_cliente = datos.get("id_cliente")
     if id_cliente is None:
@@ -302,10 +308,14 @@ async def crear_cliente(
 @router.put("/clientes/{cliente_id}", summary="Actualizar cliente")
 async def actualizar_cliente(
     cliente_id: int,
-    datos: Dict[str, Any] = Body(...),
+    payload: ClienteUpdateSchema,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
+    # exclude_unset: solo los campos realmente enviados → se preserva la semántica
+    # de actualización parcial (`if campo in datos`).
+    datos = payload.model_dump(exclude_unset=True)
+
     cliente = (
         db.query(Cliente)
         .options(*_eager_options())
@@ -479,14 +489,18 @@ async def eliminar_producto_cliente(
     db.commit()
 
 
-@router.delete("/clientes/{cliente_id}", status_code=204, summary="Eliminar cliente")
+@router.delete("/clientes/{cliente_id}", status_code=204, summary="Eliminar cliente (solo admin)")
 async def eliminar_cliente(
     cliente_id: int,
-    _user: dict = Depends(verify_token),
+    user: dict = Depends(verify_admin),
     db: Session = Depends(get_db),
 ):
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    auditoria.registrar(
+        db, user, "eliminar", "cliente", cliente.id,
+        f"Eliminó cliente {cliente.marca or cliente.razon_social or f'#{cliente.id}'}",
+    )
     db.delete(cliente)
     db.commit()

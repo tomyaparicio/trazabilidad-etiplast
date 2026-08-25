@@ -3,8 +3,9 @@ uvicorn==0.34.0
 python-dotenv==1.0.1
 openpyxl==3.1.5
 pydantic==2.10.4
-sqlalchemy>=2.0
-psycopg2-binary>=2.9
-python-jose[cryptography]>=3.3.0
-bcrypt>=4.0
-slowapi>=0.1.9
+# Cotas superiores: evitan que un pip futuro traiga una major que rompa la API.
+sqlalchemy>=2.0,<2.1
+psycopg2-binary>=2.9,<3.0
+python-jose[cryptography]>=3.3.0,<4.0
+bcrypt>=4.0,<6.0
+slowapi>=0.1.9,<0.2

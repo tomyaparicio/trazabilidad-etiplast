@@ -5,11 +5,9 @@ import { api } from "@/lib/api"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Eye, EyeOff, Loader2, AlertCircle, Mail, Lock, ArrowRight } from "lucide-react"
-import { Questrial } from "next/font/google"
 
-// Questrial (Google) como fallback geométrico; Century Gothic vía @font-face abajo
-const questrial = Questrial({ subsets: ["latin"], weight: "400", variable: "--font-questrial", display: "swap" })
-const DISPLAY = "'Century Gothic ET', var(--font-questrial), sans-serif"
+// Tipografía display (.font-display) y el @font-face de Century Gothic viven en globals.css.
+// Questrial (fallback) lo carga el root layout como --font-questrial. Fuente única de verdad.
 
 // ── Formulario ────────────────────────────────────────────────────────────────
 function LoginForm() {
@@ -54,7 +52,7 @@ function LoginForm() {
   }
 
   const fieldCls =
-    "w-full h-[52px] rounded-[13px] border-[1.5px] border-[#e7e8f2] bg-[#f4f5fa] pl-11 pr-4 text-[15px] text-[#141733] placeholder:text-[#aab0c0] outline-none transition-all focus:border-[#292d96] focus:bg-white focus:ring-4 focus:ring-[#292d96]/10"
+    "w-full h-[52px] rounded-[13px] border-[1.5px] border-[#e7e8f2] bg-[#f4f5fa] pl-11 pr-4 text-[15px] text-[#141733] placeholder:text-[#aab0c0] outline-none transition-all focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"
 
   return (
     <div className="w-full max-w-[410px]">
@@ -64,12 +62,12 @@ function LoginForm() {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#20236f] to-[#0e1046] flex items-center justify-center overflow-hidden">
             <Image src="/logoSOLO.png" alt="Etiplast" width={30} height={30} className="object-contain" />
           </div>
-          <span className="text-2xl font-bold text-[#141733]" style={{ fontFamily: DISPLAY }}>
+          <span className="text-2xl font-bold text-[#141733] font-display">
             eti<span className="text-[#d9c400]">plast</span>
           </span>
         </div>
 
-        <h1 className="text-[29px] font-semibold text-[#141733] tracking-tight" style={{ fontFamily: DISPLAY }}>
+        <h1 className="text-[29px] font-semibold text-[#141733] tracking-tight font-display">
           Bienvenido de vuelta
         </h1>
         <p className="text-[#7a7e9c] mt-1.5 text-[14.5px]">Ingresá tus credenciales para continuar</p>
@@ -123,22 +121,21 @@ function LoginForm() {
 
           <div className="flex items-center justify-between text-[13.5px] pt-0.5">
             <label className="flex items-center gap-2 text-[#7a7e9c] cursor-pointer">
-              <input type="checkbox" className="w-[17px] h-[17px] rounded-[5px] border-[1.5px] border-[#e7e8f2] accent-[#292d96]" />
+              <input type="checkbox" className="w-[17px] h-[17px] rounded-[5px] border-[1.5px] border-[#e7e8f2] accent-brand" />
               Recordarme
             </label>
-            <a href="#" className="text-[#292d96] font-semibold hover:underline">¿Olvidaste tu contraseña?</a>
+            <a href="#" className="text-brand font-semibold hover:underline">¿Olvidaste tu contraseña?</a>
           </div>
 
           <button
             type="submit" disabled={loading}
-            className="w-full h-[54px] rounded-[13px] bg-[#292d96] hover:bg-[#1b1e75] text-white font-semibold text-[16px] tracking-[0.2px] flex items-center justify-center gap-2.5 shadow-[0_16px_30px_-14px_rgba(41,45,150,0.55)] transition-colors disabled:opacity-60"
-            style={{ fontFamily: DISPLAY }}
+            className="w-full h-[54px] rounded-[13px] bg-brand hover:bg-brand-strong text-white font-semibold text-[16px] tracking-[0.2px] flex items-center justify-center gap-2.5 shadow-[0_16px_30px_-14px_rgba(41,45,150,0.55)] transition-colors disabled:opacity-60 font-display"
           >
             {loading ? (
               <><Loader2 className="w-5 h-5 animate-spin" />Ingresando…</>
             ) : (
               <>Ingresar
-                <span className="w-[22px] h-[22px] rounded-full bg-[#f5eb4a] text-[#101248] flex items-center justify-center">
+                <span className="w-[22px] h-[22px] rounded-full bg-gold text-[#101248] flex items-center justify-center">
                   <ArrowRight className="w-[13px] h-[13px]" />
                 </span>
               </>
@@ -157,11 +154,7 @@ function LoginForm() {
 // ── Página — fondo azul siempre (azul + blanco + amarillo) ────────────────────
 export default function LoginPage() {
   return (
-    <div className={`${questrial.variable} min-h-screen relative overflow-hidden text-white bg-[#292d96]`}>
-      <style dangerouslySetInnerHTML={{ __html: `
-@font-face{font-family:'Century Gothic ET';src:url('/fonts/century-gothic.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Century Gothic ET';src:url('/fonts/century-gothic-bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
-      `}} />
+    <div className="min-h-screen relative overflow-hidden text-white bg-brand">
       {/* Logo de marca de agua */}
       <Image
         src="/logoSOLO.png"
@@ -176,20 +169,20 @@ export default function LoginPage() {
       <div className="relative z-10 min-h-screen grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] items-center gap-10 px-6 sm:px-[6vw] py-12">
         {/* Marca */}
         <section className="hidden lg:block max-w-[460px]">
-          <h1 className="text-[56px] leading-none font-bold tracking-[-1px]" style={{ fontFamily: DISPLAY }}>
-            eti<span className="text-[#f5eb4a]">plast</span>
+          <h1 className="text-[56px] leading-none font-bold tracking-[-1px] font-display">
+            eti<span className="text-etiplast-500">plast</span>
           </h1>
           <p className="mt-2 text-[12px] tracking-[0.44em] uppercase text-[#aab0ee] font-medium">Etiquetas y envases</p>
-          <p className="mt-9 text-[27px] leading-[1.35] text-[#eef0ff]" style={{ fontFamily: DISPLAY, fontWeight: 400 }}>
-            El sistema que hace girar tu <span className="text-[#f5eb4a] font-semibold">producción</span>, de la orden al despacho.
+          <p className="mt-9 text-[27px] leading-[1.35] text-[#eef0ff] font-display font-normal">
+            El sistema que hace girar tu <span className="text-etiplast-500 font-semibold">producción</span>, de la orden al despacho.
           </p>
           <div className="mt-11 flex gap-10">
             <div>
-              <div className="text-[28px] font-bold text-[#f5eb4a]" style={{ fontFamily: DISPLAY }}>Desde 2008</div>
+              <div className="text-[28px] font-bold text-etiplast-500 font-display">Desde 2008</div>
               <div className="text-[13px] text-[#aab0ee] mt-0.5">Fabricando en Córdoba</div>
             </div>
             <div>
-              <div className="text-[28px] font-bold text-[#f5eb4a]" style={{ fontFamily: DISPLAY }}>8 colores</div>
+              <div className="text-[28px] font-bold text-etiplast-500 font-display">8 colores</div>
               <div className="text-[13px] text-[#aab0ee] mt-0.5">Impresión fotográfica</div>
             </div>
           </div>

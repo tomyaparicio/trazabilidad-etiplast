@@ -187,9 +187,10 @@ async def crear_remito(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    if payload.estado not in ESTADOS_REMITO:
-        raise HTTPException(status_code=400, detail=f"Estado inválido: {payload.estado}")
-
+    # Un remito SIEMPRE nace "pendiente": el `estado` del payload se ignora a
+    # propósito. Crear directamente en "despachado" saltearía el egreso de stock
+    # (que solo ocurre vía POST /{id}/despachar). El cambio de estado va por
+    # PUT (→ entregado/anulado) o por el endpoint de despacho.
     _validar_items(db, payload.cliente_id, payload.items)
 
     numero = generar_numero(db, Remito, "REM")
@@ -198,7 +199,7 @@ async def crear_remito(
         numero=numero,
         cliente_id=payload.cliente_id,
         fecha=payload.fecha,
-        estado=payload.estado,
+        estado="pendiente",
         transporte=payload.transporte,
         domicilio_entrega=payload.domicilio_entrega or _domicilio_cliente(cliente),
         observaciones=payload.observaciones,

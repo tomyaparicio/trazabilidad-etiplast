@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { api } from "@/lib/api"
 import type { Maquina } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -170,23 +171,16 @@ export default function PlanificacionPage() {
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-[1400px] mx-auto">
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-[#1a1866]" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <CalendarRange className="w-5 h-5 text-[#1a1866]" />
-              Planificación
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Planificación de producción por máquina y etapa
-            </p>
-          </div>
-        </div>
-        <Button onClick={abrirCrear} className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-1.5">
-          <Plus className="w-4 h-4" /> Planificar OT
-        </Button>
-      </div>
+      <PageHeader
+        icon={CalendarRange}
+        title="Planificación"
+        subtitle="Planificación de producción por máquina y etapa"
+        actions={
+          <Button onClick={abrirCrear} className="bg-brand hover:bg-brand-strong text-white gap-1.5">
+            <Plus className="w-4 h-4" /> Planificar OT
+          </Button>
+        }
+      />
 
       {/* ── Toolbar: navegación de semana + filtro ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -227,12 +221,12 @@ export default function PlanificacionPage() {
                 return (
                   <div
                     key={i}
-                    className={`px-2 py-2.5 text-center border-l border-border/60 ${esHoy ? "bg-[#1a1866]/5" : ""}`}
+                    className={`px-2 py-2.5 text-center border-l border-border/60 ${esHoy ? "bg-brand/5" : ""}`}
                   >
-                    <p className={`text-[11px] font-semibold uppercase tracking-wider ${esHoy ? "text-[#1a1866] dark:text-blue-400" : "text-muted-foreground"}`}>
+                    <p className={`text-[11px] font-semibold uppercase tracking-wider ${esHoy ? "text-brand dark:text-blue-400" : "text-muted-foreground"}`}>
                       {DIAS_LABEL[i]}
                     </p>
-                    <p className={`text-sm font-medium ${esHoy ? "text-[#1a1866] dark:text-blue-400" : "text-foreground"}`}>
+                    <p className={`text-sm font-medium ${esHoy ? "text-brand dark:text-blue-400" : "text-foreground"}`}>
                       {d.getDate()}
                     </p>
                   </div>
@@ -258,8 +252,8 @@ export default function PlanificacionPage() {
                 <div key={grupo.tipo}>
                   {/* Header de grupo */}
                   <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 border-b border-border/60">
-                    <grupo.icon className="w-3.5 h-3.5 text-[#1a1866] dark:text-blue-400" />
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-[#1a1866] dark:text-blue-400">
+                    <grupo.icon className="w-3.5 h-3.5 text-brand dark:text-blue-400" />
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-brand dark:text-blue-400">
                       {grupo.label}
                     </span>
                   </div>
@@ -287,7 +281,7 @@ export default function PlanificacionPage() {
                           dias.map((d, col) => (
                             <div
                               key={`${fila}-${col}`}
-                              className={`border-l border-border/40 ${toISO(d) === hoyISO ? "bg-[#1a1866]/5" : ""}`}
+                              className={`border-l border-border/40 ${toISO(d) === hoyISO ? "bg-brand/5" : ""}`}
                               style={{ gridRow: fila + 1, gridColumn: col + 2 }}
                             />
                           ))

@@ -4,10 +4,19 @@ Fuentes:
   - "Copia de ALFABET 1"  → datos de cliente + productos (1 fila por producto)
   - "DATOS CLIENTES"      → rubro y observaciones por cliente
 
+⚠️  NOTA — DUPLICADO. El importador CANÓNICO es `backend/import_clientes.py`.
+    Esta variante lee además la hoja "DATOS CLIENTES" (rubro + observaciones) y
+    usa TRUNCATE ... CASCADE, que BORRA también `ordenes_trabajo`. Se mantiene
+    porque la lógica de rubros/observaciones aún no está en el canónico; no
+    borrar este archivo sin migrar esa lógica primero.
+
+⚠️  DESTRUCTIVO: borra clientes y órdenes de trabajo. Los usuarios NO se tocan.
+
 USO:
   cd backend
   source venv/bin/activate
-  python tools/import_clientes.py
+  python tools/import_clientes.py          # pide confirmación
+  python tools/import_clientes.py --yes    # saltea la confirmación (scripts/CI)
 """
 
 import sys
@@ -51,10 +60,23 @@ def n(val):
 
 # ─── main ─────────────────────────────────────────────────────────────────────
 
+def _confirmar_borrado():
+    """Confirmación explícita antes del TRUNCATE destructivo. `--yes` la saltea."""
+    if "--yes" in sys.argv or "-y" in sys.argv:
+        return
+    print("\n⚠️  Esto BORRARÁ (TRUNCATE) clientes Y órdenes de trabajo.")
+    resp = input("    Escribí 'BORRAR' para confirmar: ").strip()
+    if resp != "BORRAR":
+        print("Cancelado — no se tocó la base de datos.")
+        sys.exit(0)
+
+
 def run():
     print("=" * 60)
     print("  ETIPLAST — Importación de clientes desde Excel")
     print("=" * 60)
+
+    _confirmar_borrado()
 
     # 1. Leer Excel
     print("\nLeyendo Excel...")

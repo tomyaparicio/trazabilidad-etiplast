@@ -48,7 +48,7 @@ export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
         <button
           type="button"
           onClick={openPalette}
-          className="hidden h-10 w-full max-w-md items-center justify-between rounded-[12px] border-[1.5px] border-border bg-[#f4f5fa] px-3.5 text-sm text-muted-foreground transition-all hover:border-[#292d96]/50 hover:bg-white focus:border-[#292d96] focus:outline-none focus:ring-4 focus:ring-[#292d96]/10 md:flex dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
+          className="hidden h-10 w-full max-w-md items-center justify-between rounded-[12px] border-[1.5px] border-border bg-[#f4f5fa] px-3.5 text-sm text-muted-foreground transition-all hover:border-brand/50 hover:bg-white focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 md:flex dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
         >
           <span className="flex items-center gap-2">
             <Search className="size-4" /> Buscar orden, cliente o acción…
@@ -84,7 +84,7 @@ export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
             className="flex items-center gap-2.5 rounded-[12px] py-1 pl-1 pr-1 transition-colors hover:bg-muted sm:pr-3"
             aria-label="Mi perfil"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#292d96] text-sm font-bold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-brand text-sm font-bold text-white">
               {initial}
             </span>
             <span className="hidden min-w-0 flex-col leading-tight sm:flex">

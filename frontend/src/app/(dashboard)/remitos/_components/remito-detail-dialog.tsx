@@ -162,7 +162,7 @@ export function RemitoDetailDialog({ remito, open, onOpenChange, onEdit, onChang
           <div className="flex items-center gap-2">
             {remito.estado === "pendiente" && (
               <Button onClick={handleDespachar} disabled={working}
-                className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2">
+                className="bg-brand hover:bg-brand-strong text-white gap-2">
                 {working ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 Despachar
               </Button>

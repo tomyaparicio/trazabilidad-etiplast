@@ -59,7 +59,7 @@ function NavItem({
       aria-current={active ? "page" : undefined}
       className={`group flex items-center gap-3 rounded-[13px] px-3 py-2.5 text-[13.5px] font-medium transition-all duration-200 ${
         active
-          ? "bg-[#f5eb4a] text-[#101248] shadow-[0_10px_22px_-12px_rgba(245,235,74,0.9)]"
+          ? "bg-gold text-[#101248] shadow-[0_10px_22px_-12px_rgba(245,235,74,0.9)]"
           : "text-[#c3c7ef] hover:bg-white/10 hover:text-white"
       }`}
     >
@@ -98,16 +98,16 @@ function SidebarContent({
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#292d96] text-white">
+    <div className="flex h-full flex-col bg-brand text-white">
       {/* Marca */}
       <div className="flex items-center gap-3 px-5 pb-4 pt-5">
         <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-gradient-to-br from-[#20236f] to-[#0e1046]">
           <Image src="/logoSOLO.png" alt="Etiplast" width={26} height={26} className="object-contain" />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f5eb4a] shadow-[0_0_10px_#f5eb4a]" />
+          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-gold shadow-[0_0_10px_var(--gold)]" />
         </div>
         <div className="min-w-0">
           <p className="font-display text-[20px] font-bold leading-none tracking-tight text-white">
-            eti<span className="text-[#f5eb4a]">plast</span>
+            eti<span className="text-etiplast-500">plast</span>
           </p>
           <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.22em] text-[#aab0ee]">Sistema operativo</p>
         </div>
@@ -183,7 +183,7 @@ export function Sidebar({ userEmail, userName, userRole, menuOpen, onMenuOpenCha
   return (
     <>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-64 border-0 bg-[#292d96] p-0 [&>button]:text-white/70 [&>button]:hover:text-white">
+        <SheetContent side="left" className="w-64 border-0 bg-brand p-0 [&>button]:text-white/70 [&>button]:hover:text-white">
           <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
           <SidebarContent userEmail={userEmail} userName={userName} userRole={userRole} onNavigate={() => setOpen(false)} />
         </SheetContent>

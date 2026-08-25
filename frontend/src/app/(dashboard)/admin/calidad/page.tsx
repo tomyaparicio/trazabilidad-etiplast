@@ -310,8 +310,8 @@ export default function CalidadPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#1a1866]/10 border border-[#1a1866]/20 flex items-center justify-center dark:bg-[#6b7aff]/10 dark:border-[#6b7aff]/20">
-            <ClipboardCheck className="w-5 h-5 text-[#1a1866] dark:text-[#6b7aff]" />
+          <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center dark:bg-[#6b7aff]/10 dark:border-[#6b7aff]/20">
+            <ClipboardCheck className="w-5 h-5 text-brand dark:text-[#6b7aff]" />
           </div>
           <div>
             <h1 className="text-xl font-semibold">Control de Calidad</h1>

@@ -28,7 +28,7 @@ function AvatarBlock({ user }: { user: UserAdmin }) {
 
   return (
     <div className="flex items-center gap-4">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1a1866] to-[#3b37a0] flex items-center justify-center text-xl font-bold text-white shadow-lg shrink-0">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand to-[#3b37a0] flex items-center justify-center text-xl font-bold text-white shadow-lg shrink-0">
         {initials}
       </div>
       <div>
@@ -77,7 +77,7 @@ export default function PerfilPage() {
 
       {loading && (
         <div className="rounded-2xl border border-border bg-card/80 p-8 flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-[#1a1866] border-t-transparent rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 

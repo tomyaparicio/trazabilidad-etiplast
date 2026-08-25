@@ -66,6 +66,35 @@
   /* Gold legible para TEXTO: oscuro sobre fondos claros, brillante en oscuro.
      Separado de --gold (fills) para no perder contraste de badges/botones. */
   --color-gold-text: var(--gold-text);
+
+  /* ── Escalas de marca expuestas como utilities (bg-primary-600, text-etiplast-500…) ──
+     Fuente única de verdad: cambiar un hex en :root de abajo cambia TODA la app. */
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
+  --color-primary-300: var(--primary-300);
+  --color-primary-400: var(--primary-400);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-800: var(--primary-800);
+  --color-primary-900: var(--primary-900);
+  --color-primary-950: var(--primary-950);
+  --color-etiplast-400: var(--etiplast-400);
+  --color-etiplast-500: var(--etiplast-500);
+  --color-etiplast-600: var(--etiplast-600);
+  --color-surface: var(--surface);
+  --color-surface-50: var(--surface-50);
+  --color-surface-100: var(--surface-100);
+  --color-surface-200: var(--surface-200);
+  --color-surface-300: var(--surface-300);
+  --color-surface-400: var(--surface-400);
+  --color-surface-500: var(--surface-500);
+  /* Alias semánticos de marca: el azul y el amarillo "oficiales" en un solo nombre.
+     bg-brand / text-brand / bg-brand-strong (hover/pressed) / bg-brand-yellow. */
+  --color-brand: var(--primary-500);
+  --color-brand-strong: var(--primary-700);
+  --color-brand-yellow: var(--etiplast-500);
 }
 
 :root {

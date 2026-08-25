@@ -116,7 +116,7 @@ export function NotificationCenter() {
       >
         <Bell className="h-[18px] w-[18px]" />
         {count > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f5eb4a] px-1 text-[10px] font-bold leading-none text-[#1a1866]">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold leading-none text-brand">
             {count > 99 ? "99+" : count}
           </span>
         )}
@@ -157,12 +157,12 @@ export function NotificationCenter() {
                   type="button"
                   onClick={() => handleItemClick(n)}
                   className={`flex w-full flex-col items-start gap-0.5 border-b border-border/50 px-4 py-3 text-left transition-colors last:border-0 hover:bg-muted/40 ${
-                    n.leida ? "" : "bg-[#1a1866]/5"
+                    n.leida ? "" : "bg-brand/5"
                   } ${n.link ? "cursor-pointer" : "cursor-default"}`}
                 >
                   <div className="flex w-full items-start gap-2">
                     {!n.leida && (
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#f5eb4a]" />
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-gold" />
                     )}
                     <div className="min-w-0 flex-1">
                       <p className={`truncate text-[13px] ${n.leida ? "font-medium text-foreground" : "font-semibold text-foreground"}`}>

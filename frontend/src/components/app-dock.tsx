@@ -37,7 +37,7 @@ export function AppDock({ onMoreClick }: AppDockProps) {
           onClick={action}
           aria-current={active ? "page" : undefined}
           className={`flex min-h-9 min-w-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors sm:min-w-[92px] ${
-            active ? "bg-[#292d96]/10 text-[#292d96] dark:text-[#b9bbff]" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            active ? "bg-brand/10 text-brand dark:text-[#b9bbff]" : "text-muted-foreground hover:bg-muted hover:text-foreground"
           }`}
         >
           <Icon className="size-[18px]" strokeWidth={1.8} />

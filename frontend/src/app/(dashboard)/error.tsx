@@ -31,7 +31,7 @@ export default function DashboardError({
       </div>
       <Button
         onClick={reset}
-        className="bg-[#1a1866] hover:bg-[#14115a] text-white rounded-xl px-6"
+        className="bg-brand hover:bg-brand-strong text-white rounded-xl px-6"
       >
         Reintentar
       </Button>

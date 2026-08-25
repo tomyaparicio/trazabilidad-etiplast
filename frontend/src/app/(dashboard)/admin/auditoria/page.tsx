@@ -5,6 +5,7 @@ import { api } from "@/lib/api"
 import type { AuditEntry } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
 import {
@@ -143,18 +144,12 @@ export default function AuditoriaPage() {
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
       {/* ── Header ── */}
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-6 rounded-full bg-[#1a1866]" />
-        <div>
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <ScrollText className="w-5 h-5 text-gold" />
-            Auditoría
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {total > 0 ? `${total} registros de actividad` : "Registro de actividad del sistema"}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={ScrollText}
+        iconClassName="text-gold"
+        title="Auditoría"
+        subtitle={total > 0 ? `${total} registros de actividad` : "Registro de actividad del sistema"}
+      />
 
       {/* ── Filtros ── */}
       <div className="flex flex-wrap items-center gap-3">

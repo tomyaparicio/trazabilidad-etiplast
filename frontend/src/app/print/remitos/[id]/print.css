@@ -318,7 +318,7 @@
   transition: background .15s;
 }
 
-.rem-print-btn:hover { background: #1a1866; }
+.rem-print-btn:hover { background: var(--primary-500); }
 
 .rem-close-btn {
   background: transparent;

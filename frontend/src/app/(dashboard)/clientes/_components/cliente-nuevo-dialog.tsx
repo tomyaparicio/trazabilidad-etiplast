@@ -472,7 +472,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, [field.key]: e.target.value || null }))
                         }
-                        className="h-10 rounded-lg bg-white/[0.04] border-white/[0.07] text-white placeholder:text-[#4a4a6a] focus-visible:border-[#f5eb4a]/40 focus-visible:ring-[#f5eb4a]/10 text-sm"
+                        className="h-10 rounded-lg bg-white/[0.04] border-white/[0.07] text-white placeholder:text-[#4a4a6a] focus-visible:border-gold/40 focus-visible:ring-gold/10 text-sm"
                       />
                     )}
                   </div>

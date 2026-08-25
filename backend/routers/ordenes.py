@@ -6,19 +6,24 @@ Genera números correlativos tipo OT-0001.
 """
 import json
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_token
+from dependencies import verify_admin, verify_token
 from models import (
     Cliente, ClienteProducto, OrdenExtrusionBobina, OrdenTrabajo,
 )
+from schemas import OrdenCreateSchema, OrdenUpdateSchema
+from services import auditoria
 from services.numeracion import generar_numero
 
 router = APIRouter(prefix="/api", tags=["ordenes"])
+
+# Estados válidos de una OT (ver models.OrdenTrabajo).
+ESTADOS_ORDEN = ("borrador", "pendiente", "en_proceso", "completada", "cancelada")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -49,6 +54,16 @@ def _to_int(value) -> Optional[int]:
         return None
     try:
         return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_date(raw) -> Optional[date]:
+    """Parseo defensivo de fecha ISO 'YYYY-MM-DD'. None si vacío o inválido (nunca 500)."""
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
     except (ValueError, TypeError):
         return None
 
@@ -155,10 +170,14 @@ async def obtener_orden(
 
 @router.post("/ordenes", status_code=201, summary="Crear nueva orden de trabajo")
 async def crear_orden(
-    datos: Dict[str, Any] = Body(...),
+    payload: OrdenCreateSchema,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
+    # exclude_none: las claves ausentes/None se omiten (los `.get(k, default)` siguen
+    # funcionando, p.ej. bobinas/impresion_colores no se convierten en None).
+    datos = payload.model_dump(exclude_none=True)
+
     cliente_id = datos.get("cliente_id")
     if not cliente_id:
         raise HTTPException(status_code=400, detail="cliente_id es requerido")
@@ -172,31 +191,25 @@ async def crear_orden(
         if not db.query(ClienteProducto).filter(ClienteProducto.id == cliente_producto_id).first():
             raise HTTPException(status_code=404, detail="Producto de cliente no encontrado")
 
+    estado = datos.get("estado", "borrador")
+    if estado not in ESTADOS_ORDEN:
+        raise HTTPException(status_code=400, detail=f"Estado inválido: {estado}")
+
     numero = generar_numero(db, OrdenTrabajo, "OT")
 
     # Colores: lista de hasta 6 strings
     colores = datos.get("impresion_colores", [])
     colores_json = json.dumps(colores) if colores else None
 
-    # Fecha
-    fecha_raw = datos.get("fecha")
-    fecha = date.fromisoformat(fecha_raw) if fecha_raw else date.today()
-
-    def _parse_date(key: str) -> Optional[date]:
-        raw = datos.get(key)
-        if not raw:
-            return None
-        try:
-            return date.fromisoformat(raw)
-        except (ValueError, TypeError):
-            return None
+    # Fecha (parse defensivo; default hoy)
+    fecha = _parse_date(datos.get("fecha")) or date.today()
 
     orden = OrdenTrabajo(
         numero=numero,
         cliente_id=cliente_id,
         cliente_producto_id=cliente_producto_id,
         fecha=fecha,
-        estado=datos.get("estado", "borrador"),
+        estado=estado,
         created_by=_user.get("id"),
         responsable_id=_to_int(datos.get("responsable_id")),
         operador=datos.get("operador"),
@@ -227,12 +240,12 @@ async def crear_orden(
 
         control_calidad=datos.get("control_calidad"),
 
-        fecha_diseno=_parse_date("fecha_diseno"),
-        fecha_preprensa=_parse_date("fecha_preprensa"),
-        fecha_extrusion=_parse_date("fecha_extrusion"),
-        fecha_impresion=_parse_date("fecha_impresion"),
-        fecha_troquelado=_parse_date("fecha_troquelado"),
-        fecha_entrega=_parse_date("fecha_entrega"),
+        fecha_diseno=_parse_date(datos.get("fecha_diseno")),
+        fecha_preprensa=_parse_date(datos.get("fecha_preprensa")),
+        fecha_extrusion=_parse_date(datos.get("fecha_extrusion")),
+        fecha_impresion=_parse_date(datos.get("fecha_impresion")),
+        fecha_troquelado=_parse_date(datos.get("fecha_troquelado")),
+        fecha_entrega=_parse_date(datos.get("fecha_entrega")),
 
         cantidad=_to_int(datos.get("cantidad")),
         total_final=_to_float(datos.get("total_final")),
@@ -268,10 +281,13 @@ async def crear_orden(
 @router.put("/ordenes/{orden_id}", summary="Actualizar orden de trabajo")
 async def actualizar_orden(
     orden_id: int,
-    datos: Dict[str, Any] = Body(...),
+    payload: OrdenUpdateSchema,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
+    # exclude_unset: solo los campos enviados → actualización parcial (`if k in datos`).
+    datos = payload.model_dump(exclude_unset=True)
+
     orden = (
         db.query(OrdenTrabajo)
         .options(*_eager_options())
@@ -283,6 +299,8 @@ async def actualizar_orden(
 
     # Campos simples
     if "estado" in datos:
+        if datos["estado"] not in ESTADOS_ORDEN:
+            raise HTTPException(status_code=400, detail=f"Estado inválido: {datos['estado']}")
         orden.estado = datos["estado"]
         # Trazabilidad: al pasar a producción, autogenerar lote si no tiene
         if orden.estado == "en_proceso" and not orden.lote:
@@ -294,7 +312,7 @@ async def actualizar_orden(
     if "cliente_producto_id" in datos:
         orden.cliente_producto_id = datos["cliente_producto_id"]
     if "fecha" in datos and datos["fecha"]:
-        orden.fecha = date.fromisoformat(datos["fecha"])
+        orden.fecha = _parse_date(datos["fecha"])
 
     campos_extrusion_text = [
         "extrusion_color", "extrusion_trat", "extrusion_formulacion",
@@ -339,15 +357,11 @@ async def actualizar_orden(
     if "control_calidad" in datos:
         orden.control_calidad = datos["control_calidad"]
 
-    # Fechas por etapa
+    # Fechas por etapa (parse defensivo)
     for fecha_campo in ("fecha_diseno", "fecha_preprensa", "fecha_extrusion",
                         "fecha_impresion", "fecha_troquelado", "fecha_entrega"):
         if fecha_campo in datos:
-            raw = datos[fecha_campo]
-            try:
-                setattr(orden, fecha_campo, date.fromisoformat(raw) if raw else None)
-            except (ValueError, TypeError):
-                setattr(orden, fecha_campo, None)
+            setattr(orden, fecha_campo, _parse_date(datos[fecha_campo]))
 
     if "cantidad" in datos:
         orden.cantidad = _to_int(datos["cantidad"])
@@ -358,7 +372,7 @@ async def actualizar_orden(
 
     # Bobinas: si viene la lista, reemplazar completa
     if "bobinas" in datos:
-        _sync_bobinas(db, orden, datos["bobinas"])
+        _sync_bobinas(db, orden, datos["bobinas"] or [])
 
     db.commit()
 
@@ -375,14 +389,18 @@ async def actualizar_orden(
 # DELETE /api/ordenes/{id}
 # ──────────────────────────────────────────────────────────────────────────────
 
-@router.delete("/ordenes/{orden_id}", status_code=204, summary="Eliminar orden de trabajo")
+@router.delete("/ordenes/{orden_id}", status_code=204, summary="Eliminar orden de trabajo (solo admin)")
 async def eliminar_orden(
     orden_id: int,
-    _user: dict = Depends(verify_token),
+    user: dict = Depends(verify_admin),
     db: Session = Depends(get_db),
 ):
     orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()
     if not orden:
         raise HTTPException(status_code=404, detail="Orden de trabajo no encontrada")
+    auditoria.registrar(
+        db, user, "eliminar", "orden_trabajo", orden.id,
+        f"Eliminó orden {orden.numero}",
+    )
     db.delete(orden)
     db.commit()

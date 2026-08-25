@@ -4,11 +4,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
 import { TrendingUp } from "lucide-react"
+import type { OrdenesSeriePunto } from "@/lib/api/types"
 
-export interface OrdenesSeriePunto {
-  mes: string // "YYYY-MM"
-  cantidad: number
-}
+export type { OrdenesSeriePunto }
 
 interface OrdenesLineChartProps {
   data: OrdenesSeriePunto[]

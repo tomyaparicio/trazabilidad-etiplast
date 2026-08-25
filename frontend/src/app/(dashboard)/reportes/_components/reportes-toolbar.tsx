@@ -20,7 +20,7 @@ export function ReportesToolbar({
 }: ReportesToolbarProps) {
   const inputCls =
     "h-10 rounded-xl border border-border bg-card/60 px-3 text-sm text-foreground " +
-    "outline-none focus:border-[#1a1866] focus:ring-1 focus:ring-[#1a1866]/40 " +
+    "outline-none focus:border-brand focus:ring-1 focus:ring-brand/40 " +
     "[color-scheme:light] dark:[color-scheme:dark]"
 
   return (
@@ -55,7 +55,7 @@ export function ReportesToolbar({
       <Button
         onClick={onExport}
         disabled={exportDisabled}
-        className="h-10 px-4 rounded-xl bg-[#1a1866] hover:bg-[#14115a] text-white border border-[#1a1866] text-sm font-medium gap-2 disabled:opacity-50"
+        className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 disabled:opacity-50"
       >
         <Download className="w-4 h-4" />
         Exportar CSV

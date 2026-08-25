@@ -545,7 +545,7 @@
   transition: background .15s;
 }
 
-.ot-print-btn:hover { background: #1a1866; }
+.ot-print-btn:hover { background: var(--primary-500); }
 
 .ot-close-btn {
   background: transparent;

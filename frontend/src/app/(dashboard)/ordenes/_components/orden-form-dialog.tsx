@@ -38,7 +38,7 @@ const STEPS = [
 function SubSection({ title }: { title: string }) {
   return (
     <div className="flex items-center gap-3 mb-4 mt-6 first:mt-0">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-[#1a1866] dark:text-blue-400 shrink-0">{title}</h3>
+      <h3 className="text-xs font-bold uppercase tracking-widest text-brand dark:text-blue-400 shrink-0">{title}</h3>
       <div className="flex-1 h-px bg-border" />
     </div>
   )
@@ -770,13 +770,13 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
                       isDone
                         ? "bg-emerald-500 border-emerald-500 text-white cursor-pointer"
                         : isCurrent
-                          ? "bg-[#1a1866] border-[#1a1866] text-white"
+                          ? "bg-brand border-brand text-white"
                           : "bg-background border-border text-muted-foreground"
                     }`}>
                       {isDone ? <Check className="w-3.5 h-3.5" /> : s.id}
                     </div>
                     <span className={`text-[10px] font-semibold leading-none whitespace-nowrap transition-colors ${
-                      isCurrent ? "text-[#1a1866] dark:text-blue-400" : isDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/50"
+                      isCurrent ? "text-brand dark:text-blue-400" : isDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/50"
                     }`}>
                       {s.label}
                     </span>
@@ -813,11 +813,11 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{step} / {STEPS.length}</span>
             {step < STEPS.length ? (
-              <Button type="button" onClick={goNext} className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-1.5">
+              <Button type="button" onClick={goNext} className="bg-brand hover:bg-brand-strong text-white gap-1.5">
                 Siguiente <ChevronRight className="w-4 h-4" />
               </Button>
             ) : (
-              <Button type="button" onClick={handleSubmit} disabled={saving} className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2">
+              <Button type="button" onClick={handleSubmit} disabled={saving} className="bg-brand hover:bg-brand-strong text-white gap-2">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {orden ? "Guardar cambios" : "Crear orden"}
               </Button>

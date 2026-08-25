@@ -263,7 +263,7 @@ export function EscanearOrdenButton() {
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-            <ScanLine className="w-4 h-4 text-[#1a1866]" />
+            <ScanLine className="w-4 h-4 text-brand" />
             Escanear hoja de pedido
           </DialogTitle>
 
@@ -277,7 +277,7 @@ export function EscanearOrdenButton() {
                 onClick={() => fileInputRef.current?.click()}
                 className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 cursor-pointer transition-colors ${
                   dragging
-                    ? "border-[#1a1866] bg-[#1a1866]/5"
+                    ? "border-brand bg-brand/5"
                     : "border-border hover:border-foreground/30 hover:bg-muted/40"
                 }`}
               >
@@ -327,7 +327,7 @@ export function EscanearOrdenButton() {
           {/* ── Fase: procesando ── */}
           {fase === "procesando" && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-[#1a1866]" />
+              <Loader2 className="w-8 h-8 animate-spin text-brand" />
               <p className="text-sm text-muted-foreground">Leyendo documento…</p>
             </div>
           )}
@@ -450,7 +450,7 @@ export function EscanearOrdenButton() {
                   onClick={cargarEnFormulario}
                   disabled={!cliente}
                   title={!cliente ? "Seleccioná un cliente primero" : undefined}
-                  className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2 h-9 rounded-lg"
+                  className="bg-brand hover:bg-brand-strong text-white gap-2 h-9 rounded-lg"
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   Cargar en formulario

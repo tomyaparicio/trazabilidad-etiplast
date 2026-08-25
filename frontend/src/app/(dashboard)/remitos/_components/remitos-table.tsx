@@ -233,10 +233,10 @@ export function RemitosTable() {
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-[#1a1866]" />
+          <div className="w-1 h-6 rounded-full bg-brand" />
           <div>
             <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <Truck className="w-5 h-5 text-[#1a1866]" />
+              <Truck className="w-5 h-5 text-brand" />
               Remitos
             </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -247,7 +247,7 @@ export function RemitosTable() {
 
         <Button
           onClick={() => { setEditRemito(null); setFormOpen(true) }}
-          className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2 h-10 px-4 rounded-xl"
+          className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-4 rounded-xl"
         >
           <Plus className="w-4 h-4" />
           Nuevo Remito
@@ -274,7 +274,7 @@ export function RemitosTable() {
               onClick={() => setEstadoFilter(value as EstadoRemito | "")}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                 estadoFilter === value
-                  ? "bg-[#1a1866] text-white border-[#1a1866]"
+                  ? "bg-brand text-white border-brand"
                   : "bg-background text-muted-foreground border-border hover:border-foreground/30"
               }`}
             >

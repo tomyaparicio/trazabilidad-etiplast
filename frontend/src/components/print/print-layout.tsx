@@ -91,14 +91,14 @@ function PrintLayoutStyles() {
         align-items: center;
         justify-content: space-between;
         gap: 16px;
-        border-bottom: 2px solid #1a1866;
+        border-bottom: 2px solid var(--primary-500);
         padding-bottom: 10px;
         margin-bottom: 16px;
       }
       .print-logo-block { display: flex; align-items: center; gap: 10px; }
       .print-logo { height: 40px; width: auto; object-fit: contain; }
       .print-empresa { display: flex; flex-direction: column; line-height: 1.1; }
-      .print-empresa-nombre { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; color: #1a1866; }
+      .print-empresa-nombre { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; color: var(--primary-500); }
       .print-empresa-sub { font-size: 10px; color: #666; }
       .print-titulo-block { text-align: center; display: flex; flex-direction: column; }
       .print-titulo { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #555; }

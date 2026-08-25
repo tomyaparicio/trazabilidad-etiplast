@@ -14,6 +14,8 @@ import type {
   Paginated, Maquina,
   Presupuesto, StockItem, StockMovimiento, Remito, PlanProduccion,
   QcPlantilla, QcRegistro, Notificacion, AuditEntry,
+  ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
+  ReporteClientesTop, ReporteStockResumen, Trazabilidad,
 } from "./types"
 
 const PROXY = "/api/backend"
@@ -245,7 +247,7 @@ export const api = {
   },
   /** Trazabilidad por lote (bobinas → OT → remito → cliente) */
   trazabilidad: {
-    porLote: (lote: string) => get<Record<string, unknown>>("/api/trazabilidad", { lote }),
+    porLote: (lote: string) => get<Trazabilidad>("/api/trazabilidad", { lote }),
   },
   /** Planificación de producción (grilla por máquina/etapa) */
   planificacion: {
@@ -273,21 +275,21 @@ export const api = {
   reportes: {
     resumen: (params?: { desde?: string; hasta?: string }) => {
       const p = params as Record<string, string | number | undefined> | undefined
-      return get<Record<string, unknown>>("/api/reportes/resumen", p)
+      return get<ReporteResumen>("/api/reportes/resumen", p)
     },
     produccion: (params?: { desde?: string; hasta?: string; agrupar?: string }) => {
       const p = params as Record<string, string | number | undefined> | undefined
-      return get<Record<string, unknown>>("/api/reportes/produccion", p)
+      return get<ReporteProduccion>("/api/reportes/produccion", p)
     },
     tiempos: (params?: { desde?: string; hasta?: string }) => {
       const p = params as Record<string, string | number | undefined> | undefined
-      return get<Record<string, unknown>>("/api/reportes/tiempos", p)
+      return get<ReporteTiempos>("/api/reportes/tiempos", p)
     },
     ordenesSeries: (meses?: number) =>
-      get<Record<string, unknown>>("/api/reportes/ordenes-series", meses != null ? { meses } : undefined),
+      get<ReporteOrdenesSeries>("/api/reportes/ordenes-series", meses != null ? { meses } : undefined),
     clientesTop: (limit?: number) =>
-      get<Record<string, unknown>>("/api/reportes/clientes-top", limit != null ? { limit } : undefined),
-    stockResumen: () => get<Record<string, unknown>>("/api/reportes/stock-resumen"),
+      get<ReporteClientesTop>("/api/reportes/clientes-top", limit != null ? { limit } : undefined),
+    stockResumen: () => get<ReporteStockResumen>("/api/reportes/stock-resumen"),
   },
   /** Notificaciones del usuario autenticado */
   notificaciones: {

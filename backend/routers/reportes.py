@@ -12,6 +12,7 @@ Endpoints de agregados de negocio (Fase 2A):
 Todos los endpoints son DEFENSIVOS: cualquier error interno se captura y se
 devuelve una respuesta vacía/segura (nunca 500). Sólo agregados, sin paginación.
 """
+import logging
 from datetime import date, datetime
 from typing import Optional
 
@@ -27,6 +28,12 @@ from models import (
 )
 
 router = APIRouter(prefix="/api", tags=["reportes"])
+
+logger = logging.getLogger(__name__)
+
+# Mensaje genérico para el cliente: el detalle real (str(exc)) se loguea server-side
+# y NO se filtra en la respuesta (podría revelar estructura interna / datos).
+_ERROR_GENERICO = "No se pudo generar el reporte"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -191,13 +198,14 @@ async def reporte_produccion(
             "hasta": d_hasta.isoformat() if d_hasta else None,
             "data": data,
         }
-    except Exception as exc:  # noqa: BLE001 — defensivo, nunca 500
+    except Exception:  # noqa: BLE001 — defensivo, nunca 500
+        logger.exception("Error en reporte de producción")
         return {
             "agrupar": agrupar,
             "desde": d_desde.isoformat() if d_desde else None,
             "hasta": d_hasta.isoformat() if d_hasta else None,
             "data": [],
-            "error": str(exc),
+            "error": _ERROR_GENERICO,
         }
 
 
@@ -257,8 +265,9 @@ async def reporte_tiempos(
             "hasta": d_hasta.isoformat() if d_hasta else None,
             "etapas": etapas,
         }
-    except Exception as exc:  # noqa: BLE001 — defensivo
-        return {"disponible": False, "etapas": [], "error": str(exc)}
+    except Exception:  # noqa: BLE001 — defensivo
+        logger.exception("Error en reporte de tiempos")
+        return {"disponible": False, "etapas": [], "error": _ERROR_GENERICO}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -303,8 +312,9 @@ async def reporte_ordenes_series(
 
         serie = [{"mes": clave, "cantidad": conteos.get(clave, 0)} for clave in claves]
         return {"meses": meses, "data": serie}
-    except Exception as exc:  # noqa: BLE001 — defensivo
-        return {"meses": meses, "data": [], "error": str(exc)}
+    except Exception:  # noqa: BLE001 — defensivo
+        logger.exception("Error en serie temporal de órdenes")
+        return {"meses": meses, "data": [], "error": _ERROR_GENERICO}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -342,8 +352,9 @@ async def reporte_clientes_top(
             for r in rows
         ]
         return {"limit": limit, "data": data}
-    except Exception as exc:  # noqa: BLE001 — defensivo
-        return {"limit": limit, "data": [], "error": str(exc)}
+    except Exception:  # noqa: BLE001 — defensivo
+        logger.exception("Error en ranking de clientes")
+        return {"limit": limit, "data": [], "error": _ERROR_GENERICO}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -391,8 +402,9 @@ async def reporte_stock_resumen(
             "total_items": sum(d["items"] for d in data),
             "total_bajo_minimo": sum(d["bajo_minimo"] for d in data),
         }
-    except Exception as exc:  # noqa: BLE001 — defensivo
-        return {"data": [], "total_items": 0, "total_bajo_minimo": 0, "error": str(exc)}
+    except Exception:  # noqa: BLE001 — defensivo
+        logger.exception("Error en resumen de stock")
+        return {"data": [], "total_items": 0, "total_bajo_minimo": 0, "error": _ERROR_GENERICO}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -451,7 +463,8 @@ async def reporte_resumen(
             "pct_a_tiempo": None,  # sin fecha comprometida en el modelo
             "items_bajo_stock": int(items_bajo_stock or 0),
         }
-    except Exception as exc:  # noqa: BLE001 — defensivo
+    except Exception:  # noqa: BLE001 — defensivo
+        logger.exception("Error en resumen de KPIs")
         return {
             "desde": d_desde.isoformat() if d_desde else None,
             "hasta": d_hasta.isoformat() if d_hasta else None,
@@ -463,5 +476,5 @@ async def reporte_resumen(
             "canceladas": 0,
             "pct_a_tiempo": None,
             "items_bajo_stock": 0,
-            "error": str(exc),
+            "error": _ERROR_GENERICO,
         }

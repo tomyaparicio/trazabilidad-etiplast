@@ -208,9 +208,9 @@ function AiAssistantContent() {
         <div className="w-96 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-border bg-background shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-200">
 
           {/* Header del panel */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-[#1a1866]/5">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-brand/5">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#1a1866] dark:text-[#6b7aff]" />
+              <Sparkles className="w-4 h-4 text-brand dark:text-[#6b7aff]" />
               <span className="text-sm font-semibold text-foreground">Asistente IA</span>
             </div>
             <div className="flex items-center gap-1">
@@ -252,7 +252,7 @@ function AiAssistantContent() {
                   <div
                     className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                       msg.role === "user"
-                        ? "bg-[#1a1866] text-white rounded-br-sm whitespace-pre-wrap"
+                        ? "bg-brand text-white rounded-br-sm whitespace-pre-wrap"
                         : "bg-muted text-foreground rounded-bl-sm"
                     }`}
                   >
@@ -305,12 +305,12 @@ function AiAssistantContent() {
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Escribí una consulta..."
               disabled={loading}
-              className="flex-1 text-sm bg-muted/50 border border-border rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#1a1866]/50 disabled:opacity-50"
+              className="flex-1 text-sm bg-muted/50 border border-border rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-brand/50 disabled:opacity-50"
             />
             <button
               onClick={handleSend}
               disabled={!inputText.trim() || loading}
-              className="p-1.5 rounded-lg bg-[#1a1866] text-white disabled:opacity-40 hover:bg-[#1a1866]/80 transition-colors"
+              className="p-1.5 rounded-lg bg-brand text-white disabled:opacity-40 hover:bg-brand/80 transition-colors"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
@@ -322,7 +322,7 @@ function AiAssistantContent() {
       <button
         onClick={() => setExpanded((e) => !e)}
         title={expanded ? "Cerrar asistente IA" : "Abrir asistente IA"}
-        className="relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 bg-[#1a1866] text-[#f5eb4a] hover:bg-[#14115a]"
+        className="relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 bg-brand text-etiplast-500 hover:bg-brand-strong"
       >
         {loading ? (
           <Loader2 className="w-6 h-6 animate-spin" />

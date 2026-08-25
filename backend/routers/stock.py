@@ -63,6 +63,7 @@ async def alertas_stock(
 ):
     items = (
         db.query(StockItem)
+        .options(joinedload(StockItem.cliente))  # evita N+1 (to_dict lee cliente.marca)
         .filter(
             StockItem.activo.is_(True),
             StockItem.stock_actual < StockItem.stock_minimo,
@@ -107,6 +108,7 @@ async def listar_stock(
 
     items = (
         query
+        .options(joinedload(StockItem.cliente))  # evita N+1 (to_dict lee cliente.marca)
         .order_by(StockItem.nombre.asc())
         .offset((page - 1) * per_page)
         .limit(per_page)

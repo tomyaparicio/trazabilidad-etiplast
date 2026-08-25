@@ -13,12 +13,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 def obtener_ip_cliente(request: Request) -> str:
     """
-    IP real del cliente. Railway corre detrás de proxy: la IP llega en
-    X-Forwarded-For (primer valor). Fallback a la conexión directa.
+    IP real del cliente para el rate limiter.
+
+    X-Forwarded-For es una lista "cliente, proxy1, proxy2, ...". El PRIMER valor
+    lo controla el atacante (puede enviar cualquier IP), así que usarlo permitiría
+    evadir el rate limit rotando IPs falsas. El proxy de Railway APENDEA la IP real
+    del hop entrante al FINAL de la cadena, por lo que tomamos el ÚLTIMO valor: es
+    el único hop de confianza. Fallback a la conexión directa.
     """
     xff = request.headers.get("x-forwarded-for")
     if xff:
-        return xff.split(",")[0].strip()
+        return xff.split(",")[-1].strip()
     return request.client.host if request.client else "desconocido"
 
 

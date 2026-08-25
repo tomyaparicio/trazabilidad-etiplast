@@ -6,9 +6,11 @@ import { descargarCSV } from "@/lib/csv"
 import { BarChart3, Users } from "lucide-react"
 import { KpiCards, type KpiData } from "./_components/kpi-cards"
 import { ReportesToolbar } from "./_components/reportes-toolbar"
+import { PageHeader } from "@/components/ui/page-header"
 import { OrdenesLineChart, type OrdenesSeriePunto } from "@/components/charts/ordenes-line-chart"
 import { ProduccionBarChart, type ProduccionPunto } from "@/components/charts/produccion-bar-chart"
-import { TiemposEtapaChart, type TiempoEtapa } from "@/components/charts/tiempos-etapa-chart"
+import { TiemposEtapaChart } from "@/components/charts/tiempos-etapa-chart"
+import type { ClienteTop, ReporteTiempos } from "@/lib/api/types"
 
 // ─── Helpers de fecha ───────────────────────────────────────────────────────
 function isoHoy(): string {
@@ -18,21 +20,6 @@ function isoHaceMeses(n: number): string {
   const d = new Date()
   d.setMonth(d.getMonth() - n)
   return d.toISOString().slice(0, 10)
-}
-
-// ─── Tipos de respuesta (parseo defensivo) ──────────────────────────────────
-interface ResumenResp {
-  total_ots?: number
-  completadas?: number
-  en_proceso?: number
-  pct_a_tiempo?: number | null
-  items_bajo_stock?: number
-}
-interface ProduccionResp { data?: ProduccionPunto[] }
-interface TiemposResp { disponible?: boolean; etapas?: TiempoEtapa[] }
-interface SeriesResp { data?: OrdenesSeriePunto[] }
-interface ClientesTopResp {
-  data?: Array<{ cliente_id: number; marca: string; ots: number; cantidad: number }>
 }
 
 const AGRUPACIONES = [
@@ -50,9 +37,9 @@ export default function ReportesPage() {
 
   const [kpi, setKpi] = useState<KpiData | null>(null)
   const [produccion, setProduccion] = useState<ProduccionPunto[]>([])
-  const [tiempos, setTiempos] = useState<TiemposResp>({ disponible: false, etapas: [] })
+  const [tiempos, setTiempos] = useState<ReporteTiempos>({ disponible: false, etapas: [] })
   const [serie, setSerie] = useState<OrdenesSeriePunto[]>([])
-  const [topClientes, setTopClientes] = useState<ClientesTopResp["data"]>([])
+  const [topClientes, setTopClientes] = useState<ClienteTop[]>([])
   const [cargando, setCargando] = useState(true)
 
   const rango = useMemo(() => ({ desde, hasta }), [desde, hasta])
@@ -66,7 +53,7 @@ export default function ReportesPage() {
       api.reportes.tiempos(rango),
     ]).then(([resR, prodR, tiempoR]) => {
       if (resR.status === "fulfilled") {
-        const r = resR.value as ResumenResp
+        const r = resR.value
         setKpi({
           totalOts: r.total_ots ?? 0,
           completadas: r.completadas ?? 0,
@@ -77,8 +64,8 @@ export default function ReportesPage() {
       } else {
         setKpi({ totalOts: 0, completadas: 0, enProceso: 0, pctATiempo: null, itemsBajoStock: 0 })
       }
-      setProduccion(prodR.status === "fulfilled" ? (prodR.value as ProduccionResp).data ?? [] : [])
-      setTiempos(tiempoR.status === "fulfilled" ? (tiempoR.value as TiemposResp) : { disponible: false, etapas: [] })
+      setProduccion(prodR.status === "fulfilled" ? prodR.value.data ?? [] : [])
+      setTiempos(tiempoR.status === "fulfilled" ? tiempoR.value : { disponible: false, etapas: [] })
       setCargando(false)
     })
   }, [rango, agrupar])
@@ -86,10 +73,10 @@ export default function ReportesPage() {
   // Serie temporal (independiente del rango: últimos 12 meses).
   useEffect(() => {
     api.reportes.ordenesSeries(12)
-      .then((r) => setSerie((r as SeriesResp).data ?? []))
+      .then((r) => setSerie(r.data ?? []))
       .catch(() => setSerie([]))
     api.reportes.clientesTop(8)
-      .then((r) => setTopClientes((r as ClientesTopResp).data ?? []))
+      .then((r) => setTopClientes(r.data ?? []))
       .catch(() => setTopClientes([]))
   }, [])
 
@@ -114,18 +101,7 @@ export default function ReportesPage() {
     <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
 
       {/* ── Header ── */}
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-6 rounded-full bg-[#1a1866]" />
-        <div>
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-[#1a1866]" />
-            Reportes
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            KPIs de producción, tiempos y stock
-          </p>
-        </div>
-      </div>
+      <PageHeader icon={BarChart3} title="Reportes" subtitle="KPIs de producción, tiempos y stock" />
 
       {/* ── Toolbar: rango + export ── */}
       <ReportesToolbar
@@ -205,7 +181,7 @@ export default function ReportesPage() {
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-[#6366f1]/80"
+                        className="h-full rounded-full bg-chart-1/80"
                         style={{ width: `${pct}%` }}
                       />
                     </div>

@@ -5,11 +5,17 @@ Sheet: "Copia de ALFABET 1"
 Archivo: /Users/tomasaparicio/Downloads/Copia de NUEVO Datos Clientes.xlsx
 
 Uso:
-    python import_clientes.py            → local
+    python import_clientes.py            → local (pide confirmación)
     python import_clientes.py --prod     → Railway (requiere .env.prod)
+    python import_clientes.py --yes      → saltea la confirmación (scripts/CI)
 
-⚠️  BORRA todos los datos de clientes antes de importar.
-    Los usuarios y órdenes de trabajo NO se tocan.
+⚠️  BORRA todos los datos de clientes ANTES de importar.
+⚠️  TAMBIÉN BORRA todas las órdenes de trabajo (tabla ordenes_trabajo), porque
+    tienen FK a clientes. Los USUARIOS NO se tocan.
+
+Importador CANÓNICO. Existe un duplicado en `tools/import_clientes.py` (variante
+que además lee la hoja "DATOS CLIENTES" para rubro/observaciones y usa
+TRUNCATE ... CASCADE). Ver la nota al inicio de ese archivo.
 """
 
 import os
@@ -86,6 +92,18 @@ def norm_provincia(val) -> str | None:
     return PROV_NORM.get(s, s)
 
 
+def _confirmar_borrado():
+    """Confirmación explícita antes de un borrado destructivo. `--yes` la saltea."""
+    if "--yes" in sys.argv or "-y" in sys.argv:
+        return
+    destino = "PRODUCCIÓN (Railway)" if _prod else "local"
+    print(f"\n⚠️  Esto BORRARÁ clientes Y órdenes de trabajo en la base {destino}.")
+    resp = input("    Escribí 'BORRAR' para confirmar: ").strip()
+    if resp != "BORRAR":
+        print("Cancelado — no se tocó la base de datos.")
+        sys.exit(0)
+
+
 def is_valid_row(row) -> bool:
     """Filtra filas que son separadores de sección (letras A, B, ...) o vacías."""
     n = row.get("N° Cliente")
@@ -126,6 +144,8 @@ def importar():
     # Filtrar filas válidas
     rows = [row for _, row in df.iterrows() if is_valid_row(row.to_dict())]
     print(f"  {len(rows)} filas válidas de {len(df)} totales")
+
+    _confirmar_borrado()
 
     db = SessionLocal()
     try:

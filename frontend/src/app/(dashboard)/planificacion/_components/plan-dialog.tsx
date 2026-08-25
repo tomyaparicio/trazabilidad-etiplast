@@ -312,7 +312,7 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
               <p className="text-sm text-amber-600 dark:text-amber-400">{warning}</p>
             </div>
             <div className="flex justify-end">
-              <Button onClick={onClose} className="bg-[#1a1866] hover:bg-[#14115a] text-white">
+              <Button onClick={onClose} className="bg-brand hover:bg-brand-strong text-white">
                 Entendido
               </Button>
             </div>
@@ -439,7 +439,7 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
                   type="button"
                   onClick={handleSubmit}
                   disabled={saving || deleting}
-                  className="bg-[#1a1866] hover:bg-[#14115a] text-white gap-2"
+                  className="bg-brand hover:bg-brand-strong text-white gap-2"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   {esEdicion ? "Guardar cambios" : "Planificar"}

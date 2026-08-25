@@ -186,7 +186,7 @@ function PaletteItem({ item, accent }: { item: Item; accent?: boolean }) {
     <Command.Item
       value={`${item.label} ${item.keywords ?? ""}`}
       onSelect={item.run}
-      className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-[#1a1866] data-[selected=true]:text-white"
+      className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-brand data-[selected=true]:text-white"
     >
       <Icon className={`h-4 w-4 shrink-0 ${accent ? "text-gold" : "text-muted-foreground"} data-[selected=true]:text-white`} />
       <span className="flex-1">{item.label}</span>

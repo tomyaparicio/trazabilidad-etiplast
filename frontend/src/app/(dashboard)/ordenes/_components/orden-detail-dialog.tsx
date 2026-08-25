@@ -43,7 +43,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#1a1866] dark:text-[#6b7aff]">{title}</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-brand dark:text-[#6b7aff]">{title}</span>
         <div className="flex-1 h-px bg-border/60" />
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 pl-0.5">
@@ -120,7 +120,7 @@ function QcControlesSection({ ordenId, open }: { ordenId: number; open: boolean 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#1a1866] dark:text-[#6b7aff]">
+        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-brand dark:text-[#6b7aff]">
           Control de Calidad
         </span>
         <div className="flex-1 h-px bg-border/60" />
@@ -241,7 +241,7 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
         <DialogHeader className="px-6 pt-5 pb-4 border-b border-border sticky top-0 bg-background z-10">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="font-mono font-bold text-xl text-[#1a1866] dark:text-[#6b7aff] tracking-wide">
+              <span className="font-mono font-bold text-xl text-brand dark:text-[#6b7aff] tracking-wide">
                 {orden.numero}
               </span>
               {estadoBadge(orden.estado)}
@@ -250,7 +250,7 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
               <Button
                 size="sm" variant="outline"
                 onClick={() => window.open(`/print/ordenes/${orden.id}`, "_blank")}
-                className="gap-1.5 text-xs text-[#1a1866] border-[#1a1866]/30 hover:bg-[#1a1866]/5 dark:text-[#6b7aff] dark:border-[#6b7aff]/30"
+                className="gap-1.5 text-xs text-brand border-brand/30 hover:bg-brand/5 dark:text-[#6b7aff] dark:border-[#6b7aff]/30"
               >
                 <FileText className="w-3.5 h-3.5" /> Ver PDF
               </Button>

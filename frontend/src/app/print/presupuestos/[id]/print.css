@@ -371,7 +371,7 @@
   transition: background .15s;
 }
 
-.pres-print-btn:hover { background: #1a1866; }
+.pres-print-btn:hover { background: var(--primary-500); }
 
 .pres-close-btn {
   background: transparent;

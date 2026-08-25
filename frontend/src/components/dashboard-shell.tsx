@@ -53,7 +53,7 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
         toastOptions={{
           style: {
             borderRadius: "0.75rem",
-            fontFamily: "var(--font-plus-jakarta), sans-serif",
+            fontFamily: "var(--font-dm-sans), sans-serif",
           },
         }}
       />

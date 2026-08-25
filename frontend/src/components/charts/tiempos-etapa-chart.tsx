@@ -4,15 +4,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts"
 import { Clock } from "lucide-react"
+import type { TiempoEtapa } from "@/lib/api/types"
+
+export type { TiempoEtapa }
 
 const COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b"]
-
-export interface TiempoEtapa {
-  clave: string
-  etapa: string
-  dias_promedio: number | null
-  muestras: number
-}
 
 interface TiemposEtapaChartProps {
   etapas: TiempoEtapa[]
