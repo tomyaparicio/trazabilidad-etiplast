@@ -2,12 +2,29 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Tipografía display de marca — Century Gothic (mismo approach que el login;
+   @font-face en vez de next/font/local, que rompe Turbopack). */
+@font-face {
+  font-family: "Century Gothic ET";
+  src: url("/fonts/century-gothic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Century Gothic ET";
+  src: url("/fonts/century-gothic-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is([data-theme="dark"] *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-plus-jakarta);
+  --font-sans: var(--font-dm-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -53,83 +70,110 @@
 
 :root {
   --radius: 0.75rem;
+
+  /* ── Escalas de marca Etiplast (de la web oficial) — referencia absoluta ── */
+  --primary-50: #eeeeff;
+  --primary-100: #d8d9ff;
+  --primary-200: #b3b5ff;
+  --primary-300: #8a8dff;
+  --primary-400: #5b5fcc;
+  --primary-500: #292d96;
+  --primary-600: #232780;
+  --primary-700: #1d206b;
+  --primary-800: #171956;
+  --primary-900: #111341;
+  --primary-950: #0a0b2a;
+
+  --etiplast-400: #f7f0c3;
+  --etiplast-500: #f5eb4a;
+  --etiplast-600: #e0d620;
+
+  --surface: #0a0b1e;
+  --surface-50: #fafafa;
+  --surface-100: #141634;
+  --surface-200: #101228;
+  --surface-300: #232649;
+  --surface-400: #33375e;
+  --surface-500: #454a78;
 }
 
-/* Modo oscuro (por defecto) */
-:root,
+/* Modo oscuro — navy sobrio (misma familia azul/amarillo que la marca) */
 [data-theme="dark"] {
-  --background: #08080f;
-  --foreground: #f0f0f5;
-  --card: #0f0f1a;
-  --card-foreground: #f0f0f5;
-  --popover: #0f0f1a;
-  --popover-foreground: #f0f0f5;
-  --primary: #292d96;
-  --primary-foreground: #f0f0f5;
-  --secondary: #14142a;
-  --secondary-foreground: #c8c8d8;
-  --muted: #14142a;
-  --muted-foreground: #6b6b8a;
-  --accent: #1a1866;
-  --accent-foreground: #f0f0f5;
-  --destructive: #dc2626;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.08);
-  --ring: #f5eb4a;
+  --background: #0b0d24;
+  --foreground: #eef0ff;
+  --card: #141733;
+  --card-foreground: #eef0ff;
+  --popover: #171a3d;
+  --popover-foreground: #eef0ff;
+  --primary: #4f54d6;
+  --primary-foreground: #ffffff;
+  --secondary: #1e2150;
+  --secondary-foreground: #d8daf5;
+  --muted: #1c1f45;
+  --muted-foreground: #9a9ec8;
+  --accent: #23265c;
+  --accent-foreground: #eef0ff;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #6f74e0;
   --gold: #f5eb4a;
   --gold-text: #f5eb4a;
-  --gold-foreground: #08080f;
-  --chart-1: #6366f1;
-  --chart-2: #8b5cf6;
+  --gold-foreground: #101248;
+  --chart-1: #8a8fe0;
+  --chart-2: #6f74e0;
   --chart-3: #f5eb4a;
-  --chart-4: #06b6d4;
-  --chart-5: #10b981;
-  --sidebar: #06060c;
-  --sidebar-foreground: #f0f0f5;
+  --chart-4: #4f54d6;
+  --chart-5: #aab0ee;
+  /* Sidebar — panel de marca azul (constante en ambos temas) */
+  --sidebar: #292d96;
+  --sidebar-foreground: #ffffff;
   --sidebar-primary: #f5eb4a;
-  --sidebar-primary-foreground: #08080f;
-  --sidebar-accent: rgba(255, 255, 255, 0.06);
-  --sidebar-accent-foreground: #f0f0f5;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-primary-foreground: #101248;
+  --sidebar-accent: rgba(255, 255, 255, 0.10);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.10);
   --sidebar-ring: #f5eb4a;
 }
 
-/* Modo claro */
+/* Modo claro (default) — paleta exacta de la marca / login */
+:root,
 [data-theme="light"] {
-  --background: #f8f9fc;
-  --foreground: #0f0f1a;
+  --background: #f6f7fb;
+  --foreground: #141733;
   --card: #ffffff;
-  --card-foreground: #0f0f1a;
+  --card-foreground: #141733;
   --popover: #ffffff;
-  --popover-foreground: #0f0f1a;
+  --popover-foreground: #141733;
   --primary: #292d96;
   --primary-foreground: #ffffff;
-  --secondary: #e8e9f0;
-  --secondary-foreground: #2d2d4a;
-  --muted: #e8e9f0;
-  --muted-foreground: #5a5a7a;
-  --accent: #e8e4b8;
-  --accent-foreground: #1a1866;
+  --secondary: #eef0f7;
+  --secondary-foreground: #292d5c;
+  --muted: #f0f1f8;
+  --muted-foreground: #6b6f91;
+  --accent: #eef0ff;
+  --accent-foreground: #1b1e75;
   --destructive: #dc2626;
-  --border: rgba(0, 0, 0, 0.08);
-  --input: rgba(0, 0, 0, 0.08);
-  --ring: #c9a500;
-  --gold: #c9a500;
-  --gold-text: #9a7d00;
-  --gold-foreground: #0f0f1a;
-  --chart-1: #4f46e5;
-  --chart-2: #7c3aed;
-  --chart-3: #c9a500;
-  --chart-4: #0891b2;
-  --chart-5: #059669;
-  --sidebar: #f0f1f8;
-  --sidebar-foreground: #0f0f1a;
-  --sidebar-primary: #c9a500;
-  --sidebar-primary-foreground: #0f0f1a;
-  --sidebar-accent: rgba(0, 0, 0, 0.04);
-  --sidebar-accent-foreground: #0f0f1a;
-  --sidebar-border: rgba(0, 0, 0, 0.06);
-  --sidebar-ring: #c9a500;
+  --border: #e7e8f2;
+  --input: #e7e8f2;
+  --ring: #292d96;
+  --gold: #f5eb4a;
+  --gold-text: #8a7200;
+  --gold-foreground: #141733;
+  --chart-1: #292d96;
+  --chart-2: #4f54d6;
+  --chart-3: #f5eb4a;
+  --chart-4: #8a8fe0;
+  --chart-5: #b6b9d8;
+  /* Sidebar — panel de marca azul (constante en ambos temas) */
+  --sidebar: #292d96;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #f5eb4a;
+  --sidebar-primary-foreground: #101248;
+  --sidebar-accent: rgba(255, 255, 255, 0.10);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-ring: #f5eb4a;
 }
 
 @layer base {
@@ -150,6 +194,10 @@
 @layer utilities {
   .text-gold {
     color: var(--gold-text);
+  }
+  /* Tipografía display de marca — títulos, métricas y wordmark (igual que el login) */
+  .font-display {
+    font-family: "Century Gothic ET", var(--font-questrial), system-ui, sans-serif;
   }
 }
 

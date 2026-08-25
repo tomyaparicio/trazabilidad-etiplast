@@ -10,7 +10,7 @@ const STORAGE_KEY = "etiplast-theme"
 
 export function ThemeToggle({ className }: { className?: string }) {
   const ctx = useTheme()
-  const [fallbackTheme, setFallbackTheme] = useState<"light" | "dark">("dark")
+  const [fallbackTheme, setFallbackTheme] = useState<"light" | "dark">("light")
 
   useEffect(() => {
     const t = localStorage.getItem(STORAGE_KEY) as "light" | "dark" | null

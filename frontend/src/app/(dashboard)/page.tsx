@@ -1,469 +1,193 @@
+import Link from "next/link"
 import { cookies } from "next/headers"
-import { apiFetchServer } from "@/lib/api/server"
-import type { DashboardStats } from "@/types/database"
-import { RubroPieChart } from "@/components/charts/rubro-pie-chart"
-import { ProvinciaBarChart } from "@/components/charts/provincia-bar-chart"
 import {
-  AlertCircle, Users, Building2, Boxes, Tag,
-  TrendingUp, PackageCheck, AlertTriangle, ClipboardList,
+  ArrowRight, FileText, Clock, Cog, CheckCircle2, ChevronRight,
+  FilePlus2, ScanLine, CalendarRange, PackageCheck,
 } from "lucide-react"
-import type { OrdenResumen } from "@/types/database"
+import { apiFetchServer } from "@/lib/api/server"
+import type { DashboardStats, OrdenResumen } from "@/types/database"
 
-// Colores originales — solo se reemplazó #f5eb4a (amarillo ilegible en fondo blanco) por #d97706
-const CHART_COLORS = [
-  "#6366f1", "#d97706", "#8b5cf6", "#06b6d4",
-  "#10b981", "#f59e0b", "#ec4899", "#3b82f6", "#f97316", "#14b8a6",
-]
+const DISPLAY = "'Century Gothic ET', var(--font-questrial), 'Questrial', sans-serif"
 
-// ─── Mini stat card ───────────────────────────────────────────────────────────
-function MiniStat({
-  label, value, sub, icon: Icon, numClass, iconClass, iconBg,
-}: {
-  label: string; value: number | string; sub?: string
-  icon: React.ElementType
-  numClass: string   // clases Tailwind para el número grande
-  iconClass: string  // clases Tailwind para el ícono
-  iconBg: string     // clases Tailwind para el fondo del ícono
-}) {
-  const nf = new Intl.NumberFormat("es-AR")
-  return (
-    <div className="flex flex-col justify-between rounded-2xl border border-border bg-card/80 p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${iconBg}`}>
-          <Icon className={`w-4 h-4 ${iconClass}`} strokeWidth={1.8} />
-        </div>
-      </div>
-      <div>
-        <p className={`text-3xl font-black tabular-nums leading-none ${numClass}`}>
-          {typeof value === "number" ? nf.format(value) : value}
-        </p>
-        {sub && <p className="text-xs text-muted-foreground mt-1.5">{sub}</p>}
-      </div>
-    </div>
-  )
+const stateStyle: Record<string, string> = {
+  borrador: "bg-slate-100 text-slate-700",
+  pendiente: "bg-amber-100 text-amber-800",
+  en_proceso: "bg-[#e9eaff] text-[#292d96]",
+  completada: "bg-emerald-100 text-emerald-800",
+  cancelada: "bg-red-100 text-red-800",
+}
+const stateLabel: Record<string, string> = {
+  borrador: "Borrador", pendiente: "Pendiente", en_proceso: "En producción", completada: "Completada", cancelada: "Cancelada",
 }
 
-// ─── Estado config ────────────────────────────────────────────────────────────
-const ESTADO_CONFIG: Record<string, { label: string; cls: string }> = {
-  borrador:   { label: "Borrador",    cls: "bg-muted/60 text-muted-foreground border-border" },
-  pendiente:  { label: "Pendiente",   cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30" },
-  en_proceso: { label: "En proceso",  cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30" },
-  completada: { label: "Completada",  cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" },
-  cancelada:  { label: "Cancelada",   cls: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30" },
-}
+// Paleta del donut de rubros (marca)
+const RUBRO_COLORS = ["#292d96", "#5b5fcc", "#8a8dff", "#f5eb4a", "#b3b5ff", "#c9cbf5"]
 
-// ─── Sección Órdenes de Trabajo ───────────────────────────────────────────────
-function OrdenesSection({
-  activas, porEstado, recientes,
-}: {
-  activas: number
-  porEstado: Record<string, number>
-  recientes: OrdenResumen[]
-}) {
-  const nf = new Intl.NumberFormat("es-AR")
-  const safeEstado = porEstado ?? {}
-  const total = Object.values(safeEstado).reduce((a, b) => a + b, 0)
-
-  return (
-    <div className="rounded-2xl border border-border bg-card/80 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-blue-500/15 border border-blue-500/30">
-            <ClipboardList className="w-4 h-4 text-blue-600 dark:text-blue-400" strokeWidth={1.8} />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Órdenes de Trabajo</h3>
-            <p className="text-xs text-muted-foreground">{nf.format(total)} órdenes en total</p>
-          </div>
-        </div>
-        <a
-          href="/ordenes"
-          className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          Ver todas →
-        </a>
-      </div>
-
-      {/* Mini stats por estado */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        {(["borrador", "pendiente", "en_proceso", "completada", "cancelada"] as const).map((estado) => {
-          const cfg = ESTADO_CONFIG[estado]
-          return (
-            <div key={estado} className={`rounded-xl border px-3 py-2.5 text-center ${cfg.cls}`}>
-              <p className="text-xl font-black tabular-nums">{nf.format(safeEstado[estado] ?? 0)}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-wide mt-0.5 opacity-80">{cfg.label}</p>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Lista de órdenes activas recientes */}
-      {recientes.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">
-          No hay órdenes registradas
-        </div>
-      ) : (
-        <div className="space-y-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground mb-3">
-            Recientes
-          </p>
-          {recientes.map((o) => {
-            const cfg = ESTADO_CONFIG[o.estado] ?? ESTADO_CONFIG.borrador
-            return (
-              <div
-                key={o.id}
-                className="flex items-center gap-3 rounded-xl px-4 py-2.5 hover:bg-muted/30 transition-colors group"
-              >
-                {/* Número */}
-                <span className="font-mono text-xs font-bold text-foreground w-20 shrink-0">
-                  {o.numero}
-                </span>
-                {/* Cliente + Creador + Responsable */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-secondary-foreground truncate">{o.cliente_nombre ?? "—"}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    por {o.creador_nombre ?? "—"}
-                    {o.responsable_nombre && (
-                      <> · <span className="text-blue-500 dark:text-blue-400">resp. {o.responsable_nombre}</span></>
-                    )}
-                  </p>
-                </div>
-                {/* Estado */}
-                <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg border shrink-0 ${cfg.cls}`}>
-                  {cfg.label}
-                </span>
-                {/* Fecha */}
-                {o.fecha && (
-                  <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">
-                    {new Date(o.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
-                  </span>
-                )}
-                {/* Cantidad */}
-                {o.cantidad != null && (
-                  <span className="text-xs text-muted-foreground tabular-nums shrink-0 hidden md:block">
-                    {nf.format(o.cantidad)} u.
-                  </span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 export default async function DashboardPage() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("auth-token")?.value
+  const token = (await cookies()).get("auth-token")?.value
   let userName = "Usuario"
   try {
     if (token) {
       const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
-      const email: string = payload.sub || ""
-      try {
-        const me = await apiFetchServer<{ nombre: string | null; apellido: string | null; nombre_completo: string }>("/auth/me")
-        userName = (me.nombre || me.apellido) ? me.nombre_completo : email.split("@")[0] || "Usuario"
-      } catch {
-        userName = email.split("@")[0] || "Usuario"
-      }
+      userName = payload.nombre || payload.sub?.split("@")[0] || userName
     }
-  } catch { /* ignore */ }
+  } catch { /* noop */ }
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches"
+  let stats: DashboardStats | null = null
+  try { stats = await apiFetchServer<DashboardStats>("/api/dashboard/stats") } catch { /* noop */ }
 
-  let data: DashboardStats | null = null
-  let error: Error | null = null
-  try {
-    data = await apiFetchServer<DashboardStats>("/api/dashboard/stats")
-  } catch (e) {
-    error = e instanceof Error ? e : new Error(String(e))
-  }
-
-  if (error || !data) {
-    return (
-      <div className="p-6 lg:p-8 space-y-5 max-w-[1280px] mx-auto">
-        <div className="rounded-2xl bg-gradient-to-br from-[#1a1866] to-[#292d96] border border-white/10 p-6">
-          <h2 className="text-xl font-bold text-white">
-            {greeting}, <span className="text-[#f5eb4a]">{userName}</span>
-          </h2>
-          <p className="text-white/70 text-sm mt-1">Panel de Control</p>
-        </div>
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-5">
-          <div className="rounded-2xl bg-red-500/10 border border-red-500/20 p-5">
-            <AlertCircle className="w-10 h-10 text-red-400" />
-          </div>
-          <p className="text-red-400 font-medium text-center">Error al cargar las estadísticas.</p>
-          {error && (
-            <div className="bg-muted/50 border border-border rounded-xl p-4 max-w-md">
-              <p className="text-sm font-mono text-muted-foreground break-all">{error?.message}</p>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  const stats = data
   const nf = new Intl.NumberFormat("es-AR")
-  const topRubro = stats.rubros[0]
-  const topProvincia = stats.provincias[0]
-  const pctConProductos = stats.total_clientes > 0
-    ? Math.round((stats.marcas_con_productos / stats.total_clientes) * 100)
-    : 0
-  const promProductosPorMarca = stats.marcas_con_productos > 0
-    ? (stats.total_productos / stats.marcas_con_productos).toFixed(1)
-    : "0"
+  const est = stats?.ordenes_por_estado ?? {}
+  const draft = est.borrador ?? 0
+  const pending = est.pendiente ?? 0
+  const inProgress = est.en_proceso ?? 0
+  const completed = est.completada ?? 0
+
+  // Flujo de la orden (datos reales: ordenes_por_estado)
+  const flow = [
+    { label: "Borrador", n: draft, u: "en carga", Icon: FileText, hot: false },
+    { label: "Pendiente", n: pending, u: "por producir", Icon: Clock, hot: false },
+    { label: "En producción", n: inProgress, u: "en máquina", Icon: Cog, hot: true },
+    { label: "Completadas", n: completed, u: "listas", Icon: CheckCircle2, hot: false },
+  ]
+
+  const kpis = [
+    { label: "Marcas", value: stats?.total_clientes ?? 0, detail: `${nf.format(stats?.marcas_sin_rs ?? 0)} sin razón social` },
+    { label: "Razones sociales", value: stats?.total_razones_sociales ?? 0, detail: "entidades legales" },
+    { label: "Productos", value: stats?.total_productos ?? 0, detail: `${nf.format(stats?.marcas_con_productos ?? 0)} marcas con productos` },
+    { label: "Órdenes activas", value: stats?.ordenes_activas ?? 0, detail: `${nf.format(pending)} pendientes` },
+  ]
+
+  const actions = [
+    { label: "Nueva orden", href: "/ordenes", icon: FilePlus2, primary: true },
+    { label: "Escanear orden", href: "/ordenes", icon: ScanLine },
+    { label: "Planificación", href: "/planificacion", icon: CalendarRange },
+    { label: "Nuevo remito", href: "/remitos", icon: PackageCheck },
+  ]
+
+  // Donut de rubros (datos reales)
+  const rubros = [...(stats?.rubros ?? [])].sort((a, b) => b.cantidad - a.cantidad)
+  const totalR = rubros.reduce((s, r) => s + r.cantidad, 0) || 1
+  const topR = rubros.slice(0, 5)
+  let acc = 0
+  const stops = topR.map((r, i) => {
+    const from = (acc / totalR) * 100
+    acc += r.cantidad
+    const to = (acc / totalR) * 100
+    return `${RUBRO_COLORS[i % RUBRO_COLORS.length]} ${from}% ${to}%`
+  })
+  const donut = `conic-gradient(${stops.join(", ")}${topR.length ? ", var(--line, #e9eaf4) 0" : "var(--line,#e9eaf4) 0 100%"})`
+
+  const orders: OrdenResumen[] = stats?.ordenes_recientes ?? []
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1280px] mx-auto">
-
-      {/* ── Hero ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a1866] via-[#2520a0] to-[#292d96] border border-white/10 p-8 shadow-xl">
-        <div
-          className="absolute inset-0 opacity-[0.06] pointer-events-none"
-          style={{
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)`,
-            backgroundSize: "48px 48px",
-          }}
-        />
-        <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/5 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute -bottom-16 left-16 w-56 h-56 bg-[#6366f1]/20 rounded-full blur-[80px] pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
-          {/* Left — greeting + total */}
+    <div className="min-h-full bg-background">
+      <div className="mx-auto max-w-[1360px] space-y-5 p-4 sm:p-6 lg:p-8">
+        {/* Header */}
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">
-              {greeting}, <span className="text-[#f5eb4a]">{userName}</span>
-            </h2>
-            <p className="text-white/60 text-sm mt-1 mb-6">Te mostramos el resumen del sistema</p>
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#292d96] dark:text-[#b9bbff]">Panel de control</p>
+            <h1 className="mt-1 text-3xl tracking-tight" style={{ fontFamily: DISPLAY }}>Hola, {userName}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Así viene la producción y la base comercial hoy.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {actions.map(({ label, href, icon: Icon, primary }) => (
+              <Link key={label} href={href}
+                className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-xs font-semibold transition-colors ${primary ? "bg-[#292d96] text-white hover:bg-[#1d206b]" : "border border-border bg-card text-foreground hover:bg-muted"}`}>
+                <Icon className="size-4" />{label}
+              </Link>
+            ))}
+          </div>
+        </header>
 
-            <div className="flex items-center gap-2 mb-3">
-              <div className="rounded-lg p-1.5 bg-white/15 border border-white/20">
-                <Users className="w-3.5 h-3.5 text-white" strokeWidth={1.5} />
+        {/* ── Flujo de producción (pieza única, datos reales) ── */}
+        <section className="relative overflow-hidden rounded-2xl bg-[#292d96] p-6 text-white shadow-sm sm:p-7">
+          <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(90% 120% at 100% 0, rgba(138,141,255,.35), transparent 55%)" }} />
+          <div className="relative flex items-baseline justify-between">
+            <h2 className="text-[17px]" style={{ fontFamily: DISPLAY }}>Flujo de órdenes</h2>
+            <span className="text-xs text-[#b9bbff]">{nf.format(stats?.ordenes_activas ?? 0)} órdenes activas</span>
+          </div>
+          <div className="relative mt-5 grid grid-cols-2 gap-y-6 sm:grid-cols-4">
+            {flow.map(({ label, n, u, Icon, hot }, i) => (
+              <div key={label} className="relative px-1">
+                <div className="mb-3 flex items-center gap-2.5">
+                  <span className={`grid size-9 place-items-center rounded-xl ${hot ? "bg-[#f5eb4a] text-[#111341]" : "bg-white/10 text-white"}`}><Icon className="size-[18px]" /></span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#dfe1ff]">{label}</span>
+                </div>
+                <div className="text-[38px] leading-none tabular-nums" style={{ fontFamily: DISPLAY, color: hot ? "#f5eb4a" : "#fff" }}>{nf.format(n)}</div>
+                <div className="mt-1 text-xs text-[#8a8dff]">{u}</div>
+                {i < flow.length - 1 && (
+                  <ChevronRight className="absolute right-[-6px] top-1 hidden size-5 text-white/30 sm:block" />
+                )}
               </div>
-              <span className="text-[11px] font-semibold text-white/80 uppercase tracking-[0.2em]">
-                Total Marcas
-              </span>
-            </div>
-            <p className="text-[72px] font-black text-white tabular-nums leading-none tracking-tight drop-shadow-sm">
-              {nf.format(stats.total_clientes)}
-            </p>
+            ))}
+          </div>
+        </section>
 
-            <div className="flex flex-wrap items-center gap-2.5 mt-5">
-              {topRubro && (
-                <span className="inline-flex items-center gap-2 bg-white/15 border border-white/25 rounded-xl px-3.5 py-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#f5eb4a] shrink-0" />
-                  <span className="text-white text-xs font-medium">
-                    {topRubro.nombre} · {nf.format(topRubro.cantidad)} marcas
+        {/* ── KPIs ── */}
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {kpis.map(({ label, value, detail }) => (
+            <div key={label} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+              <p className="mt-2 text-[34px] leading-none tabular-nums text-foreground" style={{ fontFamily: DISPLAY }}>{nf.format(value)}</p>
+              <div className="my-3 h-[3px] w-8 rounded-full bg-[#f5eb4a]" />
+              <p className="text-xs font-medium text-muted-foreground">{detail}</p>
+            </div>
+          ))}
+        </section>
+
+        {/* ── Órdenes recientes + Rubros ── */}
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,.5fr)]">
+          <section className="rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div><h2 className="text-base" style={{ fontFamily: DISPLAY }}>Órdenes recientes</h2><p className="text-xs text-muted-foreground">Últimos movimientos</p></div>
+              <Link href="/ordenes" className="flex items-center gap-1 text-xs font-semibold text-[#292d96] hover:text-[#1d206b] dark:text-[#b9bbff]">Ver todas <ArrowRight className="size-3.5" /></Link>
+            </div>
+            <div className="px-3 py-1">
+              {orders.length === 0 ? (
+                <div className="py-14 text-center text-sm text-muted-foreground">No hay órdenes registradas.</div>
+              ) : orders.slice(0, 6).map((o) => (
+                <Link key={o.id} href="/ordenes" className="grid min-h-[60px] grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 hover:bg-muted/50">
+                  <span className="tabular-nums text-sm font-semibold" style={{ fontFamily: DISPLAY }}>{o.numero}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{o.cliente_nombre || "Sin cliente"}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{o.responsable_nombre || "Sin responsable"}</span>
                   </span>
-                </span>
-              )}
-              {topProvincia && (
-                <span className="inline-flex items-center gap-2 bg-white/15 border border-white/25 rounded-xl px-3.5 py-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#a5b4fc] shrink-0" />
-                  <span className="text-white text-xs font-medium">
-                    {topProvincia.nombre} · {nf.format(topProvincia.cantidad)} marcas
-                  </span>
-                </span>
-              )}
+                  <span className={`rounded-full px-2.5 py-1 text-[10.5px] font-semibold ${stateStyle[o.estado] || stateStyle.borrador}`}>{stateLabel[o.estado] || o.estado}</span>
+                </Link>
+              ))}
             </div>
-          </div>
+          </section>
 
-          {/* Right — 3 hero counters inline */}
-          <div className="flex flex-row gap-5 lg:gap-8 shrink-0">
-            <div className="text-center">
-              <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Razones Sociales</p>
-              <p className="text-4xl font-black text-white tabular-nums">{nf.format(stats.total_razones_sociales)}</p>
-              <p className="text-[11px] text-white/50 mt-1">entidades legales</p>
-            </div>
-            <div className="w-px bg-white/15 self-stretch" />
-            <div className="text-center">
-              <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Productos</p>
-              <p className="text-4xl font-black text-[#f5eb4a] tabular-nums">{nf.format(stats.total_productos)}</p>
-              <p className="text-[11px] text-white/50 mt-1">especificaciones registradas</p>
-            </div>
-            <div className="w-px bg-white/15 self-stretch" />
-            <div className="text-center">
-              <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Prom. por marca</p>
-              <p className="text-4xl font-black text-[#a5b4fc] tabular-nums">{promProductosPorMarca}</p>
-              <p className="text-[11px] text-white/50 mt-1">productos / marca</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Órdenes de Trabajo ── */}
-      <OrdenesSection
-        activas={stats.ordenes_activas ?? 0}
-        porEstado={stats.ordenes_por_estado ?? {}}
-        recientes={stats.ordenes_recientes ?? []}
-      />
-
-      {/* ── Stat grid ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MiniStat
-          label="Marcas registradas"
-          value={stats.total_clientes}
-          sub="Clientes / marcas comerciales"
-          icon={Users}
-          numClass="text-amber-600 dark:text-[#f5eb4a]"
-          iconClass="text-amber-600 dark:text-[#f5eb4a]"
-          iconBg="bg-amber-500/10 border-amber-500/20 dark:bg-amber-400/15 dark:border-amber-400/30"
-        />
-        <MiniStat
-          label="Razones Sociales"
-          value={stats.total_razones_sociales}
-          sub={`${stats.marcas_sin_rs > 0 ? `${stats.marcas_sin_rs} marcas sin vincular` : "Todas las marcas vinculadas"}`}
-          icon={Building2}
-          numClass="text-indigo-600 dark:text-[#22d3ee]"
-          iconClass="text-indigo-600 dark:text-[#22d3ee]"
-          iconBg="bg-indigo-500/10 border-indigo-500/20 dark:bg-cyan-400/15 dark:border-cyan-400/30"
-        />
-        <MiniStat
-          label="Productos totales"
-          value={stats.total_productos}
-          sub={`En ${nf.format(stats.marcas_con_productos)} marcas (${pctConProductos}%)`}
-          icon={Boxes}
-          numClass="text-emerald-600 dark:text-[#4ade80]"
-          iconClass="text-emerald-600 dark:text-[#4ade80]"
-          iconBg="bg-emerald-500/10 border-emerald-500/20 dark:bg-green-400/15 dark:border-green-400/30"
-        />
-        <MiniStat
-          label="Rubros activos"
-          value={stats.rubros.length}
-          sub={`${nf.format(stats.provincias.length)} provincias con cobertura`}
-          icon={Tag}
-          numClass="text-orange-600 dark:text-[#f472b6]"
-          iconClass="text-orange-600 dark:text-[#f472b6]"
-          iconBg="bg-orange-500/10 border-orange-500/20 dark:bg-pink-500/15 dark:border-pink-500/30"
-        />
-      </div>
-
-      {/* ── Alertas ── */}
-      {(stats.marcas_sin_rs > 0) && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-50 dark:bg-amber-500/8 px-5 py-4">
-          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            <span className="font-semibold">{nf.format(stats.marcas_sin_rs)} marcas</span> no tienen razón social vinculada.
-            Vinculálas desde el detalle de cada cliente.
-          </p>
-        </div>
-      )}
-
-      {/* ── Cobertura de productos ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Coverage bar */}
-        <div className="rounded-2xl border border-border bg-card/80 p-6">
-          <div className="flex items-center gap-2 mb-1">
-            <PackageCheck className="w-4 h-4 text-emerald-600 dark:text-[#4ade80]" />
-            <h3 className="text-sm font-semibold text-foreground">Cobertura de productos</h3>
-          </div>
-          <p className="text-xs text-muted-foreground mb-5">Marcas con al menos un producto registrado</p>
-
-          <div className="flex items-end gap-3 mb-3">
-            <p className="text-4xl font-black tabular-nums text-emerald-600 dark:text-[#4ade80]">{pctConProductos}%</p>
-            <p className="text-sm text-muted-foreground pb-1">
-              {nf.format(stats.marcas_con_productos)} de {nf.format(stats.total_clientes)} marcas
-            </p>
-          </div>
-          <div className="h-3 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full rounded-full bg-emerald-600 dark:bg-[#4ade80]/70 transition-all"
-              style={{ width: `${pctConProductos}%` }}
-            />
-          </div>
-          {stats.total_clientes - stats.marcas_con_productos > 0 && (
-            <p className="text-xs text-muted-foreground mt-3">
-              {nf.format(stats.total_clientes - stats.marcas_con_productos)} marcas sin productos aún
-            </p>
-          )}
-        </div>
-
-        {/* Prom products */}
-        <div className="rounded-2xl border border-border bg-card/80 p-6">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-violet-600 dark:text-[#e879f9]" />
-            <h3 className="text-sm font-semibold text-foreground">Productos por marca</h3>
-          </div>
-          <p className="text-xs text-muted-foreground mb-5">Promedio entre marcas con productos</p>
-
-          <p className="text-4xl font-black tabular-nums text-violet-600 dark:text-[#e879f9] mb-2">{promProductosPorMarca}</p>
-          <p className="text-xs text-muted-foreground">
-            {nf.format(stats.total_productos)} productos en total entre {nf.format(stats.marcas_con_productos)} marcas
-          </p>
-
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-muted/30 border border-border px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Total marcas</p>
-              <p className="text-xl font-black tabular-nums text-foreground">{nf.format(stats.total_clientes)}</p>
-            </div>
-            <div className="rounded-xl bg-muted/30 border border-border px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Total productos</p>
-              <p className="text-xl font-black tabular-nums text-foreground">{nf.format(stats.total_productos)}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Charts ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
-        <div className="xl:col-span-2">
-          <RubroPieChart data={stats.rubros} total={stats.total_clientes} />
-        </div>
-        <div className="xl:col-span-3">
-          <ProvinciaBarChart data={stats.provincias} />
-        </div>
-      </div>
-
-      {/* ── Rubros breakdown ── */}
-      <div className="bg-card/80 border border-border rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-base font-semibold text-foreground">Distribución por Rubro</h3>
-            <p className="text-muted-foreground text-xs mt-0.5">Proporción de marcas por categoría</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</p>
-            <p className="text-lg font-bold text-foreground tabular-nums">{nf.format(stats.total_clientes)}</p>
-          </div>
-        </div>
-        <div className="space-y-5">
-          {stats.rubros.map((rubro, i) => {
-            const pct = stats.total_clientes > 0
-              ? Math.round((rubro.cantidad / stats.total_clientes) * 100)
-              : 0
-            const color = CHART_COLORS[i % CHART_COLORS.length]
-            return (
-              <div key={rubro.nombre}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-sm font-medium text-secondary-foreground">{rubro.nombre}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs text-muted-foreground tabular-nums hidden sm:block">
-                      {nf.format(rubro.cantidad)} marcas
-                    </span>
-                    <span className="text-sm font-bold tabular-nums min-w-[42px] text-right" style={{ color }}>
-                      {pct}%
-                    </span>
+          <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <h2 className="text-base" style={{ fontFamily: DISPLAY }}>Marcas por rubro</h2>
+            <p className="text-xs text-muted-foreground">Distribución de la cartera</p>
+            {topR.length === 0 ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">Sin datos de rubros.</div>
+            ) : (
+              <div className="mt-5 flex items-center gap-5">
+                <div className="relative size-[132px] shrink-0 rounded-full" style={{ background: donut }}>
+                  <div className="absolute inset-[26px] grid place-items-center rounded-full bg-card">
+                    <div className="text-center">
+                      <div className="text-xl leading-none tabular-nums" style={{ fontFamily: DISPLAY }}>{nf.format(stats?.total_clientes ?? 0)}</div>
+                      <div className="text-[10px] text-muted-foreground">marcas</div>
+                    </div>
                   </div>
                 </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.8 }} />
+                <div className="flex min-w-0 flex-1 flex-col gap-2.5 text-[13px]">
+                  {topR.map((r, i) => (
+                    <div key={r.nombre} className="flex items-center gap-2.5">
+                      <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: RUBRO_COLORS[i % RUBRO_COLORS.length] }} />
+                      <span className="truncate">{r.nombre}</span>
+                      <b className="ml-auto tabular-nums text-muted-foreground">{Math.round((r.cantidad / totalR) * 100)}%</b>
+                    </div>
+                  ))}
                 </div>
               </div>
-            )
-          })}
+            )}
+          </section>
         </div>
       </div>
-
     </div>
   )
 }

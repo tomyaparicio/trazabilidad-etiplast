@@ -43,7 +43,12 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
       }
     }
     document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
+    const onOpen = () => setOpen(true)
+    window.addEventListener("eti:open-command-palette", onOpen)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("eti:open-command-palette", onOpen)
+    }
   }, [])
 
   const go = useCallback(

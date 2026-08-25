@@ -1,12 +1,22 @@
 import type { Metadata } from "next"
 import Script from "next/script"
-import { Plus_Jakarta_Sans } from "next/font/google"
+import { DM_Sans, Questrial } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 
-const plusJakarta = Plus_Jakarta_Sans({
+// Body: DM Sans. Display: Century Gothic (@font-face en globals.css) con Questrial de fallback.
+// (No usar next/font/local — rompe el server de Turbopack.)
+const dmSans = DM_Sans({
   subsets: ["latin"],
-  variable: "--font-plus-jakarta",
+  variable: "--font-dm-sans",
+  display: "swap",
+})
+
+const questrial = Questrial({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-questrial",
+  display: "swap",
 })
 
 export const metadata: Metadata = {
@@ -20,13 +30,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={plusJakarta.variable} suppressHydrationWarning>
+    <html lang="es" className={`${dmSans.variable} ${questrial.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <Script
           id="theme-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
-            __html: `(function(){var t=localStorage.getItem("etiplast-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")})();`,
+            __html: `(function(){var t=localStorage.getItem("etiplast-theme");document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light")})();`,
           }}
         />
         <ThemeProvider>{children}</ThemeProvider>

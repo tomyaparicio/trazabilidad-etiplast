@@ -49,7 +49,7 @@ function CustomTooltip({
 
 export function OrdenesLineChart({ data }: OrdenesLineChartProps) {
   return (
-    <div className="bg-card/80 border border-border rounded-2xl p-6 h-full">
+    <div className="bg-card border border-border rounded-[20px] p-6 h-full shadow-[0_20px_50px_-30px_rgba(6,8,40,0.35)]">
       <div className="flex items-center gap-3 mb-6">
         <div className="rounded-xl bg-chart-1/10 border border-chart-1/20 p-2.5">
           <TrendingUp className="w-5 h-5 text-chart-1" strokeWidth={1.5} />
@@ -82,10 +82,10 @@ export function OrdenesLineChart({ data }: OrdenesLineChartProps) {
           <Line
             type="monotone"
             dataKey="cantidad"
-            stroke="#6366f1"
+            stroke="var(--chart-1)"
             strokeWidth={2.5}
-            dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }}
-            activeDot={{ r: 5 }}
+            dot={{ r: 3, fill: "var(--chart-1)", strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: "var(--chart-1)" }}
           />
         </LineChart>
       </ResponsiveContainer>

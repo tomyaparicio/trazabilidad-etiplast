@@ -112,7 +112,7 @@ export function NotificationCenter() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="Notificaciones"
-        className="relative flex h-9 w-9 items-center justify-center rounded-md text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+        className="relative flex h-9 w-9 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <Bell className="h-[18px] w-[18px]" />
         {count > 0 && (

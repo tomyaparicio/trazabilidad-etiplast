@@ -5,7 +5,7 @@ import {
 } from "recharts"
 import { Factory } from "lucide-react"
 
-const COLORS = ["#6366f1", "#f5eb4a", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ec4899", "#3b82f6", "#f97316", "#14b8a6"]
+const COLORS = ["#292d96", "#f5eb4a", "#4f54d6", "#8a8fe0", "#1b1e75", "#b6b9d8", "#6f74e0", "#c9a500", "#3f4488", "#9a9ec8"]
 
 export interface ProduccionPunto {
   grupo: string
@@ -58,7 +58,7 @@ export function ProduccionBarChart({
   subtitulo,
 }: ProduccionBarChartProps) {
   return (
-    <div className="bg-card/80 border border-border rounded-2xl p-6 h-full">
+    <div className="bg-card border border-border rounded-[20px] p-6 h-full shadow-[0_20px_50px_-30px_rgba(6,8,40,0.35)]">
       <div className="flex items-center gap-3 mb-6">
         <div className="rounded-xl bg-gold/10 border border-gold/20 p-2.5">
           <Factory className="w-5 h-5 text-gold" strokeWidth={1.5} />
