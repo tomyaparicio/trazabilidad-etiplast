@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { UserAdmin } from "@/lib/api/types"
@@ -169,7 +170,7 @@ export default function AdminUsuariosPage() {
   ]
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1100px] mx-auto">
+    <PageContainer>
 
       {/* Header */}
       <PageHeader
@@ -219,7 +220,7 @@ export default function AdminUsuariosPage() {
       {editUser && (
         <EditarUsuarioDialog user={editUser} onClose={() => setEditUser(null)} onUpdated={handleUserUpdated} />
       )}
-    </div>
+    </PageContainer>
   )
 }
 

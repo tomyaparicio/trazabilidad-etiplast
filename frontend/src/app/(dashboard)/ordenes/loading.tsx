@@ -1,8 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageContainer } from "@/components/ui/page-container"
 
 export default function OrdenesLoading() {
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -47,6 +48,6 @@ export default function OrdenesLoading() {
         ))}
       </div>
 
-    </div>
+    </PageContainer>
   )
 }

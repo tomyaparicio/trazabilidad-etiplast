@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { QcPlantilla } from "@/lib/api/types"
@@ -323,7 +324,7 @@ export default function CalidadPage() {
   ]
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <PageContainer>
       {/* Header */}
       <PageHeader
         icon={ClipboardCheck}
@@ -392,6 +393,6 @@ export default function CalidadPage() {
           fetchPlantillas()
         }}
       />
-    </div>
+    </PageContainer>
   )
 }

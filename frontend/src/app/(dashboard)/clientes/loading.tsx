@@ -1,8 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageContainer } from "@/components/ui/page-container"
 
 export default function ClientesLoading() {
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -46,6 +47,6 @@ export default function ClientesLoading() {
         ))}
       </div>
 
-    </div>
+    </PageContainer>
   )
 }

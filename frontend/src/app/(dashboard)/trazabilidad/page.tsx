@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import Link from "next/link"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
@@ -97,7 +98,7 @@ export default function TrazabilidadPage() {
     resultado.movimientos_stock.length === 0
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1000px] mx-auto">
+    <PageContainer>
       {/* ── Header ── */}
       <PageHeader icon={PackageSearch} title="Trazabilidad" subtitle="Seguimiento por lote: órdenes, bobinas, stock y remitos" />
 
@@ -304,6 +305,6 @@ export default function TrazabilidadPage() {
           </TimelineSection>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
+import { PageContainer } from "@/components/ui/page-container"
+import { PageHeader } from "@/components/ui/page-header"
 import {
   AlertTriangle, ChevronLeft, ChevronRight, FileText, Filter, Plus, RefreshCw, Search, Tag, X,
 } from "lucide-react"
@@ -172,28 +174,24 @@ export function PresupuestosTable() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-gold" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <FileText className="w-5 h-5 text-gold" />
-              Presupuestos
-            </h2>
-            <p className="text-muted-foreground text-sm">{nf.format(total)} registros encontrados</p>
-          </div>
-        </div>
-        <Button
-          onClick={() => { setEditTarget(null); setFormOpen(true) }}
-          className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo presupuesto
-        </Button>
-      </div>
+      <PageHeader
+        icon={FileText}
+        iconClassName="text-gold"
+        title="Presupuestos"
+        subtitle={`${nf.format(total)} registros encontrados`}
+        actions={
+          <Button
+            onClick={() => { setEditTarget(null); setFormOpen(true) }}
+            className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo presupuesto
+          </Button>
+        }
+      />
 
       {/* ── Filters ── */}
       <div className="rounded-2xl border border-border bg-card/60 p-5 backdrop-blur-sm">
@@ -334,6 +332,6 @@ export function PresupuestosTable() {
         onUpdated={handleUpdated}
         onConverted={() => fetchPresupuestos()}
       />
-    </div>
+    </PageContainer>
   )
 }

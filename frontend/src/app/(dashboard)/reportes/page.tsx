@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { descargarCSV } from "@/lib/csv"
@@ -185,7 +186,7 @@ export default function ReportesPage() {
   const nf = new Intl.NumberFormat("es-AR")
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* ── Header ── */}
       <PageHeader icon={BarChart3} title="Reportes" subtitle="KPIs de producción, tiempos y stock" />
@@ -335,6 +336,6 @@ export default function ReportesPage() {
         )}
       </div>
 
-    </div>
+    </PageContainer>
   )
 }

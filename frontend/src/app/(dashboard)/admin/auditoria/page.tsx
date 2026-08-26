@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { AuditEntry } from "@/lib/api/types"
@@ -149,7 +150,7 @@ export default function AuditoriaPage() {
   ]
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
       {/* ── Header ── */}
       <PageHeader
         icon={ScrollText}
@@ -243,6 +244,6 @@ export default function AuditoriaPage() {
           )}
         </DataTable>
       )}
-    </div>
+    </PageContainer>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { api } from "@/lib/api"
 import type { StockItem, TipoStockItem } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
@@ -32,7 +33,7 @@ export default function StockPage() {
   const handleChanged = useCallback(() => setRefreshKey((k) => k + 1), [])
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* ── Header ── */}
       <PageHeader
@@ -98,6 +99,6 @@ export default function StockPage() {
           handleChanged()
         }}
       />
-    </div>
+    </PageContainer>
   )
 }

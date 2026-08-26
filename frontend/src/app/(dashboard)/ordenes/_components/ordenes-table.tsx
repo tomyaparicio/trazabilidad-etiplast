@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { EmptyState } from "@/components/ui/empty-state"
+import { PageContainer } from "@/components/ui/page-container"
+import { PageHeader } from "@/components/ui/page-header"
 import {
   ClipboardList, Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, FileText,
   AlertTriangle, RotateCcw,
@@ -232,34 +234,26 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
   ]
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-brand" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <ClipboardList className="w-5 h-5 text-brand" />
-              Órdenes de Trabajo
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {total} orden{total !== 1 ? "es" : ""} registrada{total !== 1 ? "s" : ""}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <EscanearOrdenButton />
-          <Button
-            onClick={() => { setEditOrden(null); setFormOpen(true) }}
-            className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-4 rounded-xl"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva Orden
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={ClipboardList}
+        title="Órdenes de Trabajo"
+        subtitle={`${total} orden${total !== 1 ? "es" : ""} registrada${total !== 1 ? "s" : ""}`}
+        actions={
+          <>
+            <EscanearOrdenButton />
+            <Button
+              onClick={() => { setEditOrden(null); setFormOpen(true) }}
+              className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-4 rounded-xl"
+            >
+              <Plus className="w-4 h-4" />
+              Nueva Orden
+            </Button>
+          </>
+        }
+      />
 
       {/* ── Filtros ── */}
       <div className="flex gap-3 flex-wrap">
@@ -381,6 +375,6 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
           toast.success(`Orden ${numero} eliminada`)
         }}
       />
-    </div>
+    </PageContainer>
   )
 }

@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { PageContainer } from "@/components/ui/page-container"
+import { PageHeader } from "@/components/ui/page-header"
 import {
   Truck, Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, FileText, AlertTriangle, RefreshCw,
 } from "lucide-react"
@@ -227,31 +229,23 @@ export function RemitosTable() {
   ]
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-brand" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-              <Truck className="w-5 h-5 text-brand" />
-              Remitos
-            </h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {total} remito{total !== 1 ? "s" : ""} registrado{total !== 1 ? "s" : ""}
-            </p>
-          </div>
-        </div>
-
-        <Button
-          onClick={() => { setEditRemito(null); setFormOpen(true) }}
-          className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-4 rounded-xl"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo Remito
-        </Button>
-      </div>
+      <PageHeader
+        icon={Truck}
+        title="Remitos"
+        subtitle={`${total} remito${total !== 1 ? "s" : ""} registrado${total !== 1 ? "s" : ""}`}
+        actions={
+          <Button
+            onClick={() => { setEditRemito(null); setFormOpen(true) }}
+            className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-4 rounded-xl"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo Remito
+          </Button>
+        }
+      />
 
       {/* ── Filtros ── */}
       <div className="flex gap-3 flex-wrap">
@@ -368,6 +362,6 @@ export function RemitosTable() {
           toast.success(`Remito ${deleteTarget.numero} eliminado`)
         }}
       />
-    </div>
+    </PageContainer>
   )
 }

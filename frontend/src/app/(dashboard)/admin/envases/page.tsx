@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Input } from "@/components/ui/input"
@@ -188,7 +189,7 @@ export default function AdminEnvasesPage() {
   ]
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <PageContainer>
       <PageHeader
         icon={Package}
         iconClassName="text-blue-400"
@@ -237,6 +238,6 @@ export default function AdminEnvasesPage() {
           onDeleted={fetchEnvases}
         />
       )}
-    </div>
+    </PageContainer>
   )
 }

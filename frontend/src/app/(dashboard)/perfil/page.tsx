@@ -6,6 +6,8 @@ import type { UserAdmin } from "@/lib/api/types"
 import { User, Mail, Shield, CheckCircle, XCircle, Hash, TriangleAlert, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageContainer } from "@/components/ui/page-container"
+import { PageHeader } from "@/components/ui/page-header"
 
 const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   admin: { label: "Administrador", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/20" },
@@ -70,17 +72,12 @@ export default function PerfilPage() {
   useEffect(() => { loadProfile() }, [loadProfile])
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[600px] mx-auto">
+    <PageContainer>
 
       {/* ── Header ── */}
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-6 rounded-full bg-gold" />
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">Mi perfil</h2>
-          <p className="text-muted-foreground text-sm">Información de tu cuenta</p>
-        </div>
-      </div>
+      <PageHeader title="Mi perfil" subtitle="Información de tu cuenta" />
 
+      <div className="max-w-[640px] space-y-6">
       {loading && (
         <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
           <div className="flex items-center gap-4">
@@ -154,6 +151,7 @@ export default function PerfilPage() {
           </div>
         </>
       )}
-    </div>
+      </div>
+    </PageContainer>
   )
 }

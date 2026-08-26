@@ -19,7 +19,7 @@ export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
   const openPalette = () => window.dispatchEvent(new CustomEvent("eti:open-command-palette"))
 
   return (
-    <header className="h-16 shrink-0 border-b border-border bg-card/80 px-4 backdrop-blur-md sm:px-6">
+    <header className="h-16 shrink-0 border-b border-border bg-card/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
       <div className="flex h-full items-center justify-between gap-3">
         {/* Izquierda: menú móvil + wordmark (sólo móvil; en desktop está en el sidebar) */}
         <div className="flex shrink-0 items-center gap-2 lg:hidden">
@@ -39,7 +39,7 @@ export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
               <Image src="/logoSOLO.png" alt="Etiplast" width={22} height={22} className="object-contain" />
             </div>
             <span className="font-display text-lg font-bold leading-none text-foreground">
-              eti<span className="text-gold">plast</span>
+              eti<span className="text-etiplast-500">plast</span>
             </span>
           </Link>
         </div>
@@ -58,13 +58,8 @@ export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
           </kbd>
         </button>
 
-        {/* Derecha: estado + acciones + perfil */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
-          <span className="hidden items-center gap-2 text-xs font-medium text-muted-foreground xl:flex">
-            <span className="size-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/15" />
-            Sistema conectado
-          </span>
-
+        {/* Derecha: acciones + perfil */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           {/* Buscador compacto en móvil */}
           <Button
             variant="ghost"
@@ -79,17 +74,18 @@ export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
           <NotificationCenter />
           <ThemeToggle />
 
+          <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
           <Link
             href="/perfil"
-            className="flex items-center gap-2.5 rounded-[12px] py-1 pl-1 pr-1 transition-colors hover:bg-muted sm:pr-3"
+            className="flex items-center gap-2.5 rounded-[12px] p-1 transition-colors hover:bg-muted sm:pr-3"
             aria-label="Mi perfil"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-brand text-sm font-bold text-white">
               {initial}
             </span>
-            <span className="hidden min-w-0 flex-col leading-tight sm:flex">
-              <span className="truncate text-[13px] font-semibold text-foreground">{displayName}</span>
-              <span className="truncate text-[11px] text-muted-foreground">Ver perfil</span>
+            <span className="hidden max-w-[130px] truncate text-[13px] font-semibold text-foreground xl:block">
+              {displayName}
             </span>
           </Link>
         </div>

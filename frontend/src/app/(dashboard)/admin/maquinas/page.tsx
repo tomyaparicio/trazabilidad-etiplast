@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Input } from "@/components/ui/input"
@@ -227,7 +228,7 @@ export default function AdminMaquinasPage() {
   ]
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <PageContainer>
       <PageHeader
         icon={Cog}
         iconClassName="text-violet-400"
@@ -302,6 +303,6 @@ export default function AdminMaquinasPage() {
           onDeleted={fetchMaquinas}
         />
       )}
-    </div>
+    </PageContainer>
   )
 }

@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { PageContainer } from "@/components/ui/page-container"
 import type { DashboardStats, OrdenResumen } from "@/types/database"
 
 const stateStyle: Record<string, string> = {
@@ -94,8 +95,7 @@ export default function DashboardPage() {
   if (error && !stats) return <DashboardError onRetry={load} />
 
   return (
-    <div className="min-h-full bg-background">
-      <div className="mx-auto max-w-[1360px] space-y-5 p-4 sm:p-6 lg:p-8">
+    <PageContainer>
         {/* Header */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -200,16 +200,14 @@ export default function DashboardPage() {
             )}
           </section>
         </div>
-      </div>
-    </div>
+    </PageContainer>
   )
 }
 
 // Estado de error con reintento cuando falla api.dashboard.stats().
 function DashboardError({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="min-h-full bg-background">
-      <div className="mx-auto max-w-[1360px] p-4 sm:p-6 lg:p-8">
+    <PageContainer>
         <div className="rounded-2xl border border-border bg-card px-6 py-20 flex flex-col items-center gap-3 text-center">
           <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
             <TriangleAlert className="w-6 h-6" strokeWidth={1.5} />
@@ -221,16 +219,14 @@ function DashboardError({ onRetry }: { onRetry: () => void }) {
             Reintentar
           </Button>
         </div>
-      </div>
-    </div>
+    </PageContainer>
   )
 }
 
 // Skeleton client-side mientras carga api.dashboard.stats() — respeta el layout real.
 function DashboardSkeleton() {
   return (
-    <div className="min-h-full bg-background">
-      <div className="mx-auto max-w-[1360px] space-y-5 p-4 sm:p-6 lg:p-8">
+    <PageContainer>
         {/* Header */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-2">
@@ -282,7 +278,6 @@ function DashboardSkeleton() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </PageContainer>
   )
 }

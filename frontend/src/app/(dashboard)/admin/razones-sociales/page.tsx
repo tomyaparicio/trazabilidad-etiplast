@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Input } from "@/components/ui/input"
@@ -345,7 +346,7 @@ export default function RazonesSocialesPage() {
   ]
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* Header */}
       <PageHeader
@@ -479,7 +480,7 @@ export default function RazonesSocialesPage() {
           onSaved={handleUpdated}
         />
       )}
-    </div>
+    </PageContainer>
   )
 }
 

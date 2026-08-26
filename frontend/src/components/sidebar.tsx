@@ -5,7 +5,7 @@ import Image from "next/image"
 import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  LayoutDashboard, Users, User, LogOut, Shield, ClipboardList, Building2, Tag, Package, Cog,
+  LayoutDashboard, Users, LogOut, Shield, ClipboardList, Building2, Tag, Package, Cog,
   FileText, Boxes, Truck, CalendarRange, BarChart3, ClipboardCheck, ScrollText,
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -20,7 +20,6 @@ const navigation = [
   { name: "Remitos", href: "/remitos", icon: Truck },
   { name: "Planificación", href: "/planificacion", icon: CalendarRange },
   { name: "Reportes", href: "/reportes", icon: BarChart3 },
-  { name: "Mi perfil", href: "/perfil", icon: User },
 ]
 
 const adminNavigation = [
@@ -57,14 +56,15 @@ function NavItem({
       href={href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
-      className={`group flex items-center gap-3 rounded-[13px] px-3 py-2.5 text-[13.5px] font-medium transition-all duration-200 ${
+      className={`group relative flex items-center gap-3 rounded-[11px] px-3 py-2.5 text-[13.5px] font-medium transition-colors duration-200 ${
         active
-          ? "bg-gold text-[#101248] shadow-[0_10px_22px_-12px_rgba(245,235,74,0.9)]"
-          : "text-[#c3c7ef] hover:bg-white/10 hover:text-white"
+          ? "bg-white/12 text-white font-semibold"
+          : "text-white/70 hover:bg-white/[0.07] hover:text-white"
       }`}
     >
+      {active && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-gold" />}
       <Icon
-        className={`h-[18px] w-[18px] shrink-0 transition-colors ${active ? "text-[#101248]" : "text-[#aab0ee] group-hover:text-white"}`}
+        className={`h-[18px] w-[18px] shrink-0 transition-colors ${active ? "text-gold" : "text-white/55 group-hover:text-white"}`}
         strokeWidth={active ? 2.2 : 1.8}
       />
       <span className="truncate">{name}</span>
@@ -109,13 +109,13 @@ function SidebarContent({
           <p className="font-display text-[20px] font-bold leading-none tracking-tight text-white">
             eti<span className="text-etiplast-500">plast</span>
           </p>
-          <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.22em] text-[#aab0ee]">Sistema operativo</p>
+          <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.22em] text-white/50">Sistema operativo</p>
         </div>
       </div>
 
       {/* Navegación */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-        <p className="mb-2 mt-1 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aab0ee]">
+        <p className="mb-2 mt-1 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
           Menú
         </p>
         {navigation.map((item) => (
@@ -131,7 +131,7 @@ function SidebarContent({
 
         {isAdmin && (
           <>
-            <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#aab0ee]">
+            <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
               Administración
             </p>
             {adminNavigation.map((item) => (
@@ -148,25 +148,32 @@ function SidebarContent({
         )}
       </nav>
 
-      {/* Usuario */}
+      {/* Cuenta */}
       <div className="border-t border-white/10 p-3">
-        <div className="group flex items-center gap-3 rounded-[13px] px-2.5 py-2 transition-colors hover:bg-white/10">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-white/10 text-xs font-bold text-white ring-1 ring-white/15">
-            {(userName || userEmail)?.[0]?.toUpperCase() || "U"}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="mb-0.5 truncate text-[13px] font-semibold leading-none text-white">
-              {userName || userEmail?.split("@")[0]}
-            </p>
-            <p className="truncate text-[11px] text-[#aab0ee]">{userEmail}</p>
-          </div>
+        <div className="flex items-center gap-2 rounded-[12px] p-1 transition-colors hover:bg-white/[0.07]">
+          <Link
+            href="/perfil"
+            onClick={onNavigate}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] px-1.5 py-1.5"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-white/10 text-xs font-bold text-white ring-1 ring-white/15">
+              {(userName || userEmail)?.[0]?.toUpperCase() || "U"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="mb-0.5 truncate text-[13px] font-semibold leading-none text-white">
+                {userName || userEmail?.split("@")[0]}
+              </p>
+              <p className="truncate text-[11px] text-white/50">{userEmail}</p>
+            </div>
+          </Link>
           <button
             type="button"
             onClick={handleSignOut}
             aria-label="Cerrar sesión"
-            className="shrink-0 rounded-[9px] p-1.5 text-[#aab0ee] transition-all hover:bg-white/10 hover:text-white"
+            title="Cerrar sesión"
+            className="shrink-0 rounded-[9px] p-2 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
           >
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="h-4 w-4" />
           </button>
         </div>
       </div>

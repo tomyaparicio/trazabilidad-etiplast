@@ -6,6 +6,8 @@ import type { Cliente, Filtros } from "@/types/database"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { PageContainer } from "@/components/ui/page-container"
+import { PageHeader } from "@/components/ui/page-header"
 import { Search, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Filter, MapPin, Tag, TriangleAlert, RefreshCw } from "lucide-react"
 import { ClienteDetailDialog } from "./cliente-detail-dialog"
 import { ClienteNuevoDialog } from "./cliente-nuevo-dialog"
@@ -217,45 +219,44 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
+    <PageContainer>
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-gold" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Clientes</h2>
-            <p className="text-muted-foreground text-sm">{nf.format(total)} registros encontrados</p>
-          </div>
+      <PageHeader
+        title="Clientes"
+        subtitle={`${nf.format(total)} registros encontrados`}
+        actions={
+          <Button
+            onClick={() => setNuevoDialogOpen(true)}
+            className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo cliente
+          </Button>
+        }
+      />
+
+      {/* ── Chips de filtros activos ── */}
+      {(rubro || provincia) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {rubro && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-chart-1/10 text-chart-1 border border-chart-1/20 px-3 py-1.5 rounded-xl">
+              {rubro}
+              <button onClick={() => { setRubro(""); setPage(1) }} className="hover:text-foreground transition-colors">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {provincia && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-xl">
+              {provincia}
+              <button onClick={() => { setProvincia(""); setPage(1) }} className="hover:text-foreground transition-colors">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
         </div>
-        <Button
-          onClick={() => setNuevoDialogOpen(true)}
-          className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo cliente
-        </Button>
-        {(rubro || provincia) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {rubro && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-chart-1/10 text-chart-1 border border-chart-1/20 px-3 py-1.5 rounded-xl">
-                {rubro}
-                <button onClick={() => { setRubro(""); setPage(1) }} className="hover:text-foreground transition-colors">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {provincia && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-xl">
-                {provincia}
-                <button onClick={() => { setProvincia(""); setPage(1) }} className="hover:text-foreground transition-colors">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* ── Filters ── */}
       <div className="rounded-2xl border border-border bg-card/60 p-5 backdrop-blur-sm">
@@ -412,6 +413,6 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
         onCreated={handleClienteCreated}
         filtros={filtros}
       />
-    </div>
+    </PageContainer>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { PageContainer } from "@/components/ui/page-container"
 import { api } from "@/lib/api"
 import type { Maquina } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
@@ -193,7 +194,7 @@ export default function PlanificacionPage() {
   const rangoLabel = `${lunes.toLocaleDateString("es-AR", { day: "numeric", month: "short" })} – ${sumarDias(lunes, 6).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}`
 
   return (
-    <div className="p-6 lg:p-8 space-y-5 max-w-[1400px] mx-auto">
+    <PageContainer>
       {/* ── Header ── */}
       <PageHeader
         icon={CalendarRange}
@@ -392,6 +393,6 @@ export default function PlanificacionPage() {
         plan={planEditando}
         fechaSugerida={desde}
       />
-    </div>
+    </PageContainer>
   )
 }
