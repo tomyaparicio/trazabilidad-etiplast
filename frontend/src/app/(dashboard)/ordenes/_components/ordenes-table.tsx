@@ -1,14 +1,18 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { OrdenTrabajo, EstadoOrden } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   ClipboardList, Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, FileText,
+  AlertTriangle, RotateCcw,
 } from "lucide-react"
 import { OrdenFormDialog } from "./orden-form-dialog"
 import { OrdenDetailDialog } from "./orden-detail-dialog"
@@ -61,6 +65,8 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
   const [editOrden, setEditOrden] = useState<OrdenTrabajo | null>(null)
   const [detailOrden, setDetailOrden] = useState<OrdenTrabajo | null>(null)
   const [prefill, setPrefill] = useState<OrderPrefill | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<OrdenTrabajo | null>(null)
 
   // ── Escuchar evento del agente de voz ─────────────────────────────────────
   useEffect(() => {
@@ -78,6 +84,7 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
 
   const fetchOrdenes = useCallback(async (p: number, s: string, estado: string) => {
     setLoading(true)
+    setError(null)
     try {
       const params: Record<string, string | number | undefined> = {
         page: p,
@@ -90,6 +97,7 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
       setTotal(res.total)
     } catch (err) {
       console.error(err)
+      setError(err instanceof Error ? err.message : "No se pudieron cargar las órdenes")
     } finally {
       setLoading(false)
     }
@@ -123,16 +131,7 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
     setFormOpen(false)
   }
 
-  const handleDelete = async (orden: OrdenTrabajo) => {
-    if (!confirm(`¿Eliminar la orden ${orden.numero}? Esta acción no se puede deshacer.`)) return
-    try {
-      await api.ordenes.delete(orden.id)
-      setOrdenes((prev) => prev.filter((o) => o.id !== orden.id))
-      setTotal((t) => t - 1)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al eliminar")
-    }
-  }
+  const handleDeleteClick = (orden: OrdenTrabajo) => setDeleteTarget(orden)
 
   const handleEdit = (orden: OrdenTrabajo) => {
     setEditOrden(orden)
@@ -205,22 +204,25 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
         >
           <button
             onClick={() => window.open(`/print/ordenes/${orden.id}`, "_blank")}
-            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             title="Ver PDF"
+            aria-label="Ver PDF de la orden"
           >
             <FileText className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => handleEdit(orden)}
-            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             title="Editar"
+            aria-label="Editar orden"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => handleDelete(orden)}
-            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            onClick={() => handleDeleteClick(orden)}
+            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             title="Eliminar"
+            aria-label="Eliminar orden"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -290,44 +292,62 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
       </div>
 
       {/* ── Tabla ── */}
-      <DataTable
-        columns={columns}
-        data={ordenes}
-        loading={loading}
-        keyExtractor={(o) => o.id}
-        onRowClick={setDetailOrden}
-        emptyIcon={<ClipboardList className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
-        emptyTitle="No hay órdenes"
-        emptyDescription="Creá la primera orden de trabajo"
-        skeletonRows={8}
-      >
-        {/* ── Paginación ── */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-border">
-            <span className="text-xs text-muted-foreground">
-              Página {page} de {totalPages}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline" size="sm"
-                onClick={() => goToPage(page - 1)}
-                disabled={page === 1}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline" size="sm"
-                onClick={() => goToPage(page + 1)}
-                disabled={page >= totalPages}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
+      {error ? (
+        <EmptyState
+          icon={<AlertTriangle className="w-8 h-8 text-destructive" strokeWidth={1.5} />}
+          title="No se pudieron cargar las órdenes"
+          description={error}
+          action={
+            <Button
+              variant="outline"
+              onClick={() => fetchOrdenes(page, search, estadoFilter)}
+              className="gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reintentar
+            </Button>
+          }
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={ordenes}
+          loading={loading}
+          keyExtractor={(o) => o.id}
+          onRowClick={setDetailOrden}
+          emptyIcon={<ClipboardList className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
+          emptyTitle="No hay órdenes"
+          emptyDescription="Creá la primera orden de trabajo"
+          skeletonRows={8}
+        >
+          {/* ── Paginación ── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                Página {page} de {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page === 1}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </DataTable>
+          )}
+        </DataTable>
+      )}
 
       {/* ── Dialogs ── */}
       <OrdenFormDialog
@@ -345,6 +365,22 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
           onEdit={() => { handleEdit(detailOrden); setDetailOrden(null) }}
         />
       )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title={deleteTarget ? `¿Eliminar la orden ${deleteTarget.numero}?` : "¿Eliminar orden?"}
+        description="Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!deleteTarget) return
+          const numero = deleteTarget.numero
+          await api.ordenes.delete(deleteTarget.id)
+          setOrdenes((prev) => prev.filter((o) => o.id !== deleteTarget.id))
+          setTotal((t) => t - 1)
+          toast.success(`Orden ${numero} eliminada`)
+        }}
+      />
     </div>
   )
 }

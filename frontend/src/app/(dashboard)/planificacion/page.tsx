@@ -5,10 +5,11 @@ import { api } from "@/lib/api"
 import type { Maquina } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
+import { Select } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
-  CalendarRange, ChevronLeft, ChevronRight, Layers, Plus, Printer, Scissors,
+  AlertTriangle, CalendarRange, ChevronLeft, ChevronRight, Layers, Plus, Printer, RefreshCw, Scissors,
   type LucideIcon,
 } from "lucide-react"
 import { PlanDialog, type PlanRow } from "./_components/plan-dialog"
@@ -112,8 +113,11 @@ function posicionarBloques(planes: PlanRow[], lunes: Date): BloquePosicionado[] 
 export default function PlanificacionPage() {
   const [lunes, setLunes] = useState<Date>(() => lunesDe(new Date()))
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
+  const [maquinasLoading, setMaquinasLoading] = useState(true)
+  const [maquinasError, setMaquinasError] = useState(false)
   const [planes, setPlanes] = useState<PlanRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [filtroEtapa, setFiltroEtapa] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [planEditando, setPlanEditando] = useState<PlanRow | null>(null)
@@ -122,12 +126,25 @@ export default function PlanificacionPage() {
   const hasta = toISO(sumarDias(lunes, 6))
   const hoyISO = toISO(new Date())
 
-  useEffect(() => {
-    api.maquinas.list().then(setMaquinas).catch(() => setMaquinas([]))
+  const cargarMaquinas = useCallback(async () => {
+    setMaquinasLoading(true)
+    setMaquinasError(false)
+    try {
+      setMaquinas(await api.maquinas.list())
+    } catch {
+      setMaquinasError(true)
+    } finally {
+      setMaquinasLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    cargarMaquinas()
+  }, [cargarMaquinas])
 
   const cargarPlanes = useCallback(async () => {
     setLoading(true)
+    setError(false)
     try {
       const data = await api.planificacion.list({
         desde,
@@ -136,7 +153,7 @@ export default function PlanificacionPage() {
       })
       setPlanes(data as PlanRow[])
     } catch {
-      setPlanes([])
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -145,6 +162,13 @@ export default function PlanificacionPage() {
   useEffect(() => {
     cargarPlanes()
   }, [cargarPlanes])
+
+  // Gate único de carga/error: la grilla necesita máquinas Y planes para
+  // renderizar algo con sentido, así que ambos fetch comparten un solo estado
+  // visual (evita el flash de "no hay máquinas" mientras todavía cargan).
+  const cargando = loading || maquinasLoading
+  const huboError = error || maquinasError
+  const reintentar = () => { cargarMaquinas(); cargarPlanes() }
 
   const dias = useMemo(() => Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i)), [lunes])
 
@@ -196,15 +220,18 @@ export default function PlanificacionPage() {
           </Button>
           <span className="text-sm font-medium text-foreground ml-2 capitalize">{rangoLabel}</span>
         </div>
-        <select
-          value={filtroEtapa}
-          onChange={(e) => setFiltroEtapa(e.target.value)}
-          className="h-8 text-sm border border-input rounded-lg px-2.5 bg-background"
-        >
-          {ETAPAS_FILTRO.map((e) => (
-            <option key={e.value} value={e.value}>{e.label}</option>
-          ))}
-        </select>
+        <div className="w-48 shrink-0">
+          <Select
+            value={filtroEtapa}
+            onChange={(e) => setFiltroEtapa(e.target.value)}
+            aria-label="Filtrar por etapa"
+            className="h-8 text-sm"
+          >
+            {ETAPAS_FILTRO.map((e) => (
+              <option key={e.value} value={e.value}>{e.label}</option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {/* ── Grilla semanal ── */}
@@ -234,11 +261,25 @@ export default function PlanificacionPage() {
               })}
             </div>
 
-            {loading ? (
+            {cargando ? (
               <div className="p-4 space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <Skeleton key={i} className="h-10 w-full bg-muted rounded-lg" />
                 ))}
+              </div>
+            ) : huboError ? (
+              <div className="p-10 flex flex-col items-center justify-center gap-3 text-center">
+                <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+                  <AlertTriangle className="w-6 h-6" strokeWidth={1.5} />
+                </div>
+                <p className="text-sm font-medium text-foreground">No se pudo cargar la planificación</p>
+                <p className="max-w-sm text-xs text-muted-foreground">
+                  Puede ser un problema de conexión o que el servidor esté iniciando. Intentá de nuevo.
+                </p>
+                <Button onClick={reintentar} variant="outline" size="sm" className="mt-1 gap-2">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Reintentar
+                </Button>
               </div>
             ) : grupos.length === 0 ? (
               <div className="p-10 flex flex-col items-center justify-center text-center">

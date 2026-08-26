@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, Filtros, RazonSocial } from "@/types/database"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -138,12 +139,15 @@ function RazonSocialSelector({
   }
 
   const handleCreate = async () => {
-    if (!query.trim()) return
+    if (!query.trim() || creating) return
     setCreating(true)
     try {
       const rs = await api.razonessociales.create({ razon_social: query.trim() })
       setOpen(false)
       onChange(rs.id, rs.razon_social, rs.cuit)
+      toast.success("Razón social creada")
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudo crear la razón social")
     } finally {
       setCreating(false)
     }
@@ -217,6 +221,14 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
   }
 
   const handleSave = async () => {
+    if (saving) return
+    // Validación de campo obligatorio (la marca identifica al cliente en toda la app)
+    if (!String(formData.marca ?? "").trim()) {
+      setSaveMsg("error")
+      setActiveGroup("general")
+      toast.error("La marca es obligatoria")
+      return
+    }
     setSaving(true)
     setSaveMsg("")
     try {
@@ -239,12 +251,11 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
 
       const created = await api.clientes.create(insert)
       onCreated(created as Cliente)
-      setSaveMsg("success")
-      setTimeout(() => {
-        handleOpen(false)
-      }, 1500)
-    } catch {
+      toast.success("Cliente creado correctamente")
+      handleOpen(false)
+    } catch (e) {
       setSaveMsg("error")
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudo crear el cliente")
     } finally {
       setSaving(false)
     }

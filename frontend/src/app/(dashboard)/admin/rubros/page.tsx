@@ -1,13 +1,18 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
+import { PageHeader } from "@/components/ui/page-header"
+import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tag, Plus, Pencil, Trash2, Loader2, Users, AlertTriangle } from "lucide-react"
 
 interface Rubro {
@@ -53,18 +58,21 @@ function RubroFormDialog({
       } else {
         await api.admin.rubros.create(n)
       }
+      toast.success(rubro ? "Rubro actualizado" : "Rubro creado")
       onSaved()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar")
+      const msg = err instanceof Error ? err.message : "Error al guardar"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+    <Dialog open onOpenChange={(open) => { if (!open && !loading) onClose() }}>
+      <DialogContent showCloseButton={!loading} className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{rubro ? "Renombrar rubro" : "Nuevo rubro"}</DialogTitle>
           <DialogDescription>
@@ -82,7 +90,7 @@ function RubroFormDialog({
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button type="submit" disabled={loading || !nombre.trim()}>
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {loading && <Loader2 className="size-4 animate-spin" />}
               {rubro ? "Guardar" : "Crear"}
             </Button>
           </DialogFooter>
@@ -92,7 +100,7 @@ function RubroFormDialog({
   )
 }
 
-// ─── Eliminar dialog ──────────────────────────────────────────────────────────
+// ─── Eliminar dialog (custom: soporta reasignación mover_a) ───────────────────
 function EliminarRubroDialog({
   rubro,
   rubros,
@@ -115,18 +123,21 @@ function EliminarRubroDialog({
     setError("")
     try {
       await api.admin.rubros.delete(rubro.id, moverA !== "" ? moverA : undefined)
+      toast.success("Rubro eliminado")
       onDeleted()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al eliminar")
+      const msg = err instanceof Error ? err.message : "Error al eliminar"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+    <Dialog open onOpenChange={(open) => { if (!open && !loading) onClose() }}>
+      <DialogContent showCloseButton={!loading} className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-400">
             <AlertTriangle className="w-4 h-4" />
@@ -146,8 +157,8 @@ function EliminarRubroDialog({
               <p className="text-sm text-muted-foreground">
                 Mover los clientes a otro rubro antes de eliminar:
               </p>
-              <select
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              <Select
+                aria-label="Rubro destino"
                 value={moverA}
                 onChange={(e) => setMoverA(e.target.value === "" ? "" : Number(e.target.value))}
               >
@@ -155,7 +166,7 @@ function EliminarRubroDialog({
                 {opciones.map((r) => (
                   <option key={r.id} value={r.id}>{r.nombre}</option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
           {error && <p className="text-sm text-red-400">{error}</p>}
@@ -168,7 +179,7 @@ function EliminarRubroDialog({
             onClick={handleDelete}
             disabled={loading || (tieneClientes && moverA === "")}
           >
-            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {loading && <Loader2 className="size-4 animate-spin" />}
             Eliminar
           </Button>
         </DialogFooter>
@@ -200,92 +211,89 @@ export default function AdminRubrosPage() {
 
   useEffect(() => { fetchRubros() }, [fetchRubros])
 
+  const columns: ColumnDef<Rubro>[] = [
+    {
+      key: "nombre",
+      header: "Nombre",
+      cell: (r) => (
+        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${rubroClass(r.nombre)}`}>
+          {r.nombre}
+        </span>
+      ),
+    },
+    {
+      key: "cantidad_clientes",
+      header: "Clientes",
+      cell: (r) => (
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Users className="w-3.5 h-3.5" />
+          {r.cantidad_clientes}
+        </span>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "",
+      headerClassName: "text-right",
+      cellClassName: "text-right",
+      cell: (r) => (
+        <div className="flex justify-end gap-1">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Renombrar rubro"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setFormRubro(r)}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Eliminar rubro"
+            className="text-muted-foreground hover:text-red-400"
+            onClick={() => setDeleteRubro(r)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-            <Tag className="w-5 h-5 text-amber-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Rubros</h1>
-            <p className="text-sm text-muted-foreground">{rubros.length} rubros en el sistema</p>
-          </div>
-        </div>
-        <Button onClick={() => setFormRubro(null)} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Nuevo rubro
-        </Button>
-      </div>
+      <PageHeader
+        icon={Tag}
+        iconClassName="text-amber-400"
+        title="Rubros"
+        subtitle={`${rubros.length} rubros en el sistema`}
+        actions={
+          <Button onClick={() => setFormRubro(null)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Nuevo rubro
+          </Button>
+        }
+      />
 
       {/* Content */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : error ? (
-        <p className="text-sm text-red-400 text-center py-8">{error}</p>
+      {error ? (
+        <EmptyState
+          icon={<AlertTriangle className="w-8 h-8" strokeWidth={1.5} />}
+          title="No se pudieron cargar los rubros"
+          description={error}
+          action={<Button variant="outline" size="sm" onClick={fetchRubros}>Reintentar</Button>}
+        />
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Clientes</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {rubros.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="text-center py-10 text-muted-foreground text-sm">
-                    No hay rubros cargados.
-                  </td>
-                </tr>
-              ) : (
-                rubros.map((rubro, i) => (
-                  <tr
-                    key={rubro.id}
-                    className={`border-b border-border last:border-0 hover:bg-accent/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}
-                  >
-                    <td className="px-4 py-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${rubroClass(rubro.nombre)}`}>
-                        {rubro.nombre}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <Users className="w-3.5 h-3.5" />
-                        {rubro.cantidad_clientes}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="w-8 h-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => setFormRubro(rubro)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="w-8 h-8 text-muted-foreground hover:text-red-400"
-                          onClick={() => setDeleteRubro(rubro)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={rubros}
+          loading={loading}
+          keyExtractor={(r) => r.id}
+          emptyIcon={<Tag className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
+          emptyTitle="Sin rubros"
+          emptyDescription='No hay rubros cargados. Creá el primero con "Nuevo rubro".'
+        />
       )}
 
       {/* Dialogs */}

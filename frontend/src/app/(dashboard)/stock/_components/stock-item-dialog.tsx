@@ -134,6 +134,7 @@ export function StockItemDialog({ open, item, tipoInicial, onClose, onSaved }: S
           <div>
             <label className={labelCls}>Código</label>
             <Input
+              autoFocus
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
               placeholder="MP-001"
@@ -220,7 +221,7 @@ export function StockItemDialog({ open, item, tipoInicial, onClose, onSaved }: S
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || !nombre.trim()}
             className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}

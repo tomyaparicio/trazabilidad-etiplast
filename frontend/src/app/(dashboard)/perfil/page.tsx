@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { api } from "@/lib/api"
 import type { UserAdmin } from "@/lib/api/types"
-import { User, Mail, Shield, CheckCircle, XCircle, Hash } from "lucide-react"
+import { User, Mail, Shield, CheckCircle, XCircle, Hash, TriangleAlert, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   admin: { label: "Administrador", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/20" },
@@ -56,12 +58,16 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  useEffect(() => {
+  const loadProfile = useCallback(() => {
+    setLoading(true)
+    setError("")
     api.auth.me()
       .then(setUser)
       .catch(() => setError("No se pudo cargar la información del perfil."))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { loadProfile() }, [loadProfile])
 
   return (
     <div className="p-6 lg:p-8 space-y-6 max-w-[600px] mx-auto">
@@ -76,14 +82,35 @@ export default function PerfilPage() {
       </div>
 
       {loading && (
-        <div className="rounded-2xl border border-border bg-card/80 p-8 flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
+          <div className="flex items-center gap-4">
+            <Skeleton className="w-16 h-16 rounded-2xl shrink-0" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-52" />
+            </div>
+          </div>
+          <div className="border-t border-border pt-4 space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {error && !loading && (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
-          {error}
+        <div className="rounded-2xl border border-border bg-card px-6 py-12 flex flex-col items-center gap-3 text-center">
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+            <TriangleAlert className="w-6 h-6" strokeWidth={1.5} />
+          </div>
+          <p className="text-sm font-medium text-foreground">{error}</p>
+          <Button onClick={loadProfile} variant="outline" className="mt-1 gap-2">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Reintentar
+          </Button>
         </div>
       )}
 

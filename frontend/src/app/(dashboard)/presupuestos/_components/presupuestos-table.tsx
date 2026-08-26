@@ -4,11 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { api } from "@/lib/api"
 import type { EstadoPresupuesto, Presupuesto } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
-  ChevronDown, ChevronLeft, ChevronRight, FileText, Filter, Plus, Search, Tag, X,
+  AlertTriangle, ChevronLeft, ChevronRight, FileText, Filter, Plus, RefreshCw, Search, Tag, X,
 } from "lucide-react"
 import { PresupuestoFormDialog } from "./presupuesto-form-dialog"
 import { PresupuestoDetailDialog } from "./presupuesto-detail-dialog"
@@ -119,6 +121,7 @@ export function PresupuestosTable() {
   const [selected, setSelected] = useState<PresupuestoRow | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<PresupuestoRow | null>(null)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     debounceRef.current = setTimeout(() => setSearchDebounced(search), 300)
@@ -131,6 +134,7 @@ export function PresupuestosTable() {
 
   const fetchPresupuestos = useCallback(async () => {
     setLoading(true)
+    setError("")
     try {
       const res = await api.presupuestos.list({
         page,
@@ -142,6 +146,7 @@ export function PresupuestosTable() {
       setTotal(res.total || 0)
     } catch (err) {
       console.error(err)
+      setError(err instanceof Error ? err.message : "No se pudieron cargar los presupuestos")
     } finally {
       setLoading(false)
     }
@@ -231,74 +236,87 @@ export function PresupuestosTable() {
               Estado
             </label>
             <div className="relative">
-              <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <select
+              <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none z-10" />
+              <Select
                 value={estado}
                 onChange={(e) => { setEstado(e.target.value); setPage(1) }}
                 aria-label="Filtrar por estado"
-                className="h-11 w-full pl-10 pr-10 bg-input border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-gold/40 focus:ring-2 focus:ring-gold/10 transition-all cursor-pointer appearance-none"
+                className="h-11 pl-10 rounded-xl focus-visible:border-gold/40 focus-visible:ring-gold/15"
               >
-                <option value="" className="bg-background">Todos los estados</option>
+                <option value="">Todos los estados</option>
                 {(Object.keys(ESTADO_PRESUPUESTO) as EstadoPresupuesto[]).map((e) => (
-                  <option key={e} value={e} className="bg-background">{ESTADO_PRESUPUESTO[e].label}</option>
+                  <option key={e} value={e}>{ESTADO_PRESUPUESTO[e].label}</option>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </Select>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Table ── */}
-      <DataTable
-        columns={COLUMNS}
-        data={presupuestos}
-        loading={loading}
-        keyExtractor={(p) => p.id}
-        onRowClick={setSelected}
-        emptyIcon={<FileText className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
-        emptyTitle="Sin presupuestos"
-        emptyDescription="No se encontraron presupuestos con los filtros aplicados"
-      >
-        {totalPages > 1 && (
-          <nav className="flex items-center justify-between px-5 py-4 border-t border-border" aria-label="Paginación">
-            <p className="text-xs text-muted-foreground">
-              Mostrando{" "}
-              <span className="text-foreground font-medium tabular-nums">
-                {nf.format((page - 1) * perPage + 1)}–{nf.format(Math.min(page * perPage, total))}
-              </span>{" "}
-              de{" "}
-              <span className="text-foreground font-medium tabular-nums">{nf.format(total)}</span>
-            </p>
-            <div className="flex gap-1.5">
-              <Button variant="outline" size="icon"
-                className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
-                onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Página anterior"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </Button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const p = page <= 3 ? i + 1 : page + i - 2
-                if (p < 1 || p > totalPages) return null
-                return (
-                  <Button key={p} variant="outline" size="icon"
-                    className={`h-8 w-8 text-xs tabular-nums transition-all rounded-lg ${p === page ? "bg-gold/10 border-gold/30 text-gold hover:bg-gold/15 font-semibold" : "bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-                    onClick={() => setPage(p)} aria-current={p === page ? "page" : undefined}
-                  >
-                    {p}
-                  </Button>
-                )
-              })}
-              <Button variant="outline" size="icon"
-                className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
-                onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} aria-label="Página siguiente"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </nav>
-        )}
-      </DataTable>
+      {error ? (
+        <EmptyState
+          icon={<AlertTriangle className="w-8 h-8 text-destructive" strokeWidth={1.5} />}
+          title="No se pudieron cargar los presupuestos"
+          description={error}
+          action={
+            <Button onClick={fetchPresupuestos} className="bg-brand hover:bg-brand-strong text-white gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Reintentar
+            </Button>
+          }
+        />
+      ) : (
+        <DataTable
+          columns={COLUMNS}
+          data={presupuestos}
+          loading={loading}
+          keyExtractor={(p) => p.id}
+          onRowClick={setSelected}
+          emptyIcon={<FileText className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
+          emptyTitle="Sin presupuestos"
+          emptyDescription="No se encontraron presupuestos con los filtros aplicados"
+        >
+          {totalPages > 1 && (
+            <nav className="flex items-center justify-between px-5 py-4 border-t border-border" aria-label="Paginación">
+              <p className="text-xs text-muted-foreground">
+                Mostrando{" "}
+                <span className="text-foreground font-medium tabular-nums">
+                  {nf.format((page - 1) * perPage + 1)}–{nf.format(Math.min(page * perPage, total))}
+                </span>{" "}
+                de{" "}
+                <span className="text-foreground font-medium tabular-nums">{nf.format(total)}</span>
+              </p>
+              <div className="flex gap-1.5">
+                <Button variant="outline" size="icon"
+                  className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
+                  onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Página anterior"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const p = page <= 3 ? i + 1 : page + i - 2
+                  if (p < 1 || p > totalPages) return null
+                  return (
+                    <Button key={p} variant="outline" size="icon"
+                      className={`h-8 w-8 text-xs tabular-nums transition-all rounded-lg ${p === page ? "bg-gold/10 border-gold/30 text-gold hover:bg-gold/15 font-semibold" : "bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                      onClick={() => setPage(p)} aria-current={p === page ? "page" : undefined}
+                    >
+                      {p}
+                    </Button>
+                  )
+                })}
+                <Button variant="outline" size="icon"
+                  className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
+                  onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} aria-label="Página siguiente"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </nav>
+          )}
+        </DataTable>
+      )}
 
       {/* ── Dialogs ── */}
       {formOpen && (

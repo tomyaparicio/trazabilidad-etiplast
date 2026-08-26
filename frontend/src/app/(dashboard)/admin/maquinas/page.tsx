@@ -1,13 +1,19 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { PageHeader } from "@/components/ui/page-header"
+import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Cog, Plus, Pencil, Trash2, Loader2, AlertTriangle } from "lucide-react"
 
 type TipoMaquina = "impresion" | "extrusion" | "troquelado"
@@ -58,18 +64,21 @@ function MaquinaFormDialog({
       } else {
         await api.admin.maquinas.create({ nombre: n, tipo })
       }
+      toast.success(isEdit ? "Máquina actualizada" : "Máquina creada")
       onSaved()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar")
+      const msg = err instanceof Error ? err.message : "Error al guardar"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+    <Dialog open onOpenChange={(open) => { if (!open && !loading) onClose() }}>
+      <DialogContent showCloseButton={!loading} className="max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar máquina" : "Nueva máquina"}</DialogTitle>
           <DialogDescription>
@@ -85,15 +94,11 @@ function MaquinaFormDialog({
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-1.5">Tipo</label>
-            <select
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value as TipoMaquina)}
-              className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-            >
+            <Select aria-label="Tipo de máquina" value={tipo} onChange={(e) => setTipo(e.target.value as TipoMaquina)}>
               {TIPOS.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
-            </select>
+            </Select>
           </div>
           {isEdit && (
             <label className="flex items-center gap-2 cursor-pointer text-sm">
@@ -105,7 +110,7 @@ function MaquinaFormDialog({
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
             <Button type="submit" disabled={loading || !nombre.trim()}>
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {loading && <Loader2 className="size-4 animate-spin" />}
               {isEdit ? "Guardar" : "Crear"}
             </Button>
           </DialogFooter>
@@ -125,46 +130,25 @@ function EliminarMaquinaDialog({
   onClose: () => void
   onDeleted: () => void
 }) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-
-  const handleDelete = async () => {
-    setLoading(true)
-    setError("")
-    try {
-      await api.admin.maquinas.delete(maquina.id)
-      onDeleted()
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al eliminar")
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-red-400">
-            <AlertTriangle className="w-4 h-4" />
-            Eliminar máquina
-          </DialogTitle>
-          <DialogDescription>
-            Se eliminará <span className="font-semibold text-foreground">{maquina.nombre}</span>.
-            Si un producto la tenía asignada como impresora, quedará sin impresora (no se borran productos).
-          </DialogDescription>
-        </DialogHeader>
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={loading}>
-            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Eliminar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open
+      onOpenChange={(open) => { if (!open) onClose() }}
+      title="Eliminar máquina"
+      description={
+        <>
+          Se eliminará <span className="font-semibold text-foreground">{maquina.nombre}</span>.
+          Si un producto la tenía asignada como impresora, quedará sin impresora (no se borran productos).
+        </>
+      }
+      confirmLabel="Eliminar"
+      variant="destructive"
+      onConfirm={async () => {
+        await api.admin.maquinas.delete(maquina.id)
+        toast.success("Máquina eliminada")
+        onDeleted()
+      }}
+    />
   )
 }
 
@@ -192,26 +176,70 @@ export default function AdminMaquinasPage() {
 
   useEffect(() => { fetchMaquinas() }, [fetchMaquinas])
 
+  const columns: ColumnDef<MaquinaRow>[] = [
+    {
+      key: "nombre",
+      header: "Nombre",
+      cell: (r) => <span className="text-sm font-medium text-foreground">{r.nombre}</span>,
+    },
+    {
+      key: "tipo",
+      header: "Tipo",
+      cell: (r) => <span className="text-sm text-muted-foreground">{labelTipo(r.tipo)}</span>,
+    },
+    {
+      key: "activa",
+      header: "Estado",
+      cell: (r) => (
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${r.activa ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" : "border-border text-muted-foreground bg-muted/30"}`}>
+          {r.activa ? "Activa" : "Inactiva"}
+        </span>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "",
+      headerClassName: "text-right",
+      cellClassName: "text-right",
+      cell: (r) => (
+        <div className="flex justify-end gap-1">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Editar máquina"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setFormMaquina(r)}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Eliminar máquina"
+            className="text-muted-foreground hover:text-red-400"
+            onClick={() => setDeleteMaquina(r)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-            <Cog className="w-5 h-5 text-violet-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold">Máquinas</h1>
-            <p className="text-sm text-muted-foreground">
-              {maquinas.length} registro{maquinas.length === 1 ? "" : "s"}
-              {filtroTipo ? ` · ${labelTipo(filtroTipo)}` : ""}
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => setFormMaquina(null)} className="gap-2 shrink-0">
-          <Plus className="w-4 h-4" />
-          Nueva máquina
-        </Button>
-      </div>
+      <PageHeader
+        icon={Cog}
+        iconClassName="text-violet-400"
+        title="Máquinas"
+        subtitle={`${maquinas.length} registro${maquinas.length === 1 ? "" : "s"}${filtroTipo ? ` · ${labelTipo(filtroTipo)}` : ""}`}
+        actions={
+          <Button onClick={() => setFormMaquina(null)} className="gap-2 shrink-0">
+            <Plus className="w-4 h-4" />
+            Nueva máquina
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -237,69 +265,27 @@ export default function AdminMaquinasPage() {
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : error ? (
-        <p className="text-sm text-red-400 text-center py-8">{error}</p>
+      {error ? (
+        <EmptyState
+          icon={<AlertTriangle className="w-8 h-8" strokeWidth={1.5} />}
+          title="No se pudieron cargar las máquinas"
+          description={error}
+          action={<Button variant="outline" size="sm" onClick={fetchMaquinas}>Reintentar</Button>}
+        />
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tipo</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estado</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {maquinas.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-10 text-muted-foreground text-sm">
-                    No hay máquinas{filtroTipo ? ` de tipo ${labelTipo(filtroTipo)}` : ""}. Creá una con &ldquo;Nueva máquina&rdquo;.
-                  </td>
-                </tr>
-              ) : (
-                maquinas.map((m, i) => (
-                  <tr
-                    key={m.id}
-                    className={`border-b border-border last:border-0 hover:bg-accent/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/10"}`}
-                  >
-                    <td className="px-4 py-3 font-medium">{m.nombre}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{labelTipo(m.tipo)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${m.activa ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" : "border-border text-muted-foreground bg-muted/30"}`}>
-                        {m.activa ? "Activa" : "Inactiva"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="w-8 h-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => setFormMaquina(m)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="w-8 h-8 text-muted-foreground hover:text-red-400"
-                          onClick={() => setDeleteMaquina(m)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={maquinas}
+          loading={loading}
+          keyExtractor={(r) => r.id}
+          emptyIcon={<Cog className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
+          emptyTitle="Sin máquinas"
+          emptyDescription={
+            filtroTipo
+              ? `No hay máquinas de tipo ${labelTipo(filtroTipo)}. Creá una con "Nueva máquina".`
+              : 'No hay máquinas cargadas. Creá una con "Nueva máquina".'
+          }
+        />
       )}
 
       {formMaquina !== undefined && (

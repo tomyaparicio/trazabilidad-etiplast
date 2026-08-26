@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, EstadoPresupuesto } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Check, ChevronDown, Loader2, Plus, Search, Trash2 } from "lucide-react"
@@ -85,8 +86,16 @@ function ClienteSelector({ value, onSelect, initialName }: {
   return (
     <div ref={ref} className="relative">
       <div
-        className="flex items-center gap-2 border border-input rounded-lg px-3 h-9 cursor-pointer hover:border-foreground/40 transition-colors bg-background"
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        tabIndex={0}
+        className="flex items-center gap-2 border border-input rounded-lg px-3 h-9 cursor-pointer hover:border-foreground/40 transition-colors bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o) }
+          else if (e.key === "Escape") setOpen(false)
+        }}
       >
         {value
           ? <span className="flex-1 text-sm font-medium truncate">{displayName}</span>
@@ -186,11 +195,17 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
     return { subtotal, total }
   }, [items, descuento, iva])
 
+  // Habilita el submit solo si los campos obligatorios están completos (misma regla que handleSubmit)
+  const isValid =
+    (tipoCliente === "cliente" ? !!clienteId : prospectoNombre.trim().length > 0) &&
+    items.some((i) => i.descripcion.trim() || num(i.cantidad) > 0 || num(i.precio_unitario) > 0)
+
   const setItem = (idx: number, patch: Partial<ItemForm>) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
   }
 
   const handleSubmit = async () => {
+    if (saving) return
     setError("")
 
     if (tipoCliente === "cliente" && !clienteId) {
@@ -244,7 +259,7 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
   }
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+    <Dialog open onOpenChange={(o) => { if (!o && !saving) onClose() }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0">
         <DialogHeader className="px-6 pt-5 pb-4 border-b border-border sticky top-0 bg-background z-10">
           <DialogTitle className="text-lg font-semibold">
@@ -304,27 +319,19 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
               <Input type="number" min={1} value={validezDias} onChange={(e) => setValidezDias(e.target.value)} className="h-9" />
             </Field>
             <Field label="Moneda">
-              <select
-                value={moneda ?? "ARS"}
-                onChange={(e) => setMoneda(e.target.value)}
-                className="h-9 px-3 bg-background border border-input rounded-lg text-sm outline-none focus:ring-1 focus:ring-ring"
-              >
+              <Select value={moneda ?? "ARS"} onChange={(e) => setMoneda(e.target.value)} className="h-9">
                 <option value="ARS">ARS</option>
                 <option value="USD">USD</option>
-              </select>
+              </Select>
             </Field>
             <Field label="Estado">
-              <select
-                value={estado}
-                onChange={(e) => setEstado(e.target.value as EstadoPresupuesto)}
-                className="h-9 px-3 bg-background border border-input rounded-lg text-sm outline-none focus:ring-1 focus:ring-ring"
-              >
+              <Select value={estado} onChange={(e) => setEstado(e.target.value as EstadoPresupuesto)} className="h-9">
                 {(Object.keys(ESTADO_PRESUPUESTO) as EstadoPresupuesto[])
                   .filter((e) => e !== "convertido")
                   .map((e) => (
                     <option key={e} value={e}>{ESTADO_PRESUPUESTO[e].label}</option>
                   ))}
-              </select>
+              </Select>
             </Field>
           </div>
 
@@ -467,7 +474,7 @@ export function PresupuestoFormDialog({ presupuesto, onClose, onSaved }: Props) 
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || !isValid}
             className="bg-brand hover:bg-brand-strong text-white gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}

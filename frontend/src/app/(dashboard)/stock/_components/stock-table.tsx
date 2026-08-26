@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import {
   Search, ChevronLeft, ChevronRight, AlertTriangle, Boxes,
-  ArrowLeftRight, History, Pencil, Filter, X,
+  ArrowLeftRight, History, Pencil, Filter, X, RefreshCw,
 } from "lucide-react"
 import { StockItemDialog } from "./stock-item-dialog"
 import { MovimientoDialog } from "./movimiento-dialog"
@@ -27,6 +27,7 @@ function bajoMinimoItem(item: StockItem): boolean {
 export function StockTable({ tipo, refreshKey, onChanged }: StockTableProps) {
   const [items, setItems] = useState<StockItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState("")
@@ -53,6 +54,7 @@ export function StockTable({ tipo, refreshKey, onChanged }: StockTableProps) {
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
+    setError(false)
     try {
       const res = await api.stock.list({
         tipo,
@@ -65,6 +67,7 @@ export function StockTable({ tipo, refreshKey, onChanged }: StockTableProps) {
       setTotal(res.total || 0)
     } catch (err) {
       console.error(err)
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -140,21 +143,24 @@ export function StockTable({ tipo, refreshKey, onChanged }: StockTableProps) {
           <button
             onClick={(e) => { e.stopPropagation(); setMovItem(i) }}
             title="Registrar movimiento"
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-gold hover:bg-muted/60 transition-colors"
+            aria-label="Registrar movimiento"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-gold hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <ArrowLeftRight className="w-4 h-4" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setKardexItem(i) }}
             title="Ver kardex"
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-gold hover:bg-muted/60 transition-colors"
+            aria-label="Ver kardex"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-gold hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <History className="w-4 h-4" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setEditItem(i) }}
             title="Editar ítem"
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-gold hover:bg-muted/60 transition-colors"
+            aria-label="Editar ítem"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-gold hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <Pencil className="w-4 h-4" />
           </button>
@@ -218,6 +224,19 @@ export function StockTable({ tipo, refreshKey, onChanged }: StockTableProps) {
       </div>
 
       {/* ── Tabla ── */}
+      {error ? (
+        <div className="rounded-2xl border border-border bg-card px-6 py-16 flex flex-col items-center gap-3 text-center">
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+            <AlertTriangle className="w-6 h-6" strokeWidth={1.5} />
+          </div>
+          <p className="text-sm font-medium text-foreground">No se pudieron cargar los ítems de stock</p>
+          <p className="max-w-sm text-xs text-muted-foreground">Puede ser un problema de conexión o que el servidor esté iniciando. Intentá de nuevo.</p>
+          <Button onClick={fetchItems} variant="outline" className="mt-1 gap-2">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Reintentar
+          </Button>
+        </div>
+      ) : (
       <DataTable
         columns={columns}
         data={items}
@@ -267,6 +286,7 @@ export function StockTable({ tipo, refreshKey, onChanged }: StockTableProps) {
           </nav>
         )}
       </DataTable>
+      )}
 
       {/* ── Dialogs y sheet ── */}
       <MovimientoDialog

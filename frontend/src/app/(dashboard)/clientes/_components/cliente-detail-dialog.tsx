@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, ClienteProducto, Maquina, RazonSocial } from "@/types/database"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -102,10 +103,13 @@ function RazonSocialSelector({
     onChange(rs.id, rs.razon_social, rs.cuit)
   }
   const create = async () => {
-    if (!query.trim()) return; setCreating(true)
+    if (!query.trim() || creating) return; setCreating(true)
     try {
       const rs = await api.razonessociales.create({ razon_social: query.trim() })
       setOpen(false); onChange(rs.id, rs.razon_social, rs.cuit)
+      toast.success("Razón social creada")
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudo crear la razón social")
     } finally { setCreating(false) }
   }
   const exact = results.some((r) => r.razon_social.toLowerCase() === query.trim().toLowerCase())
@@ -355,27 +359,38 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
   const cancel    = () => { setEditingId(null); setForm(EMPTY); setError("") }
 
   const save = async () => {
+    if (saving) return
     setSaving(true); setError("")
     try {
       const body = toBody(form)
       if (editingId === "new") {
         const n = await api.productos.create(clienteId, body)
         onProductosChange([...productos, n])
+        toast.success("Producto agregado")
       } else {
         const u = await api.productos.update(clienteId, editingId as number, body)
         onProductosChange(productos.map((p) => p.id === editingId ? u : p))
+        toast.success("Producto actualizado")
       }
       cancel()
-    } catch { setError("Error al guardar el producto") }
+    } catch (e) {
+      setError("Error al guardar el producto")
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudo guardar el producto")
+    }
     finally { setSaving(false) }
   }
 
   const remove = async (id: number) => {
+    if (deleting != null) return
     setDeleting(id); setError("")
     try {
       await api.productos.delete(clienteId, id)
       onProductosChange(productos.filter((p) => p.id !== id))
-    } catch { setError("Error al eliminar") }
+      toast.success("Producto eliminado")
+    } catch (e) {
+      setError("Error al eliminar")
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudo eliminar el producto")
+    }
     finally { setDeleting(null) }
   }
 
@@ -463,13 +478,16 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
   }
 
   const handleDelete = async () => {
-    if (!cliente) return
+    if (!cliente || deleting) return
     setDeleting(true)
     try {
       await api.clientes.delete(cliente.id)
       onDelete?.(cliente.id)
+      toast.success(`Cliente "${cliente.marca ?? ""}" eliminado`)
       handleOpen(false)
-    } catch { /* noop */ }
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudo eliminar el cliente")
+    }
     finally { setDeleting(false) }
   }
 
@@ -482,7 +500,7 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
   const cancelEditing = () => { setEditing(false); if (cliente) setEditData({ ...cliente }) }
 
   const handleSave = async () => {
-    if (!cliente) return
+    if (!cliente || saving) return
     setSaving(true); setSaveMsg("")
     try {
       const numeric = ["id_cliente", "razon_social_id", "latitud", "longitud"]
@@ -496,8 +514,12 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
       const updated = await api.clientes.update(cliente.id, updates) as Cliente
       onUpdate(updated)
       setEditData({ ...updated }); setEditing(false); setSaveMsg("success")
+      toast.success("Cambios guardados")
       setTimeout(() => setSaveMsg(""), 3000)
-    } catch { setSaveMsg("error") }
+    } catch (e) {
+      setSaveMsg("error")
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudieron guardar los cambios")
+    }
     finally { setSaving(false) }
   }
 

@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { api } from "@/lib/api"
 import type { StockItem, StockMovimiento, TipoStockMovimiento } from "@/lib/api/types"
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, History, MoveRight, User } from "lucide-react"
+import { AlertTriangle, ChevronLeft, ChevronRight, History, MoveRight, RefreshCw, User } from "lucide-react"
 
 /** El backend devuelve usuario_nombre en el to_dict aunque el tipo no lo declare */
 type MovimientoConUsuario = StockMovimiento & { usuario_nombre?: string | null }
@@ -26,8 +26,10 @@ interface KardexSheetProps {
 export function KardexSheet({ item, onClose }: KardexSheetProps) {
   const [movimientos, setMovimientos] = useState<MovimientoConUsuario[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const requestIdRef = useRef(0)
 
   const perPage = 20
   const totalPages = Math.ceil(total / perPage)
@@ -37,20 +39,32 @@ export function KardexSheet({ item, onClose }: KardexSheetProps) {
     setPage(1)
   }, [item?.id])
 
-  useEffect(() => {
+  const fetchMovimientos = useCallback(() => {
     if (!item) return
-    let cancelado = false
+    // Token de request en vuelo: ignora respuestas fuera de orden (item/página
+    // cambiados antes de que resuelva) y también sirve como retry manual.
+    const requestId = ++requestIdRef.current
     setLoading(true)
-    api.stock.movimientos(item.id, { page, per_page: perPage })
+    setError(false)
+    return api.stock.movimientos(item.id, { page, per_page: perPage })
       .then((res) => {
-        if (cancelado) return
+        if (requestIdRef.current !== requestId) return
         setMovimientos((res.data as MovimientoConUsuario[]) || [])
         setTotal(res.total || 0)
       })
-      .catch(console.error)
-      .finally(() => { if (!cancelado) setLoading(false) })
-    return () => { cancelado = true }
+      .catch((err) => {
+        if (requestIdRef.current !== requestId) return
+        console.error(err)
+        setError(true)
+      })
+      .finally(() => {
+        if (requestIdRef.current === requestId) setLoading(false)
+      })
   }, [item, page])
+
+  useEffect(() => {
+    fetchMovimientos()
+  }, [fetchMovimientos])
 
   const formatFecha = (iso: string | null) =>
     iso
@@ -91,6 +105,18 @@ export function KardexSheet({ item, onClose }: KardexSheetProps) {
                 <div className="h-3 w-48 rounded-full bg-muted animate-pulse" />
               </div>
             ))
+          ) : error ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-5 text-destructive">
+                <AlertTriangle className="w-8 h-8" strokeWidth={1.5} />
+              </div>
+              <p className="text-sm font-medium text-foreground">No se pudo cargar el kardex</p>
+              <p className="max-w-[240px] text-xs text-muted-foreground">Puede ser un problema de conexión. Intentá de nuevo.</p>
+              <Button onClick={fetchMovimientos} variant="outline" size="sm" className="mt-1 gap-2">
+                <RefreshCw className="w-3.5 h-3.5" />
+                Reintentar
+              </Button>
+            </div>
           ) : movimientos.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-16 text-center">
               <div className="rounded-2xl bg-muted/50 border border-border p-5">

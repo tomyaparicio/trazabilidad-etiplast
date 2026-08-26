@@ -5,8 +5,10 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Maquina, OrdenTrabajo, PlanProduccion } from "@/lib/api/types"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { AlertTriangle, Loader2, Search, Trash2 } from "lucide-react"
 
 // ─── Tipos locales ─────────────────────────────────────────────────────────
@@ -54,10 +56,12 @@ function OrdenSelector({
   value,
   initialLabel,
   onSelect,
+  autoFocus,
 }: {
   value: number | null
   initialLabel?: string
   onSelect: (orden: OrdenTrabajo) => void
+  autoFocus?: boolean
 }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<OrdenTrabajo[]>([])
@@ -107,6 +111,7 @@ function OrdenSelector({
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <Input
+          autoFocus={autoFocus}
           value={open ? query : selectedLabel}
           onFocus={() => { setOpen(true); setQuery("") }}
           onChange={(e) => setQuery(e.target.value)}
@@ -185,7 +190,7 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
     notas: "",
   })
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
 
@@ -193,6 +198,7 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
     if (!open) return
     setError(null)
     setWarning(null)
+    setConfirmDeleteOpen(false)
     if (plan) {
       setForm({
         orden_trabajo_id: plan.orden_trabajo_id,
@@ -276,26 +282,19 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
     }
   }
 
-  const handleDelete = async () => {
+  const handleDeleteConfirm = async () => {
     if (!plan) return
-    if (!window.confirm(`¿Eliminar la planificación de ${plan.orden_numero ?? "esta orden"}?`)) return
-    setDeleting(true)
-    setError(null)
-    try {
-      await api.planificacion.delete(plan.id)
-      onSaved()
-      toast.success("Plan eliminado")
-      onClose()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error al eliminar el plan"
-      setError(msg)
-      toast.error(msg)
-    } finally {
-      setDeleting(false)
-    }
+    // Convención ConfirmDialog: dejamos que la excepción se propague (la
+    // maneja el diálogo con toast.error y se queda abierto); acá solo
+    // reportamos éxito.
+    await api.planificacion.delete(plan.id)
+    toast.success("Plan eliminado")
+    onSaved()
+    onClose()
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-lg">
         <DialogTitle>{esEdicion ? `Editar plan — ${plan?.orden_numero ?? ""}` : "Planificar OT"}</DialogTitle>
@@ -324,15 +323,17 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
                 value={form.orden_trabajo_id}
                 initialLabel={plan ? `${plan.orden_numero ?? ""} — ${plan.cliente_marca ?? plan.cliente_nombre ?? ""}` : undefined}
                 onSelect={(o) => set("orden_trabajo_id", o.id)}
+                autoFocus={!esEdicion}
               />
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Máquina">
-                <select
+                <Select
                   value={form.maquina_id ?? ""}
                   onChange={(e) => seleccionarMaquina(e.target.value === "" ? null : Number(e.target.value))}
-                  className={inp}
+                  aria-label="Máquina"
+                  className="h-9 text-sm"
                 >
                   <option value="">Seleccionar…</option>
                   {gruposMaquinas.map((g) => (
@@ -349,14 +350,14 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
                       ))}
                     </optgroup>
                   )}
-                </select>
+                </Select>
               </Field>
               <Field label="Etapa">
-                <select value={form.etapa} onChange={(e) => set("etapa", e.target.value)} className={inp}>
+                <Select value={form.etapa} onChange={(e) => set("etapa", e.target.value)} aria-label="Etapa" className="h-9 text-sm">
                   {ETAPAS.map((et) => (
                     <option key={et.value} value={et.value}>{et.label}</option>
                   ))}
-                </select>
+                </Select>
               </Field>
             </div>
 
@@ -392,11 +393,11 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
               </Field>
               {esEdicion && (
                 <Field label="Estado">
-                  <select value={form.estado} onChange={(e) => set("estado", e.target.value)} className={inp}>
+                  <Select value={form.estado} onChange={(e) => set("estado", e.target.value)} aria-label="Estado" className="h-9 text-sm">
                     {ESTADOS_PLAN.map((es) => (
                       <option key={es.value} value={es.value}>{es.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
               )}
             </div>
@@ -423,11 +424,11 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={handleDelete}
-                  disabled={deleting || saving}
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  disabled={saving}
                   className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5"
                 >
-                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  <Trash2 className="w-4 h-4" />
                   Eliminar
                 </Button>
               ) : <span />}
@@ -438,7 +439,7 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
                 <Button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={saving || deleting}
+                  disabled={saving || !form.orden_trabajo_id || !form.maquina_id || !form.fecha_inicio}
                   className="bg-brand hover:bg-brand-strong text-white gap-2"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -450,5 +451,16 @@ export function PlanDialog({ open, onClose, onSaved, maquinas, plan, fechaSugeri
         )}
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={confirmDeleteOpen}
+      onOpenChange={setConfirmDeleteOpen}
+      title="Eliminar planificación"
+      description={`¿Eliminar la planificación de ${plan?.orden_numero ?? "esta orden"}? Esta acción no se puede deshacer.`}
+      confirmLabel="Eliminar"
+      variant="destructive"
+      onConfirm={handleDeleteConfirm}
+    />
+    </>
   )
 }

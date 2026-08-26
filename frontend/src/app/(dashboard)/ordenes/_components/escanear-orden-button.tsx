@@ -119,8 +119,13 @@ export function EscanearOrdenButton() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const camaraInputRef = useRef<HTMLInputElement>(null)
+  // Identifica la "sesión" de escaneo actual: se incrementa en cada reset para que
+  // una respuesta de OCR que llegue tarde (dialog ya cerrado/reabierto) no pise el
+  // estado de una sesión nueva.
+  const sessionRef = useRef(0)
 
   const reset = useCallback(() => {
+    sessionRef.current += 1
     setFase("seleccion")
     setError(null)
     setExtraido(null)
@@ -158,6 +163,7 @@ export function EscanearOrdenButton() {
 
   // ── Procesar archivo ────────────────────────────────────────────────────────
   const procesarArchivo = useCallback(async (file: File) => {
+    const mySession = sessionRef.current
     setError(null)
 
     const esImagen = file.type.startsWith("image/")
@@ -176,6 +182,7 @@ export function EscanearOrdenButton() {
         blob = await downscaleImagen(file)
         nombre = nombre.replace(/\.[^.]+$/, "") + ".jpg"
       }
+      if (sessionRef.current !== mySession) return // el diálogo se cerró/reseteó mientras procesaba
 
       if (blob.size > MAX_SIZE_BYTES) {
         setError("El archivo supera el máximo de 4MB. Probá con una foto más liviana.")
@@ -198,11 +205,14 @@ export function EscanearOrdenButton() {
       }
 
       const data: { extraido: ExtraccionOrden; cliente_match: ClienteMatch | null } = await res.json()
+      if (sessionRef.current !== mySession) return // idem: evita pisar una sesión nueva
+
       setExtraido(data.extraido)
       setCliente(data.cliente_match)
       setBuscandoCliente(!data.cliente_match)
       setFase("resultado")
     } catch (err) {
+      if (sessionRef.current !== mySession) return
       setError(err instanceof Error ? err.message : "Error al procesar el documento")
       setFase("seleccion")
     }

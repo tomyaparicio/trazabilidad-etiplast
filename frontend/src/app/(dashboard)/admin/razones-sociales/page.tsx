@@ -1,9 +1,13 @@
 "use client"
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
+import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -11,7 +15,7 @@ import {
 import {
   Building2, Plus, Pencil, Loader2,
   Search, Boxes, Package, AlertCircle, Eye,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react"
 
 const PER_PAGE = 30
@@ -84,7 +88,7 @@ function DetalleMarcasDialog({
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState("")
 
-  useEffect(() => {
+  const fetchDetalle = useCallback(() => {
     setLoading(true)
     setFetchError("")
     api.razonessociales.get(rs.id)
@@ -92,6 +96,8 @@ function DetalleMarcasDialog({
       .catch((e) => setFetchError(e instanceof Error ? e.message : "Error al cargar"))
       .finally(() => setLoading(false))
   }, [rs.id])
+
+  useEffect(() => { fetchDetalle() }, [fetchDetalle])
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
@@ -129,8 +135,14 @@ function DetalleMarcasDialog({
               <Loader2 className="w-4 h-4 animate-spin" />Cargando marcas…
             </div>
           ) : fetchError ? (
-            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0" />{fetchError}
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm">
+                <AlertCircle className="w-4 h-4 shrink-0" />{fetchError}
+              </div>
+              <Button variant="outline" size="sm" onClick={fetchDetalle} className="gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5" />
+                Reintentar
+              </Button>
             </div>
           ) : !data || data.marcas.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
@@ -244,7 +256,9 @@ export default function RazonesSocialesPage() {
     fetchRows(search, p)
   }
 
-  const handleCreated = (rs: RazonSocialRow) => {
+  const retry = () => fetchRows(search, page)
+
+  const handleCreated = () => {
     setNuevoOpen(false)
     fetchRows(search, 1)
     setPage(1)
@@ -264,27 +278,88 @@ export default function RazonesSocialesPage() {
     return [1, "…", page - 1, page, page + 1, "…", totalPages]
   })()
 
+  const columns: ColumnDef<RazonSocialRow>[] = [
+    {
+      key: "numero",
+      header: "N°",
+      cellClassName: "whitespace-nowrap text-sm font-mono text-muted-foreground",
+      cell: (rs) => rs.numero ?? <span className="text-muted-foreground/30">—</span>,
+    },
+    {
+      key: "razon_social",
+      header: "Razón Social",
+      cell: (rs) => (
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-muted/50 border border-border flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+            {rs.razon_social[0]?.toUpperCase()}
+          </div>
+          <span className="text-sm font-semibold text-foreground">{rs.razon_social}</span>
+        </div>
+      ),
+    },
+    {
+      key: "cuit",
+      header: "CUIT",
+      cellClassName: "text-sm text-muted-foreground font-mono",
+      cell: (rs) => rs.cuit || <span className="text-muted-foreground/30 text-xs">—</span>,
+    },
+    {
+      key: "marcas",
+      header: "Marcas",
+      cell: (rs) => (
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
+          rs.cantidad_marcas > 0
+            ? "bg-violet-500/10 text-violet-400 border-violet-500/20"
+            : "bg-muted/50 text-muted-foreground border-border"
+        }`}>
+          {rs.cantidad_marcas}
+        </span>
+      ),
+    },
+    {
+      key: "acciones",
+      header: "Acciones",
+      headerClassName: "text-right",
+      cellClassName: "text-right",
+      cell: (rs) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewRS(rs)}
+            className="h-8 rounded-lg text-xs gap-1.5 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            <Eye className="w-3.5 h-3.5" />Ver marcas
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditRS(rs)}
+            className="h-8 rounded-lg text-xs gap-1.5 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            <Pencil className="w-3.5 h-3.5" />Editar
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="p-6 lg:p-8 space-y-5 max-w-[1200px] mx-auto">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full bg-gold" />
-          <div>
-            <h2 className="text-xl font-semibold text-foreground">Razones Sociales</h2>
-            <p className="text-muted-foreground text-sm">
-              {loading ? "Cargando…" : `${total.toLocaleString("es-AR")} entidades legales`}
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={() => setNuevoOpen(true)}
-          className="h-10 px-4 rounded-xl bg-gold/10 hover:bg-gold/20 text-gold border border-gold/25 text-sm font-medium gap-2 shrink-0"
-        >
-          <Plus className="w-4 h-4" />Nueva razón social
-        </Button>
-      </div>
+      <PageHeader
+        title="Razones Sociales"
+        subtitle={loading ? "Cargando…" : `${total.toLocaleString("es-AR")} entidades legales`}
+        actions={
+          <Button
+            onClick={() => setNuevoOpen(true)}
+            className="h-10 px-4 rounded-xl bg-gold/10 hover:bg-gold/20 text-gold border border-gold/25 text-sm font-medium gap-2 shrink-0"
+          >
+            <Plus className="w-4 h-4" />Nueva razón social
+          </Button>
+        }
+      />
 
       {/* Search */}
       <div className="relative max-w-sm">
@@ -297,170 +372,89 @@ export default function RazonesSocialesPage() {
         />
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          <AlertCircle className="w-4 h-4 shrink-0" />{error}
-        </div>
-      )}
+      {/* Tabla / Error */}
+      {error ? (
+        <EmptyState
+          icon={<AlertCircle className="w-8 h-8" strokeWidth={1.5} />}
+          title="No se pudieron cargar las razones sociales"
+          description={error}
+          action={
+            <Button variant="outline" size="sm" onClick={retry} className="gap-1.5">
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reintentar
+            </Button>
+          }
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          skeletonRows={PER_PAGE}
+          keyExtractor={(r) => r.id}
+          emptyIcon={<Building2 className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
+          emptyTitle={search ? "Sin resultados para esa búsqueda" : "Sin razones sociales registradas"}
+          emptyDescription={search ? "Probá con otro nombre, CUIT o número." : "Todavía no se registraron razones sociales."}
+        >
+          {/* Pagination footer */}
+          {!loading && totalPages > 1 && (
+            <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-t border-border bg-muted/10 flex-wrap">
 
-      {/* Table */}
-      <div className="bg-card/80 border border-border rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                {["N°", "Razón Social", "CUIT", "Marcas", "Acciones"].map((h) => (
-                  <th key={h} scope="col"
-                    className="text-left px-5 py-3.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: PER_PAGE }).map((_, i) => (
-                  <tr key={i} className="border-b border-border/50 last:border-0">
-                    <td className="px-5 py-4"><div className="h-3.5 w-10 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="h-3.5 w-56 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="h-3.5 w-32 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="h-6 w-10 rounded-full bg-muted animate-pulse" /></td>
-                    <td className="px-5 py-4"><div className="h-8 w-36 rounded-lg bg-muted animate-pulse" /></td>
-                  </tr>
-                ))
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-20 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="rounded-2xl bg-muted/50 border border-border p-5">
-                        <Building2 className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
-                      </div>
-                      <p className="text-muted-foreground text-sm font-medium">
-                        {search ? "Sin resultados para esa búsqueda" : "Sin razones sociales registradas"}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                rows.map((rs) => (
-                  <tr key={rs.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors duration-150">
+              {/* Info */}
+              <p className="text-xs text-muted-foreground whitespace-nowrap">
+                Página <span className="font-semibold text-foreground">{page}</span> de{" "}
+                <span className="font-semibold text-foreground">{totalPages}</span>
+                {" · "}{total.toLocaleString("es-AR")} registros
+              </p>
 
-                    {/* N° */}
-                    <td className="px-5 py-3.5 text-sm font-mono text-muted-foreground whitespace-nowrap">
-                      {rs.numero ?? <span className="text-muted-foreground/30">—</span>}
-                    </td>
+              {/* Controles */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page === 1}
+                  aria-label="Página anterior"
+                  className="h-8 w-8 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
 
-                    {/* Nombre */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-muted/50 border border-border flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                          {rs.razon_social[0]?.toUpperCase()}
-                        </div>
-                        <span className="text-sm font-semibold text-foreground">{rs.razon_social}</span>
-                      </div>
-                    </td>
+                {pageNumbers.map((n, i) =>
+                  n === "…" ? (
+                    <span key={`ellipsis-${i}`} className="w-8 text-center text-xs text-muted-foreground">…</span>
+                  ) : (
+                    <Button
+                      key={n}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(n as number)}
+                      className={`h-8 w-8 p-0 rounded-lg text-xs border-border transition-colors ${
+                        page === n
+                          ? "bg-gold/10 text-gold border-gold/30 font-bold hover:bg-gold/15"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {n}
+                    </Button>
+                  )
+                )}
 
-                    {/* CUIT */}
-                    <td className="px-5 py-3.5 text-sm text-muted-foreground font-mono">
-                      {rs.cuit || <span className="text-muted-foreground/30 text-xs">—</span>}
-                    </td>
-
-                    {/* Marcas count */}
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
-                        rs.cantidad_marcas > 0
-                          ? "bg-violet-500/10 text-violet-400 border-violet-500/20"
-                          : "bg-muted/50 text-muted-foreground border-border"
-                      }`}>
-                        {rs.cantidad_marcas}
-                      </span>
-                    </td>
-
-                    {/* Acciones */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setViewRS(rs)}
-                          className="h-8 rounded-lg text-xs gap-1.5 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                        >
-                          <Eye className="w-3.5 h-3.5" />Ver marcas
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditRS(rs)}
-                          className="h-8 rounded-lg text-xs gap-1.5 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />Editar
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination footer */}
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between gap-4 px-5 py-3.5 border-t border-border bg-muted/10 flex-wrap">
-
-            {/* Info */}
-            <p className="text-xs text-muted-foreground whitespace-nowrap">
-              Página <span className="font-semibold text-foreground">{page}</span> de{" "}
-              <span className="font-semibold text-foreground">{totalPages}</span>
-              {" · "}{total.toLocaleString("es-AR")} registros
-            </p>
-
-            {/* Controles */}
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(page - 1)}
-                disabled={page === 1}
-                className="h-8 w-8 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-
-              {pageNumbers.map((n, i) =>
-                n === "…" ? (
-                  <span key={`ellipsis-${i}`} className="w-8 text-center text-xs text-muted-foreground">…</span>
-                ) : (
-                  <Button
-                    key={n}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => goToPage(n as number)}
-                    className={`h-8 w-8 p-0 rounded-lg text-xs border-border transition-colors ${
-                      page === n
-                        ? "bg-gold/10 text-gold border-gold/30 font-bold hover:bg-gold/15"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {n}
-                  </Button>
-                )
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => goToPage(page + 1)}
-                disabled={page === totalPages}
-                className="h-8 w-8 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page === totalPages}
+                  aria-label="Página siguiente"
+                  className="h-8 w-8 p-0 rounded-lg border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </DataTable>
+      )}
 
       {/* Detail dialog */}
       {viewRS && (
@@ -520,16 +514,19 @@ function RSDialog({
       const saved = isEdit
         ? await api.razonessociales.update(rs!.id, body)
         : await api.razonessociales.create(body)
+      toast.success(isEdit ? "Razón social actualizada" : "Razón social creada")
       onSaved(saved as RazonSocialRow)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar")
+      const msg = err instanceof Error ? err.message : "No se pudo guardar la razón social"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !saving) onClose() }}>
       <DialogContent className="sm:max-w-[440px] bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
@@ -550,7 +547,7 @@ function RSDialog({
             <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               Razón Social <span className="text-red-400">*</span>
             </label>
-            <Input value={form.razon_social} onChange={set("razon_social")} placeholder="Aguas del Sur SA"
+            <Input autoFocus value={form.razon_social} onChange={set("razon_social")} placeholder="Aguas del Sur SA"
               className="h-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/15" />
           </div>
 
@@ -561,7 +558,7 @@ function RSDialog({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={onClose} className="rounded-xl border-border">Cancelar</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="rounded-xl border-border">Cancelar</Button>
             <Button type="submit" disabled={saving || !form.razon_social.trim()}
               className="rounded-xl bg-gold/10 hover:bg-gold/20 text-gold border border-gold/25 gap-2">
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}

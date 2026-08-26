@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Bobina, Cliente, ClienteProducto, EstadoOrden, OrdenTrabajo, UserAdmin } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Select } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Loader2, Plus, Trash2, Search, ChevronDown, Check, Package, ChevronLeft, ChevronRight } from "lucide-react"
 import type { OrderPrefill } from "@/lib/voice/types"
@@ -408,25 +410,27 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
   const goPrev = () => { setError(""); setStep((s) => Math.max(s - 1, 1)) }
 
   const handleSubmit = async () => {
+    if (saving) return
     setSaving(true); setError("")
     try {
       const payload = { ...form, impresion_colores: form.impresion_colores.filter(Boolean), bobinas: form.bobinas.filter((b) => b.metros != null || b.kg_bob != null || (b as BobinaForm).numero_lote?.trim()) }
       const saved = orden ? await api.ordenes.update(orden.id, payload) : await api.ordenes.create(payload)
+      toast.success(orden ? `Orden ${saved.numero} actualizada` : `Orden ${saved.numero} creada`)
       setSuccess(true)
       setTimeout(() => {
         setSuccess(false)
         onSaved(saved)
       }, 1600)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar")
+      const msg = err instanceof Error ? err.message : "Error al guardar"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
   }
 
   // ── Render de cada step ──────────────────────────────────────────────────
-
-  const inp = "h-9 text-sm border border-input rounded-lg px-3 bg-background"
 
   const renderStep = () => {
     switch (step) {
@@ -449,25 +453,25 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
                   <ProductoSelector productos={clienteProductos} value={form.cliente_producto_id ?? null} onSelect={handleSelectProducto} />
                 </Field>
                 <Field label="Estado">
-                  <select value={form.estado} onChange={(e) => set("estado", e.target.value)} className={inp}>
+                  <Select value={form.estado} onChange={(e) => set("estado", e.target.value)}>
                     {ESTADOS_OT.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  </Select>
                 </Field>
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Responsable" className="sm:col-span-2">
-                <select value={form.responsable_id ?? ""} onChange={(e) => set("responsable_id", e.target.value === "" ? null : Number(e.target.value))} className={`${inp} w-full`}>
+                <Select value={form.responsable_id ?? ""} onChange={(e) => set("responsable_id", e.target.value === "" ? null : Number(e.target.value))}>
                   <option value="">Sin asignar</option>
                   {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre_completo || u.email}</option>)}
-                </select>
+                </Select>
               </Field>
               {clienteProductos.length === 0 && (
                 <Field label="Estado">
-                  <select value={form.estado} onChange={(e) => set("estado", e.target.value)} className={inp}>
+                  <Select value={form.estado} onChange={(e) => set("estado", e.target.value)}>
                     {ESTADOS_OT.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  </Select>
                 </Field>
               )}
             </div>
@@ -514,7 +518,8 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
                         <td className="px-2 py-2">
                           {form.bobinas.length > 1 && (
                             <button type="button" onClick={() => removeBobina(i)}
-                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                              aria-label={`Eliminar fila de bobina ${i + 1}`}
+                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
@@ -535,16 +540,16 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
                   onChange={(e) => set("extrusion_ancho", num(e.target.value))} className="h-9 text-sm" />
               </Field>
               <Field label="Color">
-                <select value={form.extrusion_color ?? "Blanco"} onChange={(e) => set("extrusion_color", e.target.value)} className={inp}>
+                <Select value={form.extrusion_color ?? "Blanco"} onChange={(e) => set("extrusion_color", e.target.value)}>
                   <option value="Blanco">Blanco</option>
                   <option value="Cristal">Cristal</option>
-                </select>
+                </Select>
               </Field>
               <Field label="Tratamiento">
-                <select value={form.extrusion_trat ?? "Con"} onChange={(e) => set("extrusion_trat", e.target.value)} className={inp}>
+                <Select value={form.extrusion_trat ?? "Con"} onChange={(e) => set("extrusion_trat", e.target.value)}>
                   <option value="Con">Con</option>
                   <option value="Sin">Sin</option>
-                </select>
+                </Select>
               </Field>
               <Field label="Micronaje (µ)">
                 <Input type="number" step="1" placeholder="60" value={form.extrusion_espesor ?? ""}
@@ -730,7 +735,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
 
         {/* ── Overlay de éxito ────────────────────────────────────────────── */}
@@ -804,6 +809,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
             type="button"
             variant="outline"
             onClick={step === 1 ? () => onOpenChange(false) : goPrev}
+            disabled={saving}
             className="gap-1.5"
           >
             {step > 1 && <ChevronLeft className="w-4 h-4" />}

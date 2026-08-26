@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { QcPlantilla, ResultadoQc } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Select } from "@/components/ui/select"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -99,6 +101,7 @@ export function QcRegistroDialog({ ordenId, onClose, onSaved }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving) return
     if (!etapa) return
     setSaving(true)
     setError("")
@@ -116,17 +119,20 @@ export function QcRegistroDialog({ ordenId, onClose, onSaved }: Props) {
           observacion: i.observacion.trim() || null,
         })),
       })
+      toast.success("Control de calidad registrado")
       onSaved()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar el control")
+      const msg = err instanceof Error ? err.message : "Error al guardar el control"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <Dialog open onOpenChange={(o) => { if (!o && !saving) onClose() }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo control de calidad</DialogTitle>
@@ -139,8 +145,8 @@ export function QcRegistroDialog({ ordenId, onClose, onSaved }: Props) {
           {/* Etapa */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Etapa</label>
-            <select
-              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            <Select
+              autoFocus
               value={etapa}
               onChange={(e) => handleEtapaChange(e.target.value)}
               disabled={loadingPlantillas}
@@ -149,7 +155,7 @@ export function QcRegistroDialog({ ordenId, onClose, onSaved }: Props) {
               {ETAPAS.map((e) => (
                 <option key={e.value} value={e.value}>{e.label}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Checklist */}

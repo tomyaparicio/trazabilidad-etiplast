@@ -6,7 +6,7 @@ import type { Cliente, Filtros } from "@/types/database"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
-import { Search, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Filter, MapPin, Tag } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Filter, MapPin, Tag, TriangleAlert, RefreshCw } from "lucide-react"
 import { ClienteDetailDialog } from "./cliente-detail-dialog"
 import { ClienteNuevoDialog } from "./cliente-nuevo-dialog"
 
@@ -136,6 +136,7 @@ const COLUMNS: ColumnDef<Cliente>[] = [
 export function ClientesTable({ initialClientes, initialTotal, filtros: initialFiltros }: ClientesTableProps) {
   const [clientes, setClientes] = useState<Cliente[]>(initialClientes)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [filtros, setFiltros] = useState<Filtros>(initialFiltros)
   const [search, setSearch] = useState("")
   const [rubro, setRubro] = useState("")
@@ -164,6 +165,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
+    setError(false)
     try {
       const res = await api.clientes.list({
         page,
@@ -178,6 +180,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
       setTotal(res.total || 0)
     } catch (err) {
       console.error(err)
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -330,6 +333,19 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
       </div>
 
       {/* ── Table ── */}
+      {error ? (
+        <div className="rounded-2xl border border-border bg-card px-6 py-16 flex flex-col items-center gap-3 text-center">
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+            <TriangleAlert className="w-6 h-6" strokeWidth={1.5} />
+          </div>
+          <p className="text-sm font-medium text-foreground">No se pudieron cargar los clientes</p>
+          <p className="max-w-sm text-xs text-muted-foreground">Puede ser un problema de conexión o que el servidor esté iniciando. Intentá de nuevo.</p>
+          <Button onClick={fetchClientes} variant="outline" className="mt-1 gap-2">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Reintentar
+          </Button>
+        </div>
+      ) : (
       <DataTable
         columns={COLUMNS}
         data={clientes}
@@ -382,6 +398,7 @@ export function ClientesTable({ initialClientes, initialTotal, filtros: initialF
           </nav>
         )}
       </DataTable>
+      )}
 
       <ClienteDetailDialog
         cliente={selectedCliente}

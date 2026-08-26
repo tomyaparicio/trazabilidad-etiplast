@@ -146,6 +146,7 @@ export function MovimientoDialog({ item, onClose, onSaved }: MovimientoDialogPro
               {tipo === "ajuste" ? "Nuevo stock (valor absoluto)" : "Cantidad"}
             </label>
             <Input
+              autoFocus
               type="number"
               min="0"
               step="any"
@@ -202,7 +203,7 @@ export function MovimientoDialog({ item, onClose, onSaved }: MovimientoDialogPro
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || !cantidad.trim()}
             className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}

@@ -10,17 +10,20 @@ interface ReportesToolbarProps {
   onHasta: (v: string) => void
   onExport: () => void
   exportDisabled?: boolean
+  /** true mientras se refetchean los datos del rango — bloquea edición para evitar carreras. */
+  loading?: boolean
 }
 
 /**
  * Barra de filtros: dos inputs de fecha (rango) + botón de exportar CSV.
  */
 export function ReportesToolbar({
-  desde, hasta, onDesde, onHasta, onExport, exportDisabled,
+  desde, hasta, onDesde, onHasta, onExport, exportDisabled, loading,
 }: ReportesToolbarProps) {
   const inputCls =
     "h-10 rounded-xl border border-border bg-card/60 px-3 text-sm text-foreground " +
     "outline-none focus:border-brand focus:ring-1 focus:ring-brand/40 " +
+    "disabled:opacity-50 disabled:cursor-not-allowed " +
     "[color-scheme:light] dark:[color-scheme:dark]"
 
   return (
@@ -35,6 +38,7 @@ export function ReportesToolbar({
             value={desde}
             max={hasta || undefined}
             onChange={(e) => onDesde(e.target.value)}
+            disabled={loading}
             className={inputCls}
           />
         </label>
@@ -47,6 +51,7 @@ export function ReportesToolbar({
             value={hasta}
             min={desde || undefined}
             onChange={(e) => onHasta(e.target.value)}
+            disabled={loading}
             className={inputCls}
           />
         </label>
@@ -54,7 +59,7 @@ export function ReportesToolbar({
 
       <Button
         onClick={onExport}
-        disabled={exportDisabled}
+        disabled={exportDisabled || loading}
         className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 disabled:opacity-50"
       >
         <Download className="w-4 h-4" />

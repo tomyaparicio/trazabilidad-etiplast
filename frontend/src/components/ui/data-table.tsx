@@ -53,7 +53,7 @@ export function DataTable<T,>({
   children,
 }: DataTableProps<T>) {
   return (
-    <div className={`bg-card/80 border border-border rounded-2xl overflow-hidden ${className ?? ""}`}>
+    <div className={`bg-card border border-border rounded-2xl overflow-hidden ${className ?? ""}`}>
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -66,7 +66,15 @@ export function DataTable<T,>({
                     key={col.key}
                     scope="col"
                     onClick={clickable ? () => onSort!(col.key) : undefined}
-                    className={`px-5 py-3.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap text-left transition-colors ${clickable ? "cursor-pointer select-none hover:text-foreground group/th" : ""} ${col.headerClassName ?? ""}`}
+                    onKeyDown={
+                      clickable
+                        ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort!(col.key) } }
+                        : undefined
+                    }
+                    tabIndex={clickable ? 0 : undefined}
+                    role={clickable ? "button" : undefined}
+                    aria-sort={isSorted ? (sortDir === "asc" ? "ascending" : "descending") : (clickable ? "none" : undefined)}
+                    className={`px-5 py-3.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap text-left transition-colors ${clickable ? "cursor-pointer select-none hover:text-foreground group/th focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset" : ""} ${col.headerClassName ?? ""}`}
                   >
                     {clickable ? (
                       <span className="inline-flex items-center gap-1">

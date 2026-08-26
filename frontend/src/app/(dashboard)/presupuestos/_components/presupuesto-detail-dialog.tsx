@@ -2,12 +2,14 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { EstadoPresupuesto, OrdenTrabajo } from "@/lib/api/types"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   ArrowRight, CheckCircle2, FileText, Loader2, Pencil, Printer,
 } from "lucide-react"
@@ -59,7 +61,7 @@ interface Props {
 
 export function PresupuestoDetailDialog({ presupuesto, onClose, onEdit, onUpdated, onConverted }: Props) {
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
-  const [convirtiendo, setConvirtiendo] = useState(false)
+  const [confirmConvertirOpen, setConfirmConvertirOpen] = useState(false)
   const [error, setError] = useState("")
   const [ordenCreada, setOrdenCreada] = useState<OrdenTrabajo | null>(null)
 
@@ -75,41 +77,37 @@ export function PresupuestoDetailDialog({ presupuesto, onClose, onEdit, onUpdate
     try {
       const updated = await api.presupuestos.update(p.id, { estado: nuevo })
       onUpdated(updated as PresupuestoRow)
+      toast.success("Estado actualizado")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cambiar el estado")
+      const msg = err instanceof Error ? err.message : "Error al cambiar el estado"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setCambiandoEstado(false)
     }
   }
 
+  /** Ejecutada como onConfirm de ConfirmDialog: no envolver en try/catch, dejar que lance. */
   const handleConvertir = async () => {
-    if (!window.confirm(
-      `¿Convertir el presupuesto ${p.numero} en una orden de trabajo?\n\nEsta acción no se puede deshacer: el presupuesto quedará bloqueado para edición.`
-    )) return
-    setError("")
-    setConvirtiendo(true)
-    try {
-      const orden = await api.presupuestos.convertir(p.id) as unknown as OrdenTrabajo
-      setOrdenCreada(orden)
-      onUpdated({ ...p, estado: "convertido", orden_trabajo_id: orden.id })
-      onConverted()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al convertir el presupuesto")
-    } finally {
-      setConvirtiendo(false)
-    }
+    const orden = await api.presupuestos.convertir(p.id) as unknown as OrdenTrabajo
+    setOrdenCreada(orden)
+    onUpdated({ ...p, estado: "convertido", orden_trabajo_id: orden.id })
+    onConverted()
+    toast.success(`Orden de trabajo ${orden.numero} creada`)
   }
 
   const handleClose = () => {
     setOrdenCreada(null)
     setError("")
+    setConfirmConvertirOpen(false)
     onClose()
   }
 
   const items = p.items ?? []
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) handleClose() }}>
+    <>
+    <Dialog open onOpenChange={(o) => { if (!o && !cambiandoEstado) handleClose() }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
 
         {/* ── Header ── */}
@@ -282,18 +280,26 @@ export function PresupuestoDetailDialog({ presupuesto, onClose, onEdit, onUpdate
             </Link>
           ) : (
             <Button
-              onClick={handleConvertir}
-              disabled={convirtiendo}
+              onClick={() => setConfirmConvertirOpen(true)}
               className="bg-brand hover:bg-brand-strong text-white gap-2"
             >
-              {convirtiendo
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <ArrowRight className="w-4 h-4" />}
+              <ArrowRight className="w-4 h-4" />
               Convertir a Orden de Trabajo
             </Button>
           )}
         </div>
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={confirmConvertirOpen}
+      onOpenChange={setConfirmConvertirOpen}
+      title={`Convertir ${p.numero} a orden de trabajo`}
+      description="Esta acción no se puede deshacer: el presupuesto quedará bloqueado para edición y se creará una nueva orden de trabajo en borrador."
+      confirmLabel="Convertir"
+      variant="default"
+      onConfirm={handleConvertir}
+    />
+    </>
   )
 }

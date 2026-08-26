@@ -1,5 +1,7 @@
 "use client"
 
+import { Skeleton } from "@/components/ui/skeleton"
+
 export interface KpiData {
   totalOts: number
   completadas: number
@@ -28,6 +30,25 @@ function KpiCard({
       </p>
       <div className="my-3 h-[3px] w-8 rounded-full bg-gold" />
       {sub && <p className="text-xs font-medium text-muted-foreground">{sub}</p>}
+    </div>
+  )
+}
+
+/**
+ * Skeleton del grid de KPIs — mismas dimensiones/grid que KpiCards para que no
+ * haya salto de layout cuando los datos reales reemplazan el placeholder.
+ */
+export function KpiCardsSkeleton() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="rounded-2xl border border-border bg-card/80 p-5 shadow-sm">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="mt-3 h-8 w-16" />
+          <Skeleton className="my-3 h-[3px] w-8 rounded-full" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      ))}
     </div>
   )
 }

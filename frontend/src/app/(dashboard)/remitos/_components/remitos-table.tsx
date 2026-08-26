@@ -1,14 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Remito, EstadoRemito } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  Truck, Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, FileText,
+  Truck, Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, FileText, AlertTriangle, RefreshCw,
 } from "lucide-react"
 import { RemitoFormDialog } from "./remito-form-dialog"
 import { RemitoDetailDialog } from "./remito-detail-dialog"
@@ -63,11 +66,14 @@ export function RemitosTable() {
   const [formOpen, setFormOpen] = useState(false)
   const [editRemito, setEditRemito] = useState<RemitoX | null>(null)
   const [detailRemito, setDetailRemito] = useState<RemitoX | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<RemitoX | null>(null)
+  const [error, setError] = useState("")
 
   const PER_PAGE = 20
 
   const fetchRemitos = useCallback(async (p: number, s: string, estado: string) => {
     setLoading(true)
+    setError("")
     try {
       const params: { page: number; per_page: number; search?: string; estado?: string } = {
         page: p,
@@ -80,6 +86,7 @@ export function RemitosTable() {
       setTotal(res.total)
     } catch (err) {
       console.error(err)
+      setError(err instanceof Error ? err.message : "No se pudieron cargar los remitos")
     } finally {
       setLoading(false)
     }
@@ -115,17 +122,6 @@ export function RemitosTable() {
   const handleChanged = (remito: RemitoX) => {
     setRemitos((prev) => prev.map((r) => (r.id === remito.id ? remito : r)))
     setDetailRemito(remito)
-  }
-
-  const handleDelete = async (remito: RemitoX) => {
-    if (!confirm(`¿Eliminar el remito ${remito.numero}? Esta acción no se puede deshacer.`)) return
-    try {
-      await api.remitos.delete(remito.id)
-      setRemitos((prev) => prev.filter((r) => r.id !== remito.id))
-      setTotal((t) => t - 1)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Error al eliminar")
-    }
   }
 
   const handleEdit = (remito: RemitoX) => {
@@ -201,6 +197,7 @@ export function RemitosTable() {
             onClick={() => window.open(`/print/remitos/${r.id}`, "_blank")}
             className="p-1.5 rounded-lg hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600 transition-colors"
             title="Imprimir"
+            aria-label="Imprimir remito"
           >
             <FileText className="w-3.5 h-3.5" />
           </button>
@@ -210,13 +207,15 @@ export function RemitosTable() {
                 onClick={() => handleEdit(r)}
                 className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                 title="Editar"
+                aria-label="Editar remito"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={() => handleDelete(r)}
+                onClick={() => setDeleteTarget(r)}
                 className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                 title="Eliminar (solo admin)"
+                aria-label="Eliminar remito"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -285,44 +284,58 @@ export function RemitosTable() {
       </div>
 
       {/* ── Tabla ── */}
-      <DataTable
-        columns={columns}
-        data={remitos}
-        loading={loading}
-        keyExtractor={(r) => r.id}
-        onRowClick={setDetailRemito}
-        emptyIcon={<Truck className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
-        emptyTitle="No hay remitos"
-        emptyDescription="Creá el primer remito de entrega"
-        skeletonRows={8}
-      >
-        {/* ── Paginación ── */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-border">
-            <span className="text-xs text-muted-foreground">
-              Página {page} de {totalPages}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline" size="sm"
-                onClick={() => goToPage(page - 1)}
-                disabled={page === 1}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline" size="sm"
-                onClick={() => goToPage(page + 1)}
-                disabled={page >= totalPages}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
+      {error ? (
+        <EmptyState
+          icon={<AlertTriangle className="w-8 h-8 text-destructive" strokeWidth={1.5} />}
+          title="No se pudieron cargar los remitos"
+          description={error}
+          action={
+            <Button onClick={() => fetchRemitos(page, search, estadoFilter)} className="bg-brand hover:bg-brand-strong text-white gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Reintentar
+            </Button>
+          }
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={remitos}
+          loading={loading}
+          keyExtractor={(r) => r.id}
+          onRowClick={setDetailRemito}
+          emptyIcon={<Truck className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
+          emptyTitle="No hay remitos"
+          emptyDescription="Creá el primer remito de entrega"
+          skeletonRows={8}
+        >
+          {/* ── Paginación ── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+              <span className="text-xs text-muted-foreground">
+                Página {page} de {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page === 1}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline" size="sm"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </DataTable>
+          )}
+        </DataTable>
+      )}
 
       {/* ── Dialogs ── */}
       <RemitoFormDialog
@@ -340,6 +353,21 @@ export function RemitosTable() {
           onChanged={handleChanged}
         />
       )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title={`¿Eliminar el remito ${deleteTarget?.numero ?? ""}?`}
+        description="Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!deleteTarget) return
+          await api.remitos.delete(deleteTarget.id)
+          setRemitos((prev) => prev.filter((r) => r.id !== deleteTarget.id))
+          setTotal((t) => t - 1)
+          toast.success(`Remito ${deleteTarget.numero} eliminado`)
+        }}
+      />
     </div>
   )
 }

@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  Check, ChevronDown, ChevronRight, FileText, Loader2, Pencil, Plus, X,
+  Check, ChevronDown, ChevronRight, FileText, Loader2, Pencil, Plus, RotateCcw, X,
 } from "lucide-react"
 import { QcRegistroDialog } from "./qc-registro-dialog"
 
@@ -138,7 +138,16 @@ function QcControlesSection({ ordenId, open }: { ordenId: number; open: boolean 
           <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
         </div>
       ) : error ? (
-        <p className="text-sm text-red-400">{error}</p>
+        <div className="flex items-center gap-3 rounded-lg border border-dashed border-destructive/30 bg-destructive/5 px-3 py-2.5">
+          <p className="text-sm text-red-400 flex-1">{error}</p>
+          <Button
+            size="sm" variant="outline"
+            onClick={() => fetchRegistros()}
+            className="gap-1.5 text-xs h-7 shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Reintentar
+          </Button>
+        </div>
       ) : registros.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sin controles registrados.</p>
       ) : (

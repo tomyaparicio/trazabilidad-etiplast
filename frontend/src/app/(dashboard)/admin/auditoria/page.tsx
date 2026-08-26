@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { AuditEntry } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
@@ -8,8 +9,9 @@ import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
+import { Select } from "@/components/ui/select"
 import {
-  ScrollText, Search, ChevronDown, ChevronLeft, ChevronRight,
+  ScrollText, Search, ChevronLeft, ChevronRight, AlertCircle, RefreshCw,
 } from "lucide-react"
 
 const PER_PAGE = 20
@@ -51,6 +53,7 @@ function fechaHora(iso: string | null): string {
 export default function AuditoriaPage() {
   const [items, setItems] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -59,6 +62,7 @@ export default function AuditoriaPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const res = await api.admin.auditoria.list({
         entidad: entidad || undefined,
@@ -68,7 +72,10 @@ export default function AuditoriaPage() {
       setItems(res.data ?? [])
       setTotalPages(res.total_pages || 1)
       setTotal(res.total ?? 0)
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudieron cargar los datos"
+      setError(msg)
+      toast.error(msg)
       setItems([])
       setTotalPages(1)
       setTotal(0)
@@ -162,29 +169,32 @@ export default function AuditoriaPage() {
             className="h-10 pl-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/15"
           />
         </div>
-        <div className="relative">
-          <select
+        <div className="w-full sm:w-60">
+          <Select
             value={entidad}
             onChange={(e) => handleEntidad(e.target.value)}
-            className="h-10 pl-4 pr-10 bg-input border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-gold/40 appearance-none cursor-pointer"
+            disabled={loading}
+            aria-label="Filtrar por entidad"
+            className="h-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/15 cursor-pointer"
           >
             {ENTIDADES.map((e) => (
               <option key={e.value || "all"} value={e.value}>{e.label}</option>
             ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          </Select>
         </div>
       </div>
 
-      {/* ── Tabla / Empty ── */}
-      {!loading && filtered.length === 0 ? (
+      {/* ── Error + reintentar ── */}
+      {error ? (
         <EmptyState
-          icon={<ScrollText className="w-8 h-8" strokeWidth={1.5} />}
-          title="Sin registros de auditoría"
-          description={
-            search || entidad
-              ? "No hay registros que coincidan con los filtros aplicados."
-              : "Todavía no se registró actividad en el sistema."
+          icon={<AlertCircle className="w-8 h-8" strokeWidth={1.5} />}
+          title="No se pudieron cargar los datos"
+          description={error}
+          action={
+            <Button variant="outline" size="sm" onClick={fetchData} className="gap-2">
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reintentar
+            </Button>
           }
         />
       ) : (
@@ -195,7 +205,11 @@ export default function AuditoriaPage() {
           keyExtractor={(r) => r.id}
           emptyIcon={<ScrollText className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />}
           emptyTitle="Sin registros de auditoría"
-          emptyDescription="Todavía no se registró actividad en el sistema."
+          emptyDescription={
+            search || entidad
+              ? "No hay registros que coincidan con los filtros aplicados."
+              : "Todavía no se registró actividad en el sistema."
+          }
         >
           {/* Paginación */}
           {totalPages > 1 && (

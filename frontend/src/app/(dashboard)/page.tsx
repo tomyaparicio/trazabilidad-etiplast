@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import {
   ArrowRight, FileText, Clock, Cog, CheckCircle2, ChevronRight,
-  FilePlus2, ScanLine, CalendarRange, PackageCheck,
+  FilePlus2, ScanLine, CalendarRange, PackageCheck, TriangleAlert, RefreshCw,
 } from "lucide-react"
 import { api } from "@/lib/api"
+import { Button } from "@/components/ui/button"
 import type { DashboardStats, OrdenResumen } from "@/types/database"
 
 const stateStyle: Record<string, string> = {
@@ -28,19 +29,22 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [userName, setUserName] = useState("Usuario")
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   // Carga client-side (regla del proyecto: nunca SSR bloqueante por el cold-start de Railway).
-  useEffect(() => {
-    let cancelled = false
+  const load = useCallback(() => {
+    setLoading(true)
+    setError(false)
     api.auth.me()
-      .then((u) => { if (!cancelled) setUserName(u.nombre || u.nombre_completo || u.email?.split("@")[0] || "Usuario") })
+      .then((u) => setUserName(u.nombre || u.nombre_completo || u.email?.split("@")[0] || "Usuario"))
       .catch(() => { /* nombre por defecto */ })
     api.dashboard.stats()
-      .then((s) => { if (!cancelled) setStats(s) })
-      .catch(() => { /* deja stats en null → se muestran ceros */ })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+      .then((s) => setStats(s))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { load() }, [load])
 
   const nf = new Intl.NumberFormat("es-AR")
   const est = stats?.ordenes_por_estado ?? {}
@@ -87,6 +91,7 @@ export default function DashboardPage() {
   const orders: OrdenResumen[] = stats?.ordenes_recientes ?? []
 
   if (loading) return <DashboardSkeleton />
+  if (error && !stats) return <DashboardError onRetry={load} />
 
   return (
     <div className="min-h-full bg-background">
@@ -194,6 +199,27 @@ export default function DashboardPage() {
               </div>
             )}
           </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Estado de error con reintento cuando falla api.dashboard.stats().
+function DashboardError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="min-h-full bg-background">
+      <div className="mx-auto max-w-[1360px] p-4 sm:p-6 lg:p-8">
+        <div className="rounded-2xl border border-border bg-card px-6 py-20 flex flex-col items-center gap-3 text-center">
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
+            <TriangleAlert className="w-6 h-6" strokeWidth={1.5} />
+          </div>
+          <p className="text-sm font-medium text-foreground">No se pudo cargar el panel</p>
+          <p className="max-w-sm text-xs text-muted-foreground">El servidor puede estar iniciando (cold-start) o hubo un problema de conexión. Intentá de nuevo.</p>
+          <Button onClick={onRetry} variant="outline" className="mt-1 gap-2">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Reintentar
+          </Button>
         </div>
       </div>
     </div>

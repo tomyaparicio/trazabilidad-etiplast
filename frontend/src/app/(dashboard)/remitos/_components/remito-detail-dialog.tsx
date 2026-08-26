@@ -1,10 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { Loader2, Pencil, Printer, Send, PackageCheck, AlertTriangle } from "lucide-react"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Pencil, Printer, Send, PackageCheck, AlertTriangle } from "lucide-react"
 import { estadoRemitoBadge, type RemitoX } from "./remitos-table"
 
 interface Props {
@@ -25,38 +27,27 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function RemitoDetailDialog({ remito, open, onOpenChange, onEdit, onChanged }: Props) {
-  const [working, setWorking] = useState(false)
-  const [error, setError] = useState("")
   const [warnings, setWarnings] = useState<string[]>([])
+  const [despacharOpen, setDespacharOpen] = useState(false)
+  const [entregarOpen, setEntregarOpen] = useState(false)
 
+  /** Ejecutadas como onConfirm de ConfirmDialog: no envolver en try/catch, dejar que lancen. */
   const handleDespachar = async () => {
-    if (!confirm(`¿Despachar el remito ${remito.numero}? Se registrarán los egresos de stock vinculados.`)) return
-    setWorking(true); setError(""); setWarnings([])
-    try {
-      const res = (await api.remitos.despachar(remito.id)) as RemitoX
-      setWarnings(res.warnings ?? [])
-      onChanged(res)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al despachar")
-    } finally {
-      setWorking(false)
-    }
+    setWarnings([])
+    const res = (await api.remitos.despachar(remito.id)) as RemitoX
+    setWarnings(res.warnings ?? [])
+    onChanged(res)
+    toast.success(`Remito ${remito.numero} despachado`)
   }
 
   const handleEntregado = async () => {
-    if (!confirm(`¿Marcar el remito ${remito.numero} como entregado?`)) return
-    setWorking(true); setError("")
-    try {
-      const res = (await api.remitos.update(remito.id, { estado: "entregado" })) as RemitoX
-      onChanged(res)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al actualizar")
-    } finally {
-      setWorking(false)
-    }
+    const res = (await api.remitos.update(remito.id, { estado: "entregado" })) as RemitoX
+    onChanged(res)
+    toast.success(`Remito ${remito.numero} marcado como entregado`)
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
 
@@ -144,9 +135,6 @@ export function RemitoDetailDialog({ remito, open, onOpenChange, onEdit, onChang
             </div>
           )}
 
-          {error && (
-            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-2">{error}</p>
-          )}
         </div>
 
         {/* ── Footer ── */}
@@ -161,16 +149,16 @@ export function RemitoDetailDialog({ remito, open, onOpenChange, onEdit, onChang
 
           <div className="flex items-center gap-2">
             {remito.estado === "pendiente" && (
-              <Button onClick={handleDespachar} disabled={working}
+              <Button onClick={() => setDespacharOpen(true)}
                 className="bg-brand hover:bg-brand-strong text-white gap-2">
-                {working ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <Send className="w-4 h-4" />
                 Despachar
               </Button>
             )}
             {remito.estado === "despachado" && (
-              <Button onClick={handleEntregado} disabled={working}
+              <Button onClick={() => setEntregarOpen(true)}
                 className="bg-green-700 hover:bg-green-800 text-white gap-2">
-                {working ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackageCheck className="w-4 h-4" />}
+                <PackageCheck className="w-4 h-4" />
                 Marcar entregado
               </Button>
             )}
@@ -179,5 +167,24 @@ export function RemitoDetailDialog({ remito, open, onOpenChange, onEdit, onChang
 
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={despacharOpen}
+      onOpenChange={setDespacharOpen}
+      title={`¿Despachar el remito ${remito.numero}?`}
+      description="Se registrarán los egresos de stock vinculados a este remito."
+      confirmLabel="Despachar"
+      variant="default"
+      onConfirm={handleDespachar}
+    />
+    <ConfirmDialog
+      open={entregarOpen}
+      onOpenChange={setEntregarOpen}
+      title={`¿Marcar el remito ${remito.numero} como entregado?`}
+      confirmLabel="Marcar entregado"
+      variant="default"
+      onConfirm={handleEntregado}
+    />
+    </>
   )
 }

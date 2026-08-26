@@ -2,13 +2,16 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Trazabilidad } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { EmptyState } from "@/components/ui/empty-state"
 import {
   PackageSearch, Search, Loader2, ClipboardList, Truck, ArrowDownUp, Disc3, ExternalLink,
+  AlertCircle, RefreshCw,
 } from "lucide-react"
 import { PageHeader } from "@/components/ui/page-header"
 
@@ -72,14 +75,16 @@ export default function TrazabilidadPage() {
 
   const buscar = async () => {
     const q = lote.trim()
-    if (!q) return
+    if (!q || loading) return // evita doble submit (Enter + click, o Enter repetido)
     setLoading(true); setError(""); setResultado(null)
     try {
       const res = await api.trazabilidad.porLote(q)
       setResultado(res)
       setBuscado(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al buscar el lote")
+      const msg = err instanceof Error ? err.message : "Error al buscar el lote"
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -105,6 +110,8 @@ export default function TrazabilidadPage() {
             value={lote}
             onChange={(e) => setLote(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") buscar() }}
+            disabled={loading}
+            aria-label="Número de lote"
             className="pl-9 h-10 text-sm font-mono"
           />
         </div>
@@ -118,32 +125,37 @@ export default function TrazabilidadPage() {
         </Button>
       </div>
 
+      {/* ── Error + reintentar ── */}
       {error && (
-        <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-2">{error}</p>
+        <EmptyState
+          icon={<AlertCircle className="w-8 h-8" strokeWidth={1.5} />}
+          title="No se pudo buscar el lote"
+          description={error}
+          action={
+            <Button variant="outline" size="sm" onClick={buscar} className="gap-2">
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reintentar
+            </Button>
+          }
+        />
       )}
 
       {/* ── Estado inicial ── */}
       {!buscado && !loading && !error && (
-        <div className="bg-card/80 border border-border rounded-2xl p-10 flex flex-col items-center justify-center text-center">
-          <PackageSearch className="w-8 h-8 text-muted-foreground mb-3" strokeWidth={1.5} />
-          <p className="text-sm font-medium text-foreground">Buscá un lote para rastrear</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Ingresá el número de lote de una orden, bobina o remito para ver toda su cadena de trazabilidad
-          </p>
-        </div>
+        <EmptyState
+          icon={<PackageSearch className="w-8 h-8" strokeWidth={1.5} />}
+          title="Buscá un lote para rastrear"
+          description="Ingresá el número de lote de una orden, bobina o remito para ver toda su cadena de trazabilidad"
+        />
       )}
 
       {/* ── Sin resultados ── */}
-      {sinResultados && (
-        <div className="bg-card/80 border border-border rounded-2xl p-10 flex flex-col items-center justify-center text-center">
-          <PackageSearch className="w-8 h-8 text-muted-foreground mb-3" strokeWidth={1.5} />
-          <p className="text-sm font-medium text-foreground">
-            Sin resultados para el lote <span className="font-mono text-gold">{resultado.lote}</span>
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            No se encontraron órdenes, movimientos de stock ni remitos con ese lote
-          </p>
-        </div>
+      {resultado && sinResultados && (
+        <EmptyState
+          icon={<PackageSearch className="w-8 h-8" strokeWidth={1.5} />}
+          title="Sin resultados para este lote"
+          description={`No se encontraron órdenes, movimientos de stock ni remitos con el lote "${resultado.lote}".`}
+        />
       )}
 
       {/* ── Timeline ── */}

@@ -76,8 +76,16 @@ function ClienteSelector({ value, onSelect, initialName }: { value: number | nul
   return (
     <div ref={ref} className="relative">
       <div
-        className="flex items-center gap-2 border border-input rounded-lg px-3 h-9 cursor-pointer hover:border-foreground/40 transition-colors bg-background"
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        tabIndex={0}
+        className="flex items-center gap-2 border border-input rounded-lg px-3 h-9 cursor-pointer hover:border-foreground/40 transition-colors bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o) }
+          else if (e.key === "Escape") setOpen(false)
+        }}
       >
         {value
           ? <span className="flex-1 text-sm font-medium truncate">{displayName}</span>
@@ -152,7 +160,10 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
   const fetchOrdenes = (cid: number) => {
     api.ordenes.list({ cliente_id: cid, estado: "completada", per_page: 100 })
       .then((res) => setOrdenes(res.data as OrdenConLote[]))
-      .catch(() => setOrdenes([]))
+      .catch(() => {
+        setOrdenes([])
+        toast.error("No se pudieron cargar las órdenes del cliente")
+      })
   }
 
   useEffect(() => {
@@ -226,7 +237,10 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
     }))
   }
 
+  const isValid = !!clienteId && items.some((i) => i.descripcion.trim() || i.orden_trabajo_id)
+
   const handleSubmit = async () => {
+    if (saving) return
     if (!clienteId) { setError("Seleccioná un cliente"); return }
     const itemsValidos = items.filter((i) => i.descripcion.trim() || i.orden_trabajo_id)
     if (itemsValidos.length === 0) { setError("Agregá al menos un ítem con descripción u OT"); return }
@@ -262,7 +276,7 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o && saving) return; onOpenChange(o) }}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
 
         {/* ── Header ── */}
@@ -349,7 +363,8 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
                       <td className="px-2 py-2">
                         {items.length > 1 && (
                           <button type="button" onClick={() => setItems((prev) => prev.filter((_, idx) => idx !== i))}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                            aria-label="Eliminar ítem">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
@@ -383,10 +398,10 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
 
         {/* ── Footer ── */}
         <div className="px-6 py-4 border-t border-border shrink-0 flex items-center justify-between">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={saving}
+          <Button type="button" onClick={handleSubmit} disabled={saving || !isValid}
             className="bg-brand hover:bg-brand-strong text-white gap-2">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {remito ? "Guardar cambios" : "Crear remito"}
