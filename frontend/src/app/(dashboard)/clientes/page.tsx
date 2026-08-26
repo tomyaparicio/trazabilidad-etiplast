@@ -1,13 +1,7 @@
-import { ClientesTable } from "./_components/clientes-table"
+import { ClientesView } from "./_components/clientes-view"
 
-// Página sin fetch SSR — los datos se cargan desde el cliente
-// para evitar que el cold-start del backend bloquee la carga de la página
+// Página fina: solo compone. Toda la lógica vive en useClientes + ClientesView
+// (datos client-side para no bloquear por el cold-start de Railway).
 export default function ClientesPage() {
-  return (
-    <ClientesTable
-      initialClientes={[]}
-      initialTotal={0}
-      filtros={{ rubros: [], provincias: [], envases: [] }}
-    />
-  )
+  return <ClientesView />
 }

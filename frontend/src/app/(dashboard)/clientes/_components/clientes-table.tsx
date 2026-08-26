@@ -1,17 +1,12 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
-import { api } from "@/lib/api"
-import type { Cliente, Filtros } from "@/types/database"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { ChevronRight } from "lucide-react"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
-import { PageContainer } from "@/components/ui/page-container"
-import { PageHeader } from "@/components/ui/page-header"
-import { Search, ChevronLeft, ChevronRight, ChevronDown, X, Plus, Filter, MapPin, Tag, TriangleAlert, RefreshCw } from "lucide-react"
-import { ClienteDetailDialog } from "./cliente-detail-dialog"
-import { ClienteNuevoDialog } from "./cliente-nuevo-dialog"
+import { Pagination } from "@/components/ui/pagination"
+import type { Cliente } from "@/types/database"
+import type { SortDir } from "../_hooks/use-clientes"
 
+// ── Estilos por rubro / avatar (presentación) ──────────────────────────────────
 const RUBRO_STYLES: Record<string, { dot: string; text: string; bg: string; border: string }> = {
   Agua:             { dot: "#22d3ee", text: "text-cyan-400",    bg: "bg-cyan-500/10",    border: "border-cyan-500/20" },
   "Jugos-Gaseosas": { dot: "#fb923c", text: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-500/20" },
@@ -21,8 +16,8 @@ const RUBRO_STYLES: Record<string, { dot: string; text: string; bg: string; bord
 }
 
 const AVATAR_PALETTE = [
-  { from: "#6366f1", to: "#4338ca", color: "#fff" },
-  { from: "#f5eb4a", to: "#c9a500", color: "#0d0d1a" },
+  { from: "var(--primary-400)", to: "var(--primary-600)", color: "#fff" },
+  { from: "var(--gold)",        to: "var(--gold-text)",   color: "#0d0d1a" },
   { from: "#8b5cf6", to: "#7c3aed", color: "#fff" },
   { from: "#06b6d4", to: "#0284c7", color: "#fff" },
   { from: "#10b981", to: "#059669", color: "#fff" },
@@ -30,389 +25,82 @@ const AVATAR_PALETTE = [
   { from: "#ec4899", to: "#db2777", color: "#fff" },
 ]
 
-function avatarFor(name: string) {
-  const idx = Math.abs((name?.charCodeAt(0) ?? 65) - 65) % AVATAR_PALETTE.length
-  return AVATAR_PALETTE[idx]
-}
+const avatarFor = (name: string) =>
+  AVATAR_PALETTE[Math.abs((name?.charCodeAt(0) ?? 65) - 65) % AVATAR_PALETTE.length]
 
-function getRubroStyle(r: string) {
-  return RUBRO_STYLES[r] ?? { dot: "var(--muted-foreground)", text: "text-muted-foreground", bg: "bg-muted/50", border: "border-border" }
-}
+const rubroStyle = (r: string) =>
+  RUBRO_STYLES[r] ?? { dot: "var(--muted-foreground)", text: "text-muted-foreground", bg: "bg-muted/50", border: "border-border" }
 
-interface ClientesTableProps {
-  initialClientes: Cliente[]
-  initialTotal: number
-  filtros: Filtros
-}
-
+const skel = (w: string) => <div className={`h-3 ${w} animate-pulse rounded-full bg-muted`} />
 
 const COLUMNS: ColumnDef<Cliente>[] = [
-  {
-    key: "id",
-    header: "N.",
-    sortable: true,
-    skeleton: <div className="h-3 w-8 rounded-full bg-muted animate-pulse" />,
-    cell: (c) => (
-      <span className="text-xs font-mono text-muted-foreground tabular-nums">{c.id_cliente}</span>
-    ),
-  },
-  {
-    key: "marca",
-    header: "Marca",
-    sortable: true,
-    skeleton: (
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-muted animate-pulse shrink-0" />
-        <div className="h-3.5 w-28 rounded-full bg-muted animate-pulse" />
-      </div>
-    ),
+  { key: "id", header: "N.", sortable: true, skeleton: skel("w-8"),
+    cell: (c) => <span className="font-mono text-xs tabular-nums text-muted-foreground">{c.id_cliente}</span> },
+  { key: "marca", header: "Marca", sortable: true,
+    skeleton: <div className="flex items-center gap-3"><div className="h-8 w-8 animate-pulse rounded-lg bg-muted" /><div className="h-3.5 w-28 animate-pulse rounded-full bg-muted" /></div>,
     cell: (c) => {
       const av = avatarFor(c.marca || "")
       return (
         <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 border border-border"
-            style={{ background: `linear-gradient(135deg, ${av.from}, ${av.to})`, color: av.color }}
-          >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-xs font-bold"
+            style={{ background: `linear-gradient(135deg, ${av.from}, ${av.to})`, color: av.color }}>
             {(c.marca || "?")?.[0]?.toUpperCase()}
           </div>
-          <span className="text-sm font-semibold text-foreground group-hover:text-gold transition-colors">
-            {c.marca}
-          </span>
+          <span className="text-sm font-semibold text-foreground transition-colors group-hover:text-gold">{c.marca}</span>
         </div>
       )
-    },
-  },
-  {
-    key: "rubro",
-    header: "Rubro",
-    skeleton: <div className="h-6 w-20 rounded-lg bg-muted animate-pulse" />,
+    } },
+  { key: "rubro", header: "Rubro", skeleton: <div className="h-6 w-20 animate-pulse rounded-lg bg-muted" />,
     cell: (c) => {
-      const rs = getRubroStyle(c.rubro || "")
+      const rs = rubroStyle(c.rubro || "")
       return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${rs.bg} ${rs.text} ${rs.border}`}>
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: rs.dot }} />
+        <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium ${rs.bg} ${rs.text} ${rs.border}`}>
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: rs.dot }} />
           {c.rubro}
         </span>
       )
-    },
-  },
-  {
-    key: "razon_social",
-    header: "Razón Social",
-    sortable: true,
-    cellClassName: "max-w-[180px]",
-    skeleton: <div className="h-3 w-36 rounded-full bg-muted animate-pulse" />,
-    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.razon_social}</span>,
-  },
-  {
-    key: "localidad",
-    header: "Localidad",
-    sortable: true,
-    skeleton: <div className="h-3 w-24 rounded-full bg-muted animate-pulse" />,
-    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.localidad}</span>,
-  },
-  {
-    key: "provincia",
-    header: "Provincia",
-    skeleton: <div className="h-3 w-24 rounded-full bg-muted animate-pulse" />,
-    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.provincia}</span>,
-  },
-  {
-    key: "producto",
-    header: "Producto",
-    cellClassName: "max-w-[140px]",
-    skeleton: <div className="h-3 w-28 rounded-full bg-muted animate-pulse" />,
-    cell: (c) => <span className="text-sm text-muted-foreground truncate block">{c.producto ?? ""}</span>,
-  },
-  {
-    key: "arrow",
-    header: "",
-    skeleton: <div className="w-4 h-4 rounded bg-muted animate-pulse" />,
-    cell: () => (
-      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-gold group-hover:translate-x-0.5 transition-all duration-150" />
-    ),
-  },
+    } },
+  { key: "razon_social", header: "Razón Social", sortable: true, cellClassName: "max-w-[180px]", skeleton: skel("w-36"),
+    cell: (c) => <span className="block truncate text-sm text-muted-foreground">{c.razon_social}</span> },
+  { key: "localidad", header: "Localidad", sortable: true, skeleton: skel("w-24"),
+    cell: (c) => <span className="block truncate text-sm text-muted-foreground">{c.localidad}</span> },
+  { key: "provincia", header: "Provincia", skeleton: skel("w-24"),
+    cell: (c) => <span className="block truncate text-sm text-muted-foreground">{c.provincia}</span> },
+  { key: "producto", header: "Producto", cellClassName: "max-w-[140px]", skeleton: skel("w-28"),
+    cell: (c) => <span className="block truncate text-sm text-muted-foreground">{c.producto ?? ""}</span> },
+  { key: "arrow", header: "", skeleton: <div className="h-4 w-4 animate-pulse rounded bg-muted" />,
+    cell: () => <ChevronRight className="h-4 w-4 text-muted-foreground transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-gold" /> },
 ]
 
-export function ClientesTable({ initialClientes, initialTotal, filtros: initialFiltros }: ClientesTableProps) {
-  const [clientes, setClientes] = useState<Cliente[]>(initialClientes)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [filtros, setFiltros] = useState<Filtros>(initialFiltros)
-  const [search, setSearch] = useState("")
-  const [rubro, setRubro] = useState("")
-  const [provincia, setProvincia] = useState("")
-  const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(initialTotal)
-  const [sortBy, setSortBy] = useState("marca")
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
-  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
-  const [nuevoDialogOpen, setNuevoDialogOpen] = useState(false)
-  const [searchDebounced, setSearchDebounced] = useState(search)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  useEffect(() => {
-    api.dashboard.filtros().then(setFiltros).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    debounceRef.current = setTimeout(() => setSearchDebounced(search), 300)
-    return () => { clearTimeout(debounceRef.current) }
-  }, [search])
-
-  const perPage = 20
-  const totalPages = Math.ceil(total / perPage)
-  const nf = new Intl.NumberFormat("es-AR")
-
-  const fetchClientes = useCallback(async () => {
-    setLoading(true)
-    setError(false)
-    try {
-      const res = await api.clientes.list({
-        page,
-        per_page: perPage,
-        search: searchDebounced?.trim() || undefined,
-        rubro: rubro || undefined,
-        provincia: provincia || undefined,
-        sort_by: sortBy,
-        sort_dir: sortDir,
-      })
-      setClientes((res.data as Cliente[]) || [])
-      setTotal(res.total || 0)
-    } catch (err) {
-      console.error(err)
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, searchDebounced, rubro, provincia, sortBy, sortDir])
-
-  useEffect(() => {
-    fetchClientes()
-  }, [fetchClientes])
-
-  const handleSort = (key: string) => {
-    if (key === sortBy) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
-    } else {
-      setSortBy(key)
-      setSortDir("asc")
-    }
-    setPage(1)
-  }
-
-  const handleClienteUpdate = (updated: Cliente) => {
-    setClientes((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-    setSelectedCliente((prev) => (prev?.id === updated.id ? updated : prev))
-  }
-
-  const handleClienteCreated = (created: Cliente) => {
-    setClientes((prev) => [created, ...prev])
-    setTotal((t) => t + 1)
-  }
-
-  const handleClienteDeleted = (id: number) => {
-    setClientes((prev) => prev.filter((c) => c.id !== id))
-    setTotal((t) => t - 1)
-    setSelectedCliente(null)
-  }
-
+export function ClientesTable({
+  clientes, loading, sortBy, sortDir, onSort, onRowClick,
+  page, perPage, total, onPageChange,
+}: {
+  clientes: Cliente[]
+  loading: boolean
+  sortBy: string
+  sortDir: SortDir
+  onSort: (key: string) => void
+  onRowClick: (c: Cliente) => void
+  page: number
+  perPage: number
+  total: number
+  onPageChange: (page: number) => void
+}) {
   return (
-    <PageContainer>
-
-      {/* ── Header ── */}
-      <PageHeader
-        title="Clientes"
-        subtitle={`${nf.format(total)} registros encontrados`}
-        actions={
-          <Button
-            onClick={() => setNuevoDialogOpen(true)}
-            className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo cliente
-          </Button>
-        }
-      />
-
-      {/* ── Chips de filtros activos ── */}
-      {(rubro || provincia) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {rubro && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-chart-1/10 text-chart-1 border border-chart-1/20 px-3 py-1.5 rounded-xl">
-              {rubro}
-              <button onClick={() => { setRubro(""); setPage(1) }} className="hover:text-foreground transition-colors">
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          )}
-          {provincia && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-xl">
-              {provincia}
-              <button onClick={() => { setProvincia(""); setPage(1) }} className="hover:text-foreground transition-colors">
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* ── Filters ── */}
-      <div className="rounded-2xl border border-border bg-card/60 p-5 backdrop-blur-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="rounded-lg p-1.5 bg-gold/10 border border-gold/20">
-            <Filter className="w-3.5 h-3.5 text-gold" strokeWidth={1.5} />
-          </div>
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Filtros
-          </span>
-          {(search || rubro || provincia) && (
-            <button
-              onClick={() => { setSearch(""); setRubro(""); setProvincia(""); setPage(1) }}
-              className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground hover:text-gold transition-colors"
-            >
-              <X className="w-3 h-3" />
-              Limpiar todo
-            </button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-[240px]">
-            <label className="block text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-              Búsqueda
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="search"
-                autoComplete="off"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                placeholder="#ID, marca, razón social, localidad, producto…"
-                className="pl-10 h-11 rounded-xl bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-gold/40 focus-visible:ring-gold/15 transition-all"
-              />
-            </div>
-          </div>
-          <div className="min-w-[180px]">
-            <label className="block text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-              Rubro
-            </label>
-            <div className="relative">
-              <Tag className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <select
-                value={rubro}
-                onChange={(e) => { setRubro(e.target.value); setPage(1) }}
-                aria-label="Filtrar por rubro"
-                className="h-11 w-full pl-10 pr-10 bg-input border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-gold/40 focus:ring-2 focus:ring-gold/10 transition-all cursor-pointer appearance-none"
-              >
-                <option value="" className="bg-background">Todos los rubros</option>
-                {filtros.rubros.map((r) => <option key={r} value={r} className="bg-background">{r}</option>)}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
-          <div className="min-w-[180px]">
-            <label className="block text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-              Provincia
-            </label>
-            <div className="relative">
-              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <select
-                value={provincia}
-                onChange={(e) => { setProvincia(e.target.value); setPage(1) }}
-                aria-label="Filtrar por provincia"
-                className="h-11 w-full pl-10 pr-10 bg-input border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-gold/40 focus:ring-2 focus:ring-gold/10 transition-all cursor-pointer appearance-none"
-              >
-                <option value="" className="bg-background">Todas las provincias</option>
-                {filtros.provincias.map((p) => <option key={p} value={p} className="bg-background">{p}</option>)}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Table ── */}
-      {error ? (
-        <div className="rounded-2xl border border-border bg-card px-6 py-16 flex flex-col items-center gap-3 text-center">
-          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive">
-            <TriangleAlert className="w-6 h-6" strokeWidth={1.5} />
-          </div>
-          <p className="text-sm font-medium text-foreground">No se pudieron cargar los clientes</p>
-          <p className="max-w-sm text-xs text-muted-foreground">Puede ser un problema de conexión o que el servidor esté iniciando. Intentá de nuevo.</p>
-          <Button onClick={fetchClientes} variant="outline" className="mt-1 gap-2">
-            <RefreshCw className="w-3.5 h-3.5" />
-            Reintentar
-          </Button>
-        </div>
-      ) : (
-      <DataTable
-        columns={COLUMNS}
-        data={clientes}
-        loading={loading}
-        keyExtractor={(c) => c.id}
-        onRowClick={setSelectedCliente}
-        sortBy={sortBy}
-        sortDir={sortDir}
-        onSort={handleSort}
-        emptyTitle="Sin resultados"
-        emptyDescription="No se encontraron clientes con los filtros aplicados"
-      >
-        {/* ── Pagination (slot dentro del mismo borde redondeado) ── */}
-        {totalPages > 1 && (
-          <nav className="flex items-center justify-between px-5 py-4 border-t border-border" aria-label="Paginación">
-            <p className="text-xs text-muted-foreground">
-              Mostrando{" "}
-              <span className="text-foreground font-medium tabular-nums">
-                {nf.format((page - 1) * perPage + 1)}–{nf.format(Math.min(page * perPage, total))}
-              </span>{" "}
-              de{" "}
-              <span className="text-foreground font-medium tabular-nums">{nf.format(total)}</span>
-            </p>
-            <div className="flex gap-1.5">
-              <Button variant="outline" size="icon"
-                className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
-                onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Página anterior"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </Button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const p = page <= 3 ? i + 1 : page + i - 2
-                if (p < 1 || p > totalPages) return null
-                return (
-                  <Button key={p} variant="outline" size="icon"
-                    className={`h-8 w-8 text-xs tabular-nums transition-all rounded-lg ${p === page ? "bg-gold/10 border-gold/30 text-gold hover:bg-gold/15 font-semibold" : "bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-                    onClick={() => setPage(p)} aria-current={p === page ? "page" : undefined}
-                  >
-                    {p}
-                  </Button>
-                )
-              })}
-              <Button variant="outline" size="icon"
-                className="h-8 w-8 bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
-                onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} aria-label="Página siguiente"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </nav>
-        )}
-      </DataTable>
-      )}
-
-      <ClienteDetailDialog
-        cliente={selectedCliente}
-        onClose={() => setSelectedCliente(null)}
-        onUpdate={handleClienteUpdate}
-        onDelete={handleClienteDeleted}
-      />
-      <ClienteNuevoDialog
-        open={nuevoDialogOpen}
-        onClose={() => setNuevoDialogOpen(false)}
-        onCreated={handleClienteCreated}
-        filtros={filtros}
-      />
-    </PageContainer>
+    <DataTable
+      columns={COLUMNS}
+      data={clientes}
+      loading={loading}
+      keyExtractor={(c) => c.id}
+      onRowClick={onRowClick}
+      sortBy={sortBy}
+      sortDir={sortDir}
+      onSort={onSort}
+      emptyTitle="Sin resultados"
+      emptyDescription="No se encontraron clientes con los filtros aplicados"
+    >
+      <Pagination page={page} perPage={perPage} total={total} onPageChange={onPageChange} />
+    </DataTable>
   )
 }
