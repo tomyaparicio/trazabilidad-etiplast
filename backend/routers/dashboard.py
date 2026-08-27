@@ -10,9 +10,86 @@ from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 from dependencies import verify_token
-from models import Cliente, ClienteProducto, ClienteUbicacion, OrdenTrabajo, Provincia, RazonSocial, Rubro
+from models import Cliente, ClienteProducto, ClienteUbicacion, OrdenTrabajo, Presupuesto, Provincia, RazonSocial, Rubro
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
+
+
+def _metricas_financieras(db: Session) -> dict:
+    """Agregados de $ para el tab Administrativo.
+
+    "Facturación" = valor de las órdenes (total_final); NO representa dinero
+    efectivamente cobrado (el sistema no registra pagos/cobros). Se excluyen
+    las órdenes en borrador y canceladas.
+    """
+    vivas = OrdenTrabajo.estado.notin_(["cancelada", "borrador"])
+    facturacion_total = (
+        db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0)).filter(vivas).scalar()
+    )
+    facturacion_completadas = (
+        db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0))
+        .filter(OrdenTrabajo.estado == "completada")
+        .scalar()
+    )
+    ticket_promedio = (
+        db.query(func.coalesce(func.avg(OrdenTrabajo.total_final), 0))
+        .filter(vivas, OrdenTrabajo.total_final.isnot(None))
+        .scalar()
+    )
+
+    def _presu(estado: str):
+        monto = (
+            db.query(func.coalesce(func.sum(Presupuesto.total), 0))
+            .filter(Presupuesto.estado == estado)
+            .scalar()
+        )
+        cant = (
+            db.query(func.count(Presupuesto.id))
+            .filter(Presupuesto.estado == estado)
+            .scalar()
+        )
+        return float(monto or 0), int(cant or 0)
+
+    aprob_monto, aprob_cant = _presu("aprobado")
+    pend_monto, pend_cant = _presu("enviado")
+
+    # Tasa de aprobación: aprobados sobre presupuestos ya presentados (no borrador)
+    presupuestos_total = (
+        db.query(func.count(Presupuesto.id)).filter(Presupuesto.estado != "borrador").scalar() or 0
+    )
+    tasa_aprobacion = round(aprob_cant / presupuestos_total * 100) if presupuestos_total else 0
+
+    # Facturación por mes (para el gráfico) + variación mes-a-mes
+    mes_col = func.to_char(func.date_trunc("month", OrdenTrabajo.created_at), "YYYY-MM")
+    filas = (
+        db.query(mes_col.label("mes"), func.coalesce(func.sum(OrdenTrabajo.total_final), 0).label("monto"))
+        .filter(vivas)
+        .group_by(mes_col)
+        .order_by(mes_col)
+        .all()
+    )
+    serie = [{"mes": f.mes, "monto": float(f.monto or 0)} for f in filas]
+    facturacion_mom = None
+    if len(serie) >= 2:
+        actual, previo = serie[-1]["monto"], serie[-2]["monto"]
+        if previo:
+            facturacion_mom = round((actual - previo) / previo * 100)
+        elif actual:
+            facturacion_mom = 100
+
+    return {
+        "facturacion_total":             float(facturacion_total or 0),
+        "facturacion_completadas":       float(facturacion_completadas or 0),
+        "facturacion_mom":               facturacion_mom,
+        "facturacion_mensual":           serie[-8:],
+        "ticket_promedio":               round(float(ticket_promedio or 0), 2),
+        "presupuestos_aprobados_monto":  aprob_monto,
+        "presupuestos_pendientes_monto": pend_monto,
+        "presupuestos_aprobados":        aprob_cant,
+        "presupuestos_pendientes":       pend_cant,
+        "presupuestos_total":            int(presupuestos_total),
+        "tasa_aprobacion":               tasa_aprobacion,
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -135,6 +212,8 @@ async def dashboard_stats(
         "ordenes_activas":      ordenes_activas,
         "ordenes_por_estado":   ordenes_por_estado,
         "ordenes_recientes":    ordenes_recientes,
+        # Finanzas (facturación = valor de órdenes; no es dinero cobrado)
+        "finanzas":             _metricas_financieras(db),
     }
 
 

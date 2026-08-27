@@ -125,12 +125,12 @@ export function RemitoDetailDialog({ remito, open, onOpenChange, onEdit, onChang
 
           {/* ── Warnings de stock al despachar ── */}
           {warnings.length > 0 && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 space-y-1.5">
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 space-y-1.5">
+              <p className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5" /> Despachado con advertencias de stock
               </p>
               {warnings.map((w, i) => (
-                <p key={i} className="text-xs text-amber-700 dark:text-amber-400">• {w}</p>
+                <p key={i} className="text-xs text-amber-400">• {w}</p>
               ))}
             </div>
           )}

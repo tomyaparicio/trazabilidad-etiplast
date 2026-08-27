@@ -359,7 +359,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
       setClienteName("")
       setClienteProductos([])
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [open, orden, prefill])
 
   type Form = ReturnType<typeof emptyForm>

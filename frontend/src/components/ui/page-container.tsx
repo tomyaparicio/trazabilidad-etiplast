@@ -14,9 +14,11 @@ export function PageContainer({
   children: React.ReactNode
   className?: string
 }) {
+  // Ancho completo (sin cap centrado) y padding uniforme, para que el <PageHeader>
+  // pueda salir a full-bleed (banda azul) con -mx/-mt que cancelan este padding.
   return (
     <div className="min-h-full w-full overflow-y-auto bg-background">
-      <div className={cn("mx-auto w-full max-w-[1360px] space-y-5 p-4 sm:p-6 lg:p-8", className)}>
+      <div className={cn("w-full space-y-6 p-5 sm:p-8 lg:p-10", className)}>
         {children}
       </div>
     </div>

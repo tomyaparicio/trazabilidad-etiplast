@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Toaster } from "sonner"
 import { Header } from "@/components/header"
 import { Sidebar } from "@/components/sidebar"
@@ -19,8 +19,17 @@ interface DashboardShellProps {
 
 export function DashboardShell({ userEmail, userName, userRole, children }: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  // Colapsar el sidebar en desktop (recordado entre navegaciones/recargas).
+  const [collapsed, setCollapsed] = useState(false)
   const themeCtx = useTheme()
   const isAdmin = userRole === "admin"
+
+  useEffect(() => {
+    if (localStorage.getItem("eti:sidebar-collapsed") === "1") setCollapsed(true)
+  }, [])
+  useEffect(() => {
+    localStorage.setItem("eti:sidebar-collapsed", collapsed ? "1" : "0")
+  }, [collapsed])
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -30,6 +39,7 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
         userRole={userRole}
         menuOpen={menuOpen}
         onMenuOpenChange={setMenuOpen}
+        collapsed={collapsed}
         visible
       />
 
@@ -38,6 +48,8 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
           userName={userName}
           userEmail={userEmail}
           onMenuClick={() => setMenuOpen(true)}
+          onToggleSidebar={() => setCollapsed((v) => !v)}
+          sidebarCollapsed={collapsed}
         />
         <AppDock onMoreClick={() => setMenuOpen(true)} />
         {children}

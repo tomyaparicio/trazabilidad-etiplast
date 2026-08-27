@@ -3,7 +3,8 @@ Script de migraciones — Etiplast ERP
 =====================================
 Ejecutar desde la carpeta backend:
 
-  python migrate.py           → base de datos LOCAL (backend/.env)
+  python migrate.py           → base de datos LOCAL   (backend/.env)
+  python migrate.py --stage   → base de datos STAGING (backend/.env.stage)
   python migrate.py --prod    → base de datos RAILWAY (backend/.env.prod)
 
 Las migraciones son idempotentes (pueden correrse múltiples veces sin error).
@@ -14,19 +15,32 @@ import sys
 # ── Cargar el .env correcto ANTES de importar database (que lee DATABASE_URL) ──
 _here = os.path.dirname(os.path.abspath(__file__))
 _prod = "--prod" in sys.argv
+_stage = "--stage" in sys.argv
 
-if _prod:
-    _env_file = os.path.join(_here, ".env.prod")
+if _prod and _stage:
+    print("❌  Elegí UN solo entorno: --prod o --stage (o ninguno para LOCAL)")
+    sys.exit(1)
+
+
+def _cargar_entorno(fname: str, etiqueta: str, emoji: str) -> None:
+    """Carga backend/<fname> o aborta si no existe (evita migrar a ciegas)."""
+    _env_file = os.path.join(_here, fname)
     if not os.path.exists(_env_file):
-        print("❌  No existe backend/.env.prod")
-        print("   Crealo con:")
-        print("   DATABASE_URL=postgresql://postgres:<pass>@<host>:<port>/railway")
+        print(f"❌  No existe backend/{fname}")
+        print(f"   Crealo con la DATABASE_URL de {etiqueta}:")
+        print("   DATABASE_URL=postgresql://usuario:<pass>@<host>:<port>/<db>")
         sys.exit(1)
     from dotenv import load_dotenv
     load_dotenv(_env_file, override=True)
-    print("🚀  Modo PRODUCCIÓN — Railway")
+    print(f"{emoji}  Modo {etiqueta}")
+
+
+if _prod:
+    _cargar_entorno(".env.prod", "PRODUCCIÓN — Railway", "🚀")
+elif _stage:
+    _cargar_entorno(".env.stage", "STAGING", "🧪")
 else:
-    print("💻  Modo LOCAL")
+    print("💻  Modo LOCAL (backend/.env)")
 
 from sqlalchemy import text   # noqa: E402
 from database import engine, Base  # noqa: E402

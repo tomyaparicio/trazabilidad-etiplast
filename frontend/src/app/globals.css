@@ -2,22 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Tipografía display de marca — Century Gothic (mismo approach que el login;
-   @font-face en vez de next/font/local, que rompe Turbopack). */
-@font-face {
-  font-family: "Century Gothic ET";
-  src: url("/fonts/century-gothic.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Century Gothic ET";
-  src: url("/fonts/century-gothic-bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* Display geométrica de marca: Jost (≈ Century Gothic) vía next/font/google en
+   layout.tsx. Los century-gothic.woff2 del repo estaban ROTOS (eran HTML). */
 
 @custom-variant dark (&:is([data-theme="dark"] *));
 
@@ -126,47 +112,49 @@
   --surface-500: #454a78;
 }
 
-/* Modo oscuro — navy sobrio (misma familia azul/amarillo que la marca) */
+/* ── Tema por defecto: DARK EDITORIAL "Panel Etiplast" (mockup aprobado) ──
+   Vistas navy calmo #0b0d1e, cards #14172f, acento amarillo, azul de marca
+   reservado al hero (bg-brand). Es el default (:root) para evitar flash claro. */
+:root,
 [data-theme="dark"] {
-  --background: #0b0d24;
-  --foreground: #eef0ff;
-  --card: #141733;
-  --card-foreground: #eef0ff;
-  --popover: #171a3d;
-  --popover-foreground: #eef0ff;
-  --primary: #4f54d6;
+  --background: #0b0d1e;
+  --foreground: #f3f4fc;
+  --card: #14172f;
+  --card-foreground: #f3f4fc;
+  --popover: #1c2040;
+  --popover-foreground: #f3f4fc;
+  --primary: #5b61e6;
   --primary-foreground: #ffffff;
-  --secondary: #1e2150;
-  --secondary-foreground: #d8daf5;
-  --muted: #1c1f45;
-  --muted-foreground: #9a9ec8;
-  --accent: #23265c;
-  --accent-foreground: #eef0ff;
-  --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.09);
-  --input: rgba(255, 255, 255, 0.12);
-  --ring: #6f74e0;
+  --secondary: #1c2040;
+  --secondary-foreground: #c3c6e6;
+  --muted: #14172f;
+  --muted-foreground: #8286b0;
+  --accent: #1c2040;
+  --accent-foreground: #f3f4fc;
+  --destructive: #fb7185;
+  --border: rgba(159, 164, 214, 0.12);
+  --input: rgba(159, 164, 214, 0.20);
+  --ring: #5b61e6;
   --gold: #f5eb4a;
   --gold-text: #f5eb4a;
-  --gold-foreground: #101248;
-  --chart-1: #8a8fe0;
-  --chart-2: #6f74e0;
+  --gold-foreground: #12142e;
+  --chart-1: #8a8dff;
+  --chart-2: #5b61e6;
   --chart-3: #f5eb4a;
-  --chart-4: #4f54d6;
-  --chart-5: #aab0ee;
-  /* Sidebar — panel de marca azul (constante en ambos temas) */
-  --sidebar: #292d96;
+  --chart-4: #34d399;
+  --chart-5: #b9bbe8;
+  /* Sidebar — navy oscuro (seamless con las vistas, hairline a la derecha) */
+  --sidebar: #0b0d1e;
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #f5eb4a;
-  --sidebar-primary-foreground: #101248;
-  --sidebar-accent: rgba(255, 255, 255, 0.10);
+  --sidebar-primary-foreground: #12142e;
+  --sidebar-accent: rgba(91, 97, 230, 0.14);
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-border: rgba(159, 164, 214, 0.12);
   --sidebar-ring: #f5eb4a;
 }
 
-/* Modo claro (default) — paleta exacta de la marca / login */
-:root,
+/* Modo claro (alternativo, vía toggle) — paleta clara de la marca */
 [data-theme="light"] {
   --background: #f6f7fb;
   --foreground: #141733;
@@ -220,14 +208,110 @@
 /* text-gold legible: usa --gold-text (oscurece a #9a7d00 en light) en vez de
    --gold (que se mantiene brillante para fills bg-gold/border-gold/ring-gold).
    En dark --gold-text == --gold, así que no cambia nada. */
-@layer utilities {
-  .text-gold {
-    color: var(--gold-text);
-  }
-  /* Tipografía display de marca — títulos, métricas y wordmark (igual que el login) */
-  .font-display {
-    font-family: "Century Gothic ET", var(--font-questrial), system-ui, sans-serif;
-  }
+@utility text-gold {
+  color: var(--gold-text);
+}
+/* Tipografía display de marca — títulos, métricas y wordmark. En Tailwind v4 los
+   utilities custom se declaran con @utility (no @layer utilities, que no emitía el peso). */
+/* UI display (títulos, métricas): Poppins, con cuerpo (600). */
+@utility font-display {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Wordmark de marca: Jost (≈ Century Gothic) con cuerpo (600). */
+@utility font-brand {
+  font-family: var(--font-brand), var(--font-questrial), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Fondo del hero: gradiente que arranca en el azul oscuro (arriba) y aclara al
+   azul de marca — evita la costura dura contra el top-bar oscuro. */
+@utility bg-hero {
+  background-image: linear-gradient(
+    180deg,
+    var(--color-brand-strong) 0%,
+    var(--color-brand) 62%
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dashboard premium — cards, hero, banner, pills y micro-visualizaciones.
+   Estilos centralizados acá (fuente única) para que el dashboard use clases
+   semánticas en vez de arbitrary values frágiles.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes eti-reveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes eti-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+/* Entrada escalonada (el delay se pasa inline con animation-delay) */
+.eti-in { opacity: 0; animation: eti-reveal 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* Contenido del tab: "emerge" desde arriba (desde el tab activo) al cambiar de sección */
+@keyframes eti-emerge {
+  from { opacity: 0; transform: translateY(-12px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.eti-emerge { transform-origin: top center; animation: eti-emerge 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* Card base: plana con profundidad sutil (theme-aware) + hover con elevación */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  background: linear-gradient(158deg, color-mix(in srgb, var(--card), #ffffff 3%), var(--card));
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 26px 50px -34px rgba(0, 0, 0, 0.6);
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.3s, box-shadow 0.3s;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--primary) 32%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+}
+
+/* Card "hero" rellena (KPI destacado) y banner de saludo — azul de marca */
+.stat-hero, .dash-banner {
+  border: none;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 30px 60px -30px rgba(41, 45, 150, 0.9);
+}
+.stat-hero {
+  background:
+    radial-gradient(120% 130% at 88% 6%, rgba(138, 141, 255, 0.5), transparent 52%),
+    radial-gradient(90% 120% at 0% 100%, rgba(73, 194, 255, 0.28), transparent 55%),
+    linear-gradient(140deg, #1b1f6b 0%, #2b30b0 100%);
+}
+.dash-banner {
+  overflow: hidden;
+  border-radius: 24px;
+  background:
+    radial-gradient(120% 150% at 92% -10%, rgba(138, 141, 255, 0.42), transparent 55%),
+    linear-gradient(135deg, #1b1f6b, #2b30b0);
+}
+
+/* Pill de variación (verde sube / rojo baja) */
+.delta-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: rgba(52, 211, 153, 0.14); color: #34d399;
+  font-size: 11px; font-weight: 600; padding: 3px 9px 3px 7px;
+  border-radius: 99px; border: 1px solid rgba(52, 211, 153, 0.22);
+}
+.delta-pill.is-down {
+  background: rgba(251, 113, 133, 0.14); color: #fb7185; border-color: rgba(251, 113, 133, 0.22);
+}
+
+/* Barras del gráfico mensual */
+.bar-grow { transform-origin: bottom; animation: eti-grow 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.bar-fill { background: linear-gradient(180deg, rgba(138, 141, 255, 0.5), rgba(138, 141, 255, 0.12)); }
+.bar-fill--hot {
+  background: linear-gradient(180deg, var(--primary), #49c2ff);
+  box-shadow: 0 0 24px rgba(73, 194, 255, 0.4);
 }
 
 /* Custom scrollbar */

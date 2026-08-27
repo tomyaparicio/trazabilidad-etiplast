@@ -234,7 +234,7 @@ export function useVoiceAgent() {
     }
 
     return recog
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [sendMessage])
 
   // ── resumeListening: retomar escucha en el mismo recog ────────────────────
@@ -335,7 +335,7 @@ export function useVoiceAgent() {
 
     wakeRecogRef.current = wake
     try { wake.start() } catch { /* ignore */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [isSupported, wakeEnabled, sendMessage, startListening])
 
   const playWakeBeep = () => {

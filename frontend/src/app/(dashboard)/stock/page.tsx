@@ -43,7 +43,7 @@ export default function StockPage() {
         actions={
           <Button
             onClick={() => setNuevoOpen(true)}
-            className="h-10 px-4 rounded-xl bg-brand hover:bg-brand-strong text-white border border-brand text-sm font-medium gap-2 shrink-0"
+            className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
           >
             <Plus className="w-4 h-4" />
             Nuevo ítem

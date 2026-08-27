@@ -332,7 +332,7 @@ export default function CalidadPage() {
         title="Control de Calidad"
         subtitle={`${plantillas.length} plantilla${plantillas.length === 1 ? "" : "s"} de checklist por etapa`}
         actions={
-          <Button onClick={() => setFormPlantilla(null)} className="gap-2">
+          <Button onClick={() => setFormPlantilla(null)} className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95">
             <Plus className="w-4 h-4" />
             Nueva plantilla
           </Button>

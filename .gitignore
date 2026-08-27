@@ -9,6 +9,7 @@ env/
 # Archivos de entorno (contienen credenciales - NUNCA subir)
 .env
 .env.prod
+.env.stage
 .env.local
 .env.*.local
 

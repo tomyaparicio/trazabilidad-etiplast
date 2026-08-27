@@ -34,11 +34,11 @@ const ESTADOS: { value: EstadoOrden | ""; label: string }[] = [
 
 function estadoBadge(estado: EstadoOrden) {
   const map: Record<EstadoOrden, { label: string; className: string }> = {
-    borrador:   { label: "Borrador",   className: "bg-zinc-100 text-zinc-600 border-zinc-200" },
-    pendiente:  { label: "Pendiente",  className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-    en_proceso: { label: "En Proceso", className: "bg-blue-50 text-blue-700 border-blue-200" },
-    completada: { label: "Completada", className: "bg-green-50 text-green-700 border-green-200" },
-    cancelada:  { label: "Cancelada",  className: "bg-red-50 text-red-600 border-red-200" },
+    borrador:   { label: "Borrador",   className: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30" },
+    pendiente:  { label: "Pendiente",  className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
+    en_proceso: { label: "En Proceso", className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+    completada: { label: "Completada", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+    cancelada:  { label: "Cancelada",  className: "bg-red-500/15 text-red-400 border-red-500/30" },
   }
   const s = map[estado] ?? { label: estado, className: "" }
   return (
@@ -206,7 +206,7 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
         >
           <button
             onClick={() => window.open(`/print/ordenes/${orden.id}`, "_blank")}
-            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-muted-foreground hover:text-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             title="Ver PDF"
             aria-label="Ver PDF de la orden"
           >
@@ -246,7 +246,7 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
             <EscanearOrdenButton />
             <Button
               onClick={() => { setEditOrden(null); setFormOpen(true) }}
-              className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-4 rounded-xl"
+              className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
             >
               <Plus className="w-4 h-4" />
               Nueva Orden

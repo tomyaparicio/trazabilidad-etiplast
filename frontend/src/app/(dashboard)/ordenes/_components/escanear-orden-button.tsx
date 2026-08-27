@@ -264,7 +264,7 @@ export function EscanearOrdenButton() {
       <Button
         variant="outline"
         onClick={() => setOpen(true)}
-        className="gap-2 h-10 px-4 rounded-xl"
+        className="h-11 gap-2 rounded-xl border-white/40 bg-transparent px-4 text-sm font-semibold text-white hover:bg-white/10 hover:text-white dark:border-white/40 dark:bg-transparent dark:hover:bg-white/10"
       >
         <ScanLine className="w-4 h-4" />
         Escanear orden
@@ -425,7 +425,7 @@ export function EscanearOrdenButton() {
                               {esDudoso && (
                                 <Badge
                                   variant="outline"
-                                  className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200"
+                                  className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-400 border-amber-500/30"
                                 >
                                   verificar
                                 </Badge>

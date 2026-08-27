@@ -42,10 +42,10 @@ const ESTADOS: { value: EstadoRemito | ""; label: string }[] = [
 
 export function estadoRemitoBadge(estado: EstadoRemito) {
   const map: Record<EstadoRemito, { label: string; className: string }> = {
-    pendiente:  { label: "Pendiente",  className: "bg-amber-50 text-amber-700 border-amber-200" },
-    despachado: { label: "Despachado", className: "bg-blue-50 text-blue-700 border-blue-200" },
-    entregado:  { label: "Entregado",  className: "bg-green-50 text-green-700 border-green-200" },
-    anulado:    { label: "Anulado",    className: "bg-red-50 text-red-600 border-red-200" },
+    pendiente:  { label: "Pendiente",  className: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
+    despachado: { label: "Despachado", className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+    entregado:  { label: "Entregado",  className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+    anulado:    { label: "Anulado",    className: "bg-red-500/15 text-red-400 border-red-500/30" },
   }
   const s = map[estado] ?? { label: estado, className: "" }
   return (
@@ -197,7 +197,7 @@ export function RemitosTable() {
         >
           <button
             onClick={() => window.open(`/print/remitos/${r.id}`, "_blank")}
-            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-blue-500/10 text-muted-foreground hover:text-blue-400 transition-colors"
             title="Imprimir"
             aria-label="Imprimir remito"
           >
@@ -239,7 +239,7 @@ export function RemitosTable() {
         actions={
           <Button
             onClick={() => { setEditRemito(null); setFormOpen(true) }}
-            className="bg-brand hover:bg-brand-strong text-white gap-2 h-10 px-4 rounded-xl"
+            className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
           >
             <Plus className="w-4 h-4" />
             Nuevo Remito

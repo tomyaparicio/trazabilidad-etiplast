@@ -10,8 +10,8 @@ import { PageContainer } from "@/components/ui/page-container"
 import { PageHeader } from "@/components/ui/page-header"
 
 const ROLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  admin: { label: "Administrador", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/20" },
-  user:  { label: "Usuario",       color: "text-blue-600",  bg: "bg-blue-500/10  border-blue-500/20"  },
+  admin: { label: "Administrador", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
+  user:  { label: "Usuario",       color: "text-blue-400",  bg: "bg-blue-500/10  border-blue-500/20"  },
 }
 
 function RoleBadge({ role }: { role: string }) {
@@ -143,8 +143,8 @@ export default function PerfilPage() {
                 label="Estado de la cuenta"
                 value={
                   user.is_active
-                    ? <span className="inline-flex items-center gap-1.5 text-emerald-600 text-xs font-semibold"><CheckCircle className="w-3.5 h-3.5" /> Activa</span>
-                    : <span className="inline-flex items-center gap-1.5 text-red-500 text-xs font-semibold"><XCircle className="w-3.5 h-3.5" /> Inactiva</span>
+                    ? <span className="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-semibold"><CheckCircle className="w-3.5 h-3.5" /> Activa</span>
+                    : <span className="inline-flex items-center gap-1.5 text-red-400 text-xs font-semibold"><XCircle className="w-3.5 h-3.5" /> Inactiva</span>
                 }
               />
             </div>

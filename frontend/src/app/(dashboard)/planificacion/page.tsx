@@ -201,7 +201,7 @@ export default function PlanificacionPage() {
         title="Planificación"
         subtitle="Planificación de producción por máquina y etapa"
         actions={
-          <Button onClick={abrirCrear} className="bg-brand hover:bg-brand-strong text-white gap-1.5">
+          <Button onClick={abrirCrear} className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95">
             <Plus className="w-4 h-4" /> Planificar OT
           </Button>
         }

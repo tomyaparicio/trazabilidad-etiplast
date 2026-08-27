@@ -9,18 +9,35 @@ import { NotificationCenter } from "@/components/notification-center"
 
 interface HeaderProps {
   onMenuClick?: () => void
+  /** Colapsar/expandir el sidebar en desktop. */
+  onToggleSidebar?: () => void
+  /** Estado actual del sidebar (para el ícono del toggle). */
+  sidebarCollapsed?: boolean
   userName?: string
   userEmail?: string
 }
 
-export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
+export function Header({ onMenuClick, onToggleSidebar, sidebarCollapsed, userName, userEmail }: HeaderProps) {
   const displayName = userName || userEmail?.split("@")[0] || "Usuario"
   const initial = (userName || userEmail)?.[0]?.toUpperCase() || "U"
   const openPalette = () => window.dispatchEvent(new CustomEvent("eti:open-command-palette"))
 
   return (
-    <header className="h-16 shrink-0 border-b border-border bg-card/80 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+    <header className="relative z-20 h-16 shrink-0 border-b border-border bg-background/80 px-4 shadow-[0_10px_24px_-14px_rgba(0,0,0,0.55)] backdrop-blur-md sm:px-6 lg:px-8">
       <div className="flex h-full items-center justify-between gap-3">
+        {/* Toggle del sidebar — sólo desktop (en móvil se usa el botón de menú) */}
+        {onToggleSidebar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleSidebar}
+            className="hidden h-10 w-10 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground lg:inline-flex"
+            aria-label={sidebarCollapsed ? "Mostrar menú lateral" : "Ocultar menú lateral"}
+            title={sidebarCollapsed ? "Mostrar menú lateral" : "Ocultar menú lateral"}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
         {/* Izquierda: menú móvil + wordmark (sólo móvil; en desktop está en el sidebar) */}
         <div className="flex shrink-0 items-center gap-2 lg:hidden">
           {onMenuClick && (
@@ -35,12 +52,8 @@ export function Header({ onMenuClick, userName, userEmail }: HeaderProps) {
             </Button>
           )}
           <Link href="/" className="flex items-center gap-2">
-            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[11px] bg-gradient-to-br from-[#20236f] to-[#0e1046]">
-              <Image src="/logoSOLO.png" alt="Etiplast" width={22} height={22} className="object-contain" />
-            </div>
-            <span className="font-display text-lg font-bold leading-none text-foreground">
-              eti<span className="text-etiplast-500">plast</span>
-            </span>
+            <Image src="/logoSOLO.png" alt="Etiplast" width={32} height={32} className="h-8 w-8 shrink-0 object-contain" />
+            <span className="font-brand text-xl lowercase leading-none text-etiplast-500">etiplast</span>
           </Link>
         </div>
 

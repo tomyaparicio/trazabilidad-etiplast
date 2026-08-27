@@ -87,6 +87,22 @@ export interface DashboardStats {
   ordenes_activas: number
   ordenes_por_estado: Record<string, number>
   ordenes_recientes: OrdenResumen[]
+  // Finanzas (facturación = valor de órdenes; no es dinero cobrado)
+  finanzas?: DashboardFinanzas
+}
+
+export interface DashboardFinanzas {
+  facturacion_total: number
+  facturacion_completadas: number
+  facturacion_mom: number | null
+  facturacion_mensual: { mes: string; monto: number }[]
+  ticket_promedio: number
+  presupuestos_aprobados_monto: number
+  presupuestos_pendientes_monto: number
+  presupuestos_aprobados: number
+  presupuestos_pendientes: number
+  presupuestos_total: number
+  tasa_aprobacion: number
 }
 
 export interface Filtros {

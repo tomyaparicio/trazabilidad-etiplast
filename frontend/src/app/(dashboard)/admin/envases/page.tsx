@@ -196,7 +196,7 @@ export default function AdminEnvasesPage() {
         title="Envases"
         subtitle={`${envases.length} tipos de envase`}
         actions={
-          <Button onClick={() => setFormEnvase(null)} className="gap-2">
+          <Button onClick={() => setFormEnvase(null)} className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95">
             <Plus className="w-4 h-4" />
             Nuevo envase
           </Button>

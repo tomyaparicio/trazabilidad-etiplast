@@ -270,7 +270,7 @@ export default function AdminRubrosPage() {
         title="Rubros"
         subtitle={`${rubros.length} rubros en el sistema`}
         actions={
-          <Button onClick={() => setFormRubro(null)} className="gap-2">
+          <Button onClick={() => setFormRubro(null)} className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95">
             <Plus className="w-4 h-4" />
             Nuevo rubro
           </Button>

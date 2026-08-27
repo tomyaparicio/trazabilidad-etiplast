@@ -235,7 +235,7 @@ export default function AdminMaquinasPage() {
         title="Máquinas"
         subtitle={`${maquinas.length} registro${maquinas.length === 1 ? "" : "s"}${filtroTipo ? ` · ${labelTipo(filtroTipo)}` : ""}`}
         actions={
-          <Button onClick={() => setFormMaquina(null)} className="gap-2 shrink-0">
+          <Button onClick={() => setFormMaquina(null)} className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95">
             <Plus className="w-4 h-4" />
             Nueva máquina
           </Button>

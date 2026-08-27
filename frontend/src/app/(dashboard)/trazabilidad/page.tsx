@@ -239,10 +239,10 @@ export default function TrazabilidadPage() {
                       variant="outline"
                       className={`text-[10px] px-1.5 py-0 ${
                         m.tipo === "ingreso"
-                          ? "bg-green-50 text-green-700 border-green-200"
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
                           : m.tipo === "egreso"
-                            ? "bg-red-50 text-red-600 border-red-200"
-                            : "bg-zinc-100 text-zinc-600 border-zinc-200"
+                            ? "bg-red-500/15 text-red-400 border-red-500/30"
+                            : "bg-zinc-500/15 text-zinc-400 border-zinc-500/30"
                       }`}
                     >
                       {m.tipo}
