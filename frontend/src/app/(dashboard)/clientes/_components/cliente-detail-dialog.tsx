@@ -192,8 +192,10 @@ function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
     { k: "Envase", v: producto.envase || "—", sub: envaseSub },
     producto.lamina                   && { k: "Lámina",    v: producto.lamina },
     producto.alto                     && { k: "Alto",      v: String(producto.alto) },
-    producto.cilindro                 && { k: "Cilindro",  v: String(producto.cilindro) },
-    producto.cierre                   && { k: "Cierre",    v: String(producto.cierre) },
+    // El cilindro se expresa por DIÁMETRO → se muestra con "ø".
+    producto.cilindro                 && { k: "Cilindro",  v: `ø ${producto.cilindro}` },
+    // El cierre siempre es medida INTERIOR → se muestra con "(int)".
+    producto.cierre                   && { k: "Cierre",    v: `${producto.cierre} (int)` },
     producto.muestra                  && { k: "Muestra",   v: producto.muestra },
     producto.maquina_impresora_nombre && { k: "Impresora", v: producto.maquina_impresora_nombre },
   ].filter(Boolean) as { k: string; v: string; sub?: { label: string; value: string | null }[] }[]
@@ -278,7 +280,7 @@ function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, en
           ["volumen_cantidad","Volumen","number"],["volumen_unidad","Unidad","text"],
           ["lamina","Lámina","text"],["muestra","Muestra","text"],
           ["envase_codificado","Cód. Envase","text"],["ubicacion","Ubicación","text"],
-          ["alto","Alto","number"],["cilindro","Cilindro","number"],["cierre","Cierre","number"],
+          ["alto","Alto","number"],["cilindro","Cilindro (ø)","number"],["cierre","Cierre (int)","number"],
         ] as [keyof ProdForm, string, string][]).map(([k, label, type]) => (
           <div key={k}>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">{label}</label>

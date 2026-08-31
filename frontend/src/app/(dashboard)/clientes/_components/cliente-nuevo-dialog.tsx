@@ -505,11 +505,11 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                 <Input type="number" inputMode="numeric" autoComplete="off" value={val("alto")} onChange={set("alto")} className={INPUT_CLS} />
               </div>
               <div className="sm:col-span-1">
-                <Etiqueta>Cilindro</Etiqueta>
+                <Etiqueta>Cilindro (ø)</Etiqueta>
                 <Input type="number" inputMode="numeric" autoComplete="off" value={val("cilindro")} onChange={set("cilindro")} className={INPUT_CLS} />
               </div>
               <div className="sm:col-span-1">
-                <Etiqueta>Cierre</Etiqueta>
+                <Etiqueta>Cierre (int)</Etiqueta>
                 <Input type="number" inputMode="numeric" autoComplete="off" value={val("cierre")} onChange={set("cierre")} className={INPUT_CLS} />
               </div>
               <div className="sm:col-span-1">
@@ -589,8 +589,8 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                       {[
                         filled("lamina") ? `Lámina ${val("lamina")}` : null,
                         filled("alto") ? `Alto ${val("alto")}` : null,
-                        filled("cilindro") ? `Cil. ${val("cilindro")}` : null,
-                        filled("cierre") ? `Cierre ${val("cierre")}` : null,
+                        filled("cilindro") ? `Cil. ø ${val("cilindro")}` : null,
+                        filled("cierre") ? `Cierre ${val("cierre")} (int)` : null,
                         filled("muestra") ? `Muestra ${val("muestra")}` : null,
                       ].filter(Boolean).join(" · ")}
                     </Sum>
