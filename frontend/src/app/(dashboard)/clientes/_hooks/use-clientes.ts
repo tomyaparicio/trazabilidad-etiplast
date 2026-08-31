@@ -5,8 +5,11 @@ import { api } from "@/lib/api"
 import type { Cliente, Filtros } from "@/types/database"
 
 const PER_PAGE = 20
-const EMPTY_FILTROS: Filtros = { rubros: [], provincias: [], envases: [] }
+const EMPTY_FILTROS: Filtros = { rubros: [], provincias: [], envases: [], razones_sociales: [] }
 export type SortDir = "asc" | "desc"
+
+/** Centinela del filtro de razón social: pide los clientes que NO tienen ninguna. */
+export const SIN_RAZON_SOCIAL = "__sin__"
 
 /**
  * Toda la lógica de datos de Clientes en un solo lugar: fetch, filtros (con
@@ -24,6 +27,7 @@ export function useClientes() {
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [rubro, setRubroState] = useState("")
   const [provincia, setProvinciaState] = useState("")
+  const [razonSocial, setRazonSocialState] = useState("")
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState("marca")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
@@ -53,6 +57,7 @@ export function useClientes() {
         search: debouncedSearch.trim() || undefined,
         rubro: rubro || undefined,
         provincia: provincia || undefined,
+        razon_social: razonSocial || undefined,
         sort_by: sortBy,
         sort_dir: sortDir,
       })
@@ -63,7 +68,7 @@ export function useClientes() {
     } finally {
       setLoading(false)
     }
-  }, [page, debouncedSearch, rubro, provincia, sortBy, sortDir])
+  }, [page, debouncedSearch, rubro, provincia, razonSocial, sortBy, sortDir])
 
   useEffect(() => {
     fetchClientes()
@@ -73,8 +78,9 @@ export function useClientes() {
   const setSearch = useCallback((v: string) => setSearchState(v), [])
   const setRubro = useCallback((v: string) => { setRubroState(v); setPage(1) }, [])
   const setProvincia = useCallback((v: string) => { setProvinciaState(v); setPage(1) }, [])
+  const setRazonSocial = useCallback((v: string) => { setRazonSocialState(v); setPage(1) }, [])
   const clearFilters = useCallback(() => {
-    setSearchState(""); setRubroState(""); setProvinciaState(""); setPage(1)
+    setSearchState(""); setRubroState(""); setProvinciaState(""); setRazonSocialState(""); setPage(1)
   }, [])
 
   const toggleSort = useCallback((key: string) => {
@@ -94,7 +100,8 @@ export function useClientes() {
   return {
     clientes, total, loading, error, filtros, perPage: PER_PAGE,
     search, setSearch, rubro, setRubro, provincia, setProvincia,
-    clearFilters, hasFilters: Boolean(search || rubro || provincia),
+    razonSocial, setRazonSocial,
+    clearFilters, hasFilters: Boolean(search || rubro || provincia || razonSocial),
     page, setPage, sortBy, sortDir, toggleSort,
     refetch: fetchClientes, onCreated, onUpdated, onDeleted,
   }

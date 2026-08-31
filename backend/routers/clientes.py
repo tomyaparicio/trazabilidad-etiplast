@@ -21,9 +21,25 @@ from services import auditoria
 
 router = APIRouter(prefix="/api", tags=["clientes"])
 
+# Centinela del filtro de razón social: pide los clientes que NO tienen ninguna.
+# Va como valor de la misma query param para no agregar un segundo parámetro
+# booleano que habría que mantener en sincronía con el <select> del front.
+SIN_RAZON_SOCIAL = "__sin__"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers internos
 # ──────────────────────────────────────────────────────────────────────────────
+
+def razon_social_efectiva():
+    """La razón social que realmente ve el usuario.
+
+    Puede venir del catálogo (`razon_social_id` → `razones_sociales`) o, en los
+    clientes viejos, del texto libre `clientes.razon_social`. El catálogo manda,
+    igual que en el orden y en el export, para que filtrar y mostrar coincidan.
+    Compartida con /dashboard/filtros, que arma el catálogo del <select>.
+    """
+    return func.coalesce(RazonSocial.razon_social, Cliente.razon_social)
+
 
 def _eager_options():
     """Opciones de carga eager para traer todas las relaciones en 1 query."""
@@ -89,14 +105,20 @@ async def listar_clientes(
     fuzzy: bool = Query(False, description="Búsqueda aproximada con pg_trgm (para reconocimiento de voz)"),
     rubro: Optional[str] = Query(None, description="Filtrar por rubro"),
     provincia: Optional[str] = Query(None, description="Filtrar por provincia"),
+    razon_social: Optional[str] = Query(
+        None,
+        description=f"Filtrar por razón social. '{SIN_RAZON_SOCIAL}' = los clientes que no tienen ninguna",
+    ),
     sort_by: Optional[str] = Query("marca", description="Campo de ordenamiento: id, marca, razon_social, localidad"),
     sort_dir: Optional[str] = Query("asc", description="Dirección: asc o desc"),
 ):
-    # Siempre unimos las tablas auxiliares para búsqueda y ordenamiento sin duplicar joins
+    # Unimos las auxiliares para búsqueda y ordenamiento. Sólo las que NO
+    # multiplican filas: ubicación es 1:1 y razón social es N:1. Los productos
+    # (1:N) van por EXISTS más abajo — unirlos duplicaría el cliente una vez por
+    # presentación, inflando el total y comiéndose lugares de la página.
     query = (
         db.query(Cliente)
         .outerjoin(ClienteUbicacion,  ClienteUbicacion.cliente_id  == Cliente.id)
-        .outerjoin(ClienteProducto,   ClienteProducto.cliente_id   == Cliente.id)
         .outerjoin(RazonSocial,       RazonSocial.id               == Cliente.razon_social_id)
     )
 
@@ -116,7 +138,7 @@ async def listar_clientes(
                     func.similarity(func.lower(func.coalesce(Cliente.marca, "")), s),
                     func.similarity(func.lower(func.coalesce(Cliente.razon_social, "")), s),
                 ).desc()
-            ).distinct()
+            )
         else:
             f = f"%{search}%"
             try:
@@ -129,16 +151,26 @@ async def listar_clientes(
                 Cliente.razon_social.ilike(f),
                 RazonSocial.razon_social.ilike(f),
                 ClienteUbicacion.localidad.ilike(f),
-                ClienteProducto.nombre.ilike(f),
+                # EXISTS en vez de join: encuentra al cliente por el nombre de
+                # cualquiera de sus presentaciones, sin repetirlo por cada una.
+                Cliente.productos.any(ClienteProducto.nombre.ilike(f)),
             ]
             if id_filter is not None:
                 conditions.insert(0, id_filter)
-            query = query.filter(or_(*conditions)).distinct()
+            query = query.filter(or_(*conditions))
 
     # — Filtro por rubro (catálogo) —
     if rubro:
         rubro_obj = db.query(Rubro).filter(Rubro.nombre == rubro).first()
         query = query.filter(Cliente.rubro_id == rubro_obj.id) if rubro_obj else query.filter(False)
+
+    # — Filtro por razón social (catálogo, texto libre legacy, o "las que no tienen") —
+    if razon_social:
+        efectiva = func.upper(func.trim(razon_social_efectiva()))
+        if razon_social == SIN_RAZON_SOCIAL:
+            query = query.filter(or_(efectiva.is_(None), efectiva == ""))
+        else:
+            query = query.filter(efectiva == razon_social.strip().upper())
 
     # — Filtro por provincia (usa la ubicación ya unida) —
     if provincia:

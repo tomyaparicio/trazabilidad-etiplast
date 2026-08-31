@@ -14,8 +14,13 @@ import { usePermisos } from "@/components/permisos-provider"
 import { useClientes } from "../_hooks/use-clientes"
 import { ClientesTable } from "./clientes-table"
 import { ClienteNuevoDialog } from "./cliente-nuevo-dialog"
+import { RazonSocialFilter } from "./razon-social-filter"
 
 const nf = new Intl.NumberFormat("es-AR")
+
+// Los <option> nativos heredan el texto blanco del banner y quedan ilegibles al
+// desplegarse sobre el fondo del sistema — se fuerzan a oscuro sobre blanco.
+const optionStyle = { color: "#0b0d1e", backgroundColor: "#fff" } as const
 
 /**
  * Orquestador de la vista Clientes: conecta el hook de datos con los componentes
@@ -69,8 +74,8 @@ export function ClientesView() {
           </div>
         }
       >
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap">
+          <div className="relative lg:min-w-[260px] lg:flex-1">
             <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-white/60" />
             <Input
               type="search" autoComplete="off" value={c.search}
@@ -79,18 +84,23 @@ export function ClientesView() {
               className="h-14 rounded-xl border-white/25 bg-white/10 pl-12 pr-4 text-[15px] text-white placeholder:text-white/55 focus-visible:border-white/50 focus-visible:ring-2 focus-visible:ring-white/20"
             />
           </div>
+          <RazonSocialFilter
+            value={c.razonSocial}
+            onChange={c.setRazonSocial}
+            opciones={c.filtros.razones_sociales}
+          />
           <div className="relative lg:w-56">
             <Tags className="pointer-events-none absolute left-4 top-1/2 z-10 size-5 -translate-y-1/2 text-white/60" />
             <Select value={c.rubro} onChange={(e) => c.setRubro(e.target.value)} aria-label="Filtrar por rubro" className="h-14 rounded-xl border-white/25 bg-white/10 pl-12 text-[15px] text-white">
-              <option value="" style={{ color: "#0b0d1e", backgroundColor: "#fff" }}>Todos los rubros</option>
-              {c.filtros.rubros.map((r) => <option key={r} value={r} style={{ color: "#0b0d1e", backgroundColor: "#fff" }}>{r}</option>)}
+              <option value="" style={optionStyle}>Todos los rubros</option>
+              {c.filtros.rubros.map((r) => <option key={r} value={r} style={optionStyle}>{r}</option>)}
             </Select>
           </div>
           <div className="relative lg:w-56">
             <MapPin className="pointer-events-none absolute left-4 top-1/2 z-10 size-5 -translate-y-1/2 text-white/60" />
             <Select value={c.provincia} onChange={(e) => c.setProvincia(e.target.value)} aria-label="Filtrar por provincia" className="h-14 rounded-xl border-white/25 bg-white/10 pl-12 text-[15px] text-white">
-              <option value="" style={{ color: "#0b0d1e", backgroundColor: "#fff" }}>Todas las provincias</option>
-              {c.filtros.provincias.map((p) => <option key={p} value={p} style={{ color: "#0b0d1e", backgroundColor: "#fff" }}>{p}</option>)}
+              <option value="" style={optionStyle}>Todas las provincias</option>
+              {c.filtros.provincias.map((p) => <option key={p} value={p} style={optionStyle}>{p}</option>)}
             </Select>
           </div>
           {c.hasFilters && (

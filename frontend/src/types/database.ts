@@ -115,6 +115,8 @@ export interface Filtros {
   rubros: string[]
   provincias: string[]
   envases: string[]
+  /** Sólo las razones sociales que algún cliente usa (catálogo + texto libre legacy). */
+  razones_sociales: string[]
 }
 
 export interface Usuario {

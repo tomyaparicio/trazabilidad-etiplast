@@ -316,7 +316,7 @@ async def obtener_filtros(
     db: Session = Depends(get_db),
 ):
     """
-    Devuelve rubros y provincias desde sus catálogos,
+    Devuelve rubros, provincias, envases y razones sociales,
     ordenados alfabéticamente.
     """
     rubros = [
@@ -333,4 +333,29 @@ async def obtener_filtros(
         db.query(Envase).order_by(Envase.nombre).all()
     ]
 
-    return {"rubros": rubros, "provincias": provincias, "envases": envases}
+    # Razones sociales: sólo las que algún cliente usa realmente (catálogo o texto
+    # libre legacy), así ninguna opción del <select> devuelve una lista vacía.
+    from routers.clientes import razon_social_efectiva
+    efectiva = razon_social_efectiva()
+    vistas: dict[str, str] = {}
+    filas = (
+        db.query(efectiva)
+        .select_from(Cliente)
+        .outerjoin(RazonSocial, RazonSocial.id == Cliente.razon_social_id)
+        .filter(efectiva.isnot(None))
+        .distinct()
+        .all()
+    )
+    for (valor,) in filas:
+        texto = (valor or "").strip()
+        # Case-insensitive: "Acme SA" y "ACME SA" son una sola opción.
+        if texto:
+            vistas.setdefault(texto.upper(), texto)
+    razones_sociales = sorted(vistas.values(), key=str.upper)
+
+    return {
+        "rubros": rubros,
+        "provincias": provincias,
+        "envases": envases,
+        "razones_sociales": razones_sociales,
+    }

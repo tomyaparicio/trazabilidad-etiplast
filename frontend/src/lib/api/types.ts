@@ -29,6 +29,8 @@ export type ClientesListParams = {
   search?: string
   rubro?: string
   provincia?: string
+  /** Razón social exacta, o SIN_RAZON_SOCIAL para los clientes que no tienen. */
+  razon_social?: string
   sort_by?: string
   sort_dir?: "asc" | "desc"
 }
