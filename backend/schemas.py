@@ -2,7 +2,7 @@
 Schemas Pydantic v2 — Etiplast ERP
 ===================================
 Validación de entrada para los módulos de la expansión (presupuestos, stock,
-remitos, planificación, calidad) + schemas de referencia para clientes/órdenes.
+remitos, calidad) + schemas de referencia para clientes/órdenes.
 
 Convenciones:
   - `extra="ignore"`: claves desconocidas se descartan en silencio.
@@ -157,32 +157,6 @@ class RemitoUpdateSchema(_Schema):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Planificación de producción
-# ──────────────────────────────────────────────────────────────────────────────
-
-class PlanProduccionCreateSchema(_Schema):
-    orden_trabajo_id: int
-    maquina_id:       int
-    etapa:            str = Field(..., max_length=20)   # extrusion | impresion | troquelado
-    fecha_inicio:     Optional[date] = None
-    fecha_fin:        Optional[date] = None
-    orden_prioridad:  int = 0
-    estado:           str = "planificada"
-    notas:            Optional[str] = None
-
-
-class PlanProduccionUpdateSchema(_Schema):
-    orden_trabajo_id: Optional[int] = None
-    maquina_id:       Optional[int] = None
-    etapa:            Optional[str] = Field(None, max_length=20)
-    fecha_inicio:     Optional[date] = None
-    fecha_fin:        Optional[date] = None
-    orden_prioridad:  Optional[int] = None
-    estado:           Optional[str] = None
-    notas:            Optional[str] = None
-
-
-# ──────────────────────────────────────────────────────────────────────────────
 # Control de calidad
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -262,6 +236,7 @@ class ClienteUpdateSchema(_Schema):
     producto:          Optional[str] = Field(None, max_length=200)
     envase:            Optional[str] = Field(None, max_length=200)
     envase_codificado: Optional[str] = Field(None, max_length=100)
+    ubicacion:         Optional[str] = Field(None, max_length=100)   # ubicación física del envase (ej: "A-3")
     volumen_cantidad:  OptNum = None
     volumen_unidad:    Optional[str] = Field(None, max_length=50)
     lamina:            Optional[str] = Field(None, max_length=200)

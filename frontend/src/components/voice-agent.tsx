@@ -55,15 +55,15 @@ function ActionBanner({ action }: { action: EtiAction }) {
 }
 
 // ── Wrapper que evita hidratación SSR ────────────────────────────────────────
-export function VoiceAgent() {
+export function VoiceAgent({ dockOpen = false }: { dockOpen?: boolean }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
   if (!mounted) return null
-  return <VoiceAgentContent />
+  return <VoiceAgentContent dockOpen={dockOpen} />
 }
 
 // ── Contenido real (todos los hooks aquí) ─────────────────────────────────────
-function VoiceAgentContent() {
+function VoiceAgentContent({ dockOpen = false }: { dockOpen?: boolean }) {
   const [expanded, setExpanded]   = useState(false)
   const [inputText, setInputText] = useState("")
   const messagesEndRef            = useRef<HTMLDivElement>(null)
@@ -109,8 +109,14 @@ function VoiceAgentContent() {
   const label = stateLabel(state)
   const isActive = state !== "idle" && state !== "error"
 
+  // Visible si el dock está abierto, o si hay actividad ("Hola Eti" / atajo)
+  // aunque el dock esté cerrado — el mic aparece solo cuando se lo invoca.
+  const dockVisible = dockOpen || expanded || state !== "idle"
+
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
+    <div className={`fixed bottom-5 left-[calc(50%+44px)] z-50 flex flex-col items-start gap-2 transition-all duration-200 ${
+      dockVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
+    }`}>
 
       {/* ── Panel expandible ──────────────────────────────────────────────── */}
       {expanded && (

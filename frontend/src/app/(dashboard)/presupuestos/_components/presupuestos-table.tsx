@@ -6,6 +6,7 @@ import type { EstadoPresupuesto, Presupuesto } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { usePermisos } from "@/components/permisos-provider"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -111,6 +112,7 @@ const COLUMNS: ColumnDef<PresupuestoRow>[] = [
 ]
 
 export function PresupuestosTable() {
+  const { can } = usePermisos()
   const [presupuestos, setPresupuestos] = useState<PresupuestoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -179,17 +181,19 @@ export function PresupuestosTable() {
       {/* ── Header ── */}
       <PageHeader
         icon={FileText}
-        iconClassName="text-gold"
+        iconClassName="text-white"
         title="Presupuestos"
         subtitle={`${nf.format(total)} registros encontrados`}
         actions={
-          <Button
-            onClick={() => { setEditTarget(null); setFormOpen(true) }}
-            className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo presupuesto
-          </Button>
+          can("presupuestos:crear") ? (
+            <Button
+              onClick={() => { setEditTarget(null); setFormOpen(true) }}
+              className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo presupuesto
+            </Button>
+          ) : undefined
         }
       />
 

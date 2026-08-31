@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_admin, verify_token
+from dependencies import require_permiso, verify_token
 from models import StockItem, StockMovimiento, User
 from schemas import (
     StockItemCreateSchema, StockItemUpdateSchema, StockMovimientoCreateSchema,
@@ -131,7 +131,7 @@ async def listar_stock(
 @router.post("/stock", status_code=201, summary="Crear ítem de stock")
 async def crear_item(
     datos: StockItemCreateSchema,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("stock:crear")),
     db: Session = Depends(get_db),
 ):
     if datos.tipo not in TIPOS_ITEM:
@@ -211,7 +211,7 @@ async def crear_item(
 async def actualizar_item(
     item_id: int,
     datos: StockItemUpdateSchema,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("stock:editar")),
     db: Session = Depends(get_db),
 ):
     item = db.query(StockItem).filter(StockItem.id == item_id).first()
@@ -256,7 +256,7 @@ async def actualizar_item(
 @router.delete("/stock/{item_id}", status_code=204, summary="Desactivar ítem de stock (soft delete)")
 async def eliminar_item(
     item_id: int,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("stock:borrar")),
     db: Session = Depends(get_db),
 ):
     item = db.query(StockItem).filter(StockItem.id == item_id).first()
@@ -319,7 +319,7 @@ async def listar_movimientos(
 async def crear_movimiento(
     item_id: int,
     datos: StockMovimientoCreateSchema,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("stock:editar")),
     db: Session = Depends(get_db),
 ):
     item = db.query(StockItem).filter(StockItem.id == item_id).first()

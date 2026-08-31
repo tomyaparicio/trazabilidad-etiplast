@@ -5,32 +5,70 @@ import Image from "next/image"
 import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  LayoutDashboard, Users, LogOut, Shield, ClipboardList, Building2, Tag, Package, Cog,
-  FileText, Boxes, Truck, CalendarRange, BarChart3, ClipboardCheck, ScrollText,
+  LayoutDashboard, Users, LogOut, Shield, ShieldCheck, ClipboardList, Building2, Tag, Package, Cog,
+  FileText, Boxes, Truck, BarChart3, ClipboardCheck, ScrollText,
+  Briefcase, Factory, Warehouse, Library, ChevronRight,
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { usePermisos } from "@/components/permisos-provider"
 import { useEffect, useState } from "react"
 
-const navigation = [
-  { name: "Panel de Control", href: "/", icon: LayoutDashboard },
-  { name: "Clientes", href: "/clientes", icon: Users },
-  { name: "Órdenes de Trabajo", href: "/ordenes", icon: ClipboardList },
-  { name: "Presupuestos", href: "/presupuestos", icon: FileText },
-  { name: "Stock", href: "/stock", icon: Boxes },
-  { name: "Remitos", href: "/remitos", icon: Truck },
-  { name: "Planificación", href: "/planificacion", icon: CalendarRange },
-  { name: "Reportes", href: "/reportes", icon: BarChart3 },
+// Estructura del menú: ítems sueltos o carpetas (grupos colapsables).
+// `vista`: clave del catálogo RBAC — el ítem se muestra solo si el rol la tiene.
+type IconType = React.ComponentType<{ className?: string; strokeWidth?: number }>
+type NavLeaf = { name: string; href: string; icon: IconType; vista?: string }
+type NavGroupDef = { group: string; icon: IconType; items: NavLeaf[] }
+type NavEntry = NavLeaf | NavGroupDef
+const isGroup = (e: NavEntry): e is NavGroupDef => "group" in e
+
+const menu: NavEntry[] = [
+  { name: "Panel de Control", href: "/", icon: LayoutDashboard, vista: "panel" },
+  { group: "Comercial", icon: Briefcase, items: [
+    { name: "Clientes", href: "/clientes", icon: Users, vista: "clientes" },
+    { name: "Presupuestos", href: "/presupuestos", icon: FileText, vista: "presupuestos" },
+  ] },
+  { group: "Producción", icon: Factory, items: [
+    { name: "Órdenes de Trabajo", href: "/ordenes", icon: ClipboardList, vista: "ordenes" },
+  ] },
+  { group: "Inventario", icon: Warehouse, items: [
+    { name: "Stock", href: "/stock", icon: Boxes, vista: "stock" },
+    { name: "Remitos", href: "/remitos", icon: Truck, vista: "remitos" },
+  ] },
+  { name: "Reportes", href: "/reportes", icon: BarChart3, vista: "reportes" },
 ]
 
-const adminNavigation = [
-  { name: "Usuarios",         href: "/admin/usuarios",         icon: Shield         },
-  { name: "Razones Sociales", href: "/admin/razones-sociales", icon: Building2      },
-  { name: "Rubros",           href: "/admin/rubros",           icon: Tag            },
-  { name: "Envases",          href: "/admin/envases",          icon: Package        },
-  { name: "Máquinas",         href: "/admin/maquinas",         icon: Cog            },
-  { name: "Calidad",          href: "/admin/calidad",          icon: ClipboardCheck },
-  { name: "Auditoría",        href: "/admin/auditoria",        icon: ScrollText     },
+const adminMenu: NavEntry[] = [
+  { name: "Usuarios", href: "/admin/usuarios", icon: Shield },
+  { name: "Roles y permisos", href: "/admin/roles", icon: ShieldCheck },
+  { group: "Catálogos", icon: Library, items: [
+    { name: "Razones Sociales", href: "/admin/razones-sociales", icon: Building2 },
+    { name: "Rubros", href: "/admin/rubros", icon: Tag },
+    { name: "Envases", href: "/admin/envases", icon: Package },
+    { name: "Máquinas", href: "/admin/maquinas", icon: Cog },
+  ] },
+  { name: "Calidad", href: "/admin/calidad", icon: ClipboardCheck },
+  { name: "Auditoría", href: "/admin/auditoria", icon: ScrollText },
 ]
+
+// Estado de plegado de las carpetas (persistido). Vacío = todas abiertas.
+const GROUPS_LS_KEY = "eti:nav-groups-collapsed"
+function useCollapsedGroups() {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(GROUPS_LS_KEY)
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]))
+    } catch { /* sin persistencia */ }
+  }, [])
+  const toggle = (g: string) =>
+    setCollapsed((prev) => {
+      const n = new Set(prev)
+      n.has(g) ? n.delete(g) : n.add(g)
+      try { localStorage.setItem(GROUPS_LS_KEY, JSON.stringify([...n])) } catch { /* noop */ }
+      return n
+    })
+  return { collapsed, toggle }
+}
 
 interface SidebarProps {
   userEmail?: string
@@ -88,24 +126,129 @@ function NavItem({
   )
 }
 
+// Carpeta colapsable: encabezado (ícono + chevron) que agrupa NavItems indentados.
+function NavGroup({
+  group, Icon, items, counts, expanded, onToggle, onNavigate, isActive,
+}: {
+  group: string
+  Icon: IconType
+  items: NavLeaf[]
+  counts: Record<string, number>
+  expanded: boolean
+  onToggle: () => void
+  onNavigate?: () => void
+  isActive: (href: string) => boolean
+}) {
+  const hasActive = items.some((i) => isActive(i.href))
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="group flex w-full items-center gap-3 rounded-[11px] px-3 py-2.5 text-[13.5px] font-medium text-white/70 outline-none transition-colors duration-200 hover:bg-white/[0.07] hover:text-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/70"
+      >
+        <Icon
+          className={`h-[18px] w-[18px] shrink-0 transition-colors ${hasActive ? "text-gold" : "text-white/55 group-hover:text-white"}`}
+          strokeWidth={1.8}
+        />
+        <span className="flex-1 truncate text-left">{group}</span>
+        {hasActive && !expanded && <span className="block h-1.5 w-1.5 rounded-full bg-gold" aria-hidden />}
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-white/40 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
+      </button>
+      {/* grid-rows 0fr→1fr: anima la altura sin conocerla de antemano */}
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+          <div className="ml-[21px] mt-1 space-y-1 border-l border-white/10 pl-2">
+            {items.map((it) => (
+              <NavItem
+                key={it.href}
+                href={it.href}
+                name={it.name}
+                Icon={it.icon}
+                count={counts[it.href]}
+                active={isActive(it.href)}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SidebarContent({
   userEmail,
   userName,
-  userRole,
   counts = {},
   onNavigate,
   mini = false,
 }: {
   userEmail?: string
   userName?: string
-  userRole?: string
   counts?: Record<string, number>
   onNavigate?: () => void
   mini?: boolean
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const isAdmin = userRole === "admin"
+  const { canVer, isAdmin } = usePermisos()
+  const { collapsed, toggle } = useCollapsedGroups()
+
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href))
+  const canSee = (leaf: NavLeaf) => !leaf.vista || canVer(leaf.vista)
+
+  // Render de una sección. En `mini` (riel) muestra íconos: los ítems sueltos y
+  // el ÍCONO DE CADA CARPETA (se abren al pasar el mouse). Expandido usa carpetas.
+  const renderSection = (entries: NavEntry[], adminSection = false) => {
+    if (mini) {
+      return entries.map((e) => {
+        if (isGroup(e)) {
+          const items = adminSection ? e.items : e.items.filter(canSee)
+          if (items.length === 0) return null
+          return (
+            <NavItem
+              key={e.group}
+              href={items[0].href}
+              name={e.group}
+              Icon={e.icon}
+              active={items.some((i) => isActive(i.href))}
+              onNavigate={onNavigate}
+              mini
+            />
+          )
+        }
+        if (!adminSection && !canSee(e)) return null
+        return (
+          <NavItem key={e.href} href={e.href} name={e.name} Icon={e.icon} count={counts[e.href]} active={isActive(e.href)} onNavigate={onNavigate} mini />
+        )
+      })
+    }
+    return entries.map((e) => {
+      if (isGroup(e)) {
+        const items = adminSection ? e.items : e.items.filter(canSee)
+        if (items.length === 0) return null
+        return (
+          <NavGroup
+            key={e.group}
+            group={e.group}
+            Icon={e.icon}
+            items={items}
+            counts={counts}
+            expanded={!collapsed.has(e.group)}
+            onToggle={() => toggle(e.group)}
+            onNavigate={onNavigate}
+            isActive={isActive}
+          />
+        )
+      }
+      if (!adminSection && !canSee(e)) return null
+      return (
+        <NavItem key={e.href} href={e.href} name={e.name} Icon={e.icon} count={counts[e.href]} active={isActive(e.href)} onNavigate={onNavigate} />
+      )
+    })
+  }
 
   const handleSignOut = async () => {
     try {
@@ -132,35 +275,14 @@ function SidebarContent({
         <p className={`mb-2 mt-1 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50 whitespace-nowrap transition-opacity duration-200 ${mini ? "opacity-0" : "opacity-100"}`}>
           Menú
         </p>
-        {navigation.map((item) => (
-          <NavItem
-            key={item.href}
-            href={item.href}
-            name={item.name}
-            Icon={item.icon}
-            count={counts[item.href]}
-            active={item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)}
-            onNavigate={onNavigate}
-            mini={mini}
-          />
-        ))}
+        {renderSection(menu)}
 
         {isAdmin && (
           <>
             <p className={`mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50 whitespace-nowrap transition-opacity duration-200 ${mini ? "opacity-0" : "opacity-100"}`}>
               Administración
             </p>
-            {adminNavigation.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                name={item.name}
-                Icon={item.icon}
-                active={pathname.startsWith(item.href)}
-                onNavigate={onNavigate}
-                mini={mini}
-              />
-            ))}
+            {renderSection(adminMenu, true)}
           </>
         )}
       </nav>
@@ -199,7 +321,7 @@ function SidebarContent({
   )
 }
 
-export function Sidebar({ userEmail, userName, userRole, menuOpen, onMenuOpenChange, collapsed = false, visible = true }: SidebarProps) {
+export function Sidebar({ userEmail, userName, menuOpen, onMenuOpenChange, collapsed = false, visible = true }: SidebarProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = onMenuOpenChange != null
   const open = isControlled ? (menuOpen ?? false) : internalOpen
@@ -238,7 +360,7 @@ export function Sidebar({ userEmail, userName, userRole, menuOpen, onMenuOpenCha
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-64 border-0 bg-sidebar p-0 [&>button]:text-white/70 [&>button]:hover:text-white">
           <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
-          <SidebarContent userEmail={userEmail} userName={userName} userRole={userRole} counts={counts} onNavigate={() => setOpen(false)} />
+          <SidebarContent userEmail={userEmail} userName={userName} counts={counts} onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
       {visible && (
@@ -261,7 +383,6 @@ export function Sidebar({ userEmail, userName, userRole, menuOpen, onMenuOpenCha
             <SidebarContent
               userEmail={userEmail}
               userName={userName}
-              userRole={userRole}
               counts={counts}
               mini={collapsed && !hovered}
             />

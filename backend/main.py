@@ -10,8 +10,8 @@ from slowapi.middleware import SlowAPIMiddleware
 from middleware import SecurityHeadersMiddleware, limiter
 from routers import (
     admin, auth, calidad, catalogos, clientes, dashboard, notificaciones,
-    ordenes, planificacion, presupuestos, razones_sociales, remitos,
-    reportes, stock,
+    ordenes, presupuestos, razones_sociales, remitos,
+    reportes, roles, stock,
 )
 
 load_dotenv()
@@ -30,7 +30,6 @@ app = FastAPI(
         {"name": "presupuestos", "description": "Presupuestos y cotizaciones"},
         {"name": "stock", "description": "Inventario y movimientos de stock"},
         {"name": "remitos", "description": "Remitos de entrega"},
-        {"name": "planificacion", "description": "Planificación de producción"},
         {"name": "calidad", "description": "Control de calidad"},
         {"name": "reportes", "description": "Reportes y KPIs"},
         {"name": "notificaciones", "description": "Notificaciones internas"},
@@ -88,6 +87,7 @@ async def health():
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(roles.router)
 app.include_router(clientes.router)
 app.include_router(razones_sociales.router)
 app.include_router(ordenes.router)
@@ -95,7 +95,6 @@ app.include_router(dashboard.router)
 app.include_router(presupuestos.router)
 app.include_router(stock.router)
 app.include_router(remitos.router)
-app.include_router(planificacion.router)
 app.include_router(calidad.router)
 app.include_router(reportes.router)
 app.include_router(notificaciones.router)

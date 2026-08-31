@@ -1,16 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { BadgeCheck, Building2, MapPin, PackageCheck, Plus, RefreshCw, Search, Tags, TriangleAlert, UsersRound, X } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { BadgeCheck, Building2, FileSpreadsheet, Loader2, MapPin, PackageCheck, Plus, RefreshCw, Search, Tags, TriangleAlert, UsersRound, X } from "lucide-react"
+import { toast } from "sonner"
+import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { PageContainer } from "@/components/ui/page-container"
 import { PageHeader } from "@/components/ui/page-header"
-import type { Cliente } from "@/types/database"
+import { usePermisos } from "@/components/permisos-provider"
 import { useClientes } from "../_hooks/use-clientes"
 import { ClientesTable } from "./clientes-table"
-import { ClienteDetailDialog } from "./cliente-detail-dialog"
 import { ClienteNuevoDialog } from "./cliente-nuevo-dialog"
 
 const nf = new Intl.NumberFormat("es-AR")
@@ -21,8 +23,24 @@ const nf = new Intl.NumberFormat("es-AR")
  */
 export function ClientesView() {
   const c = useClientes()
-  const [selected, setSelected] = useState<Cliente | null>(null)
+  const { can } = usePermisos()
+  const router = useRouter()
   const [nuevoOpen, setNuevoOpen] = useState(false)
+  const [exportando, setExportando] = useState(false)
+
+  const handleExportExcel = async () => {
+    if (exportando) return
+    setExportando(true)
+    try {
+      await api.clientes.exportExcel()
+      toast.success("Planilla descargada")
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "No se pudo exportar la planilla")
+    } finally {
+      setExportando(false)
+    }
+  }
+
   const conRazonSocial = c.clientes.filter((cliente) => cliente.razon_social_id || cliente.razon_social).length
   const conProductos = c.clientes.filter((cliente) => cliente.productos?.length || cliente.producto).length
   const pageCount = c.clientes.length
@@ -34,9 +52,21 @@ export function ClientesView() {
         title="Clientes"
         subtitle="Marcas, datos fiscales y productos configurados en un solo lugar."
         actions={
-          <Button onClick={() => setNuevoOpen(true)} className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95">
-            <Plus className="h-4 w-4" /> Nuevo cliente
-          </Button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Button
+              onClick={handleExportExcel}
+              disabled={exportando}
+              className="h-11 gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-60"
+            >
+              {exportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              Exportar Excel
+            </Button>
+            {can("clientes:crear") && (
+              <Button onClick={() => setNuevoOpen(true)} className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95">
+                <Plus className="h-4 w-4" /> Nuevo cliente
+              </Button>
+            )}
+          </div>
         }
       >
         <div className="flex flex-col gap-3 lg:flex-row">
@@ -138,17 +168,11 @@ export function ClientesView() {
         <ClientesTable
           clientes={c.clientes} loading={c.loading}
           sortBy={c.sortBy} sortDir={c.sortDir} onSort={c.toggleSort}
-          onRowClick={setSelected}
+          onRowClick={(cli) => router.push(`/clientes/${cli.id}`)}
           page={c.page} perPage={c.perPage} total={c.total} onPageChange={c.setPage}
         />
       )}
 
-      <ClienteDetailDialog
-        cliente={selected}
-        onClose={() => setSelected(null)}
-        onUpdate={c.onUpdated}
-        onDelete={(id) => { c.onDeleted(id); setSelected(null) }}
-      />
       <ClienteNuevoDialog
         open={nuevoOpen}
         onClose={() => setNuevoOpen(false)}

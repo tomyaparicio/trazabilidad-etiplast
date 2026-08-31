@@ -92,18 +92,18 @@ function ActionBanner({ action }: { action: EtiAction }) {
 
 // ── Wrapper que evita hidratación SSR ─────────────────────────────────────────
 
-export function AiAssistant() {
+export function AiAssistant({ dockOpen = false }: { dockOpen?: boolean }) {
   const [mounted, setMounted] = useState(false)
   // Mismo patrón que VoiceAgent: evita mismatch de hidratación SSR
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true) }, [])
   if (!mounted) return null
-  return <AiAssistantContent />
+  return <AiAssistantContent dockOpen={dockOpen} />
 }
 
 // ── Contenido real ────────────────────────────────────────────────────────────
 
-function AiAssistantContent() {
+function AiAssistantContent({ dockOpen = false }: { dockOpen?: boolean }) {
   const router = useRouter()
 
   const [expanded, setExpanded]   = useState(false)
@@ -200,8 +200,13 @@ function AiAssistantContent() {
     setLastAction(null)
   }
 
+  // Visible solo con el dock abierto (o si el chat quedó expandido).
+  const dockVisible = dockOpen || expanded
+
   return (
-    <div className="fixed bottom-5 right-[8.5rem] z-50 flex flex-col items-end gap-2">
+    <div className={`fixed bottom-5 right-[calc(50%+44px)] z-50 flex flex-col items-end gap-2 transition-all duration-200 ${
+      dockVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
+    }`}>
 
       {/* ── Panel expandible ──────────────────────────────────────────────── */}
       {expanded && (

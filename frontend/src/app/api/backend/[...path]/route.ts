@@ -68,6 +68,16 @@ async function proxy(
     body: body || undefined,
   })
 
+  // Respuestas binarias (ej: export a Excel) — passthrough sin decodificar como texto.
+  const contentType = res.headers.get("content-type") || ""
+  const esTexto = contentType.includes("application/json") || contentType.startsWith("text/")
+  if (res.ok && !esTexto && contentType) {
+    const respHeaders: Record<string, string> = { "Content-Type": contentType }
+    const disposition = res.headers.get("content-disposition")
+    if (disposition) respHeaders["Content-Disposition"] = disposition
+    return new NextResponse(await res.arrayBuffer(), { status: res.status, headers: respHeaders })
+  }
+
   const text = await res.text()
   let data: unknown
   try {

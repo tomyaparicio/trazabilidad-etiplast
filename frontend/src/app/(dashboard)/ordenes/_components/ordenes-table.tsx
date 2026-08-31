@@ -1,10 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { OrdenTrabajo, EstadoOrden } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
+import { usePermisos } from "@/components/permisos-provider"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
@@ -16,7 +18,6 @@ import {
   ClipboardList, Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, FileText,
   AlertTriangle, RotateCcw,
 } from "lucide-react"
-import { OrdenFormDialog } from "./orden-form-dialog"
 import { OrdenDetailDialog } from "./orden-detail-dialog"
 import { EscanearOrdenButton } from "./escanear-orden-button"
 import type { OrderPrefill } from "@/lib/voice/types"
@@ -56,6 +57,7 @@ interface Props {
 }
 
 export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
+  const { can } = usePermisos()
   const [ordenes, setOrdenes] = useState<OrdenTrabajo[]>(initialOrdenes)
   const [total, setTotal] = useState(initialTotal)
   const [page, setPage] = useState(1)
@@ -63,24 +65,21 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
   const [estadoFilter, setEstadoFilter] = useState<EstadoOrden | "">("")
   const [loading, setLoading] = useState(true)
 
-  const [formOpen, setFormOpen] = useState(false)
-  const [editOrden, setEditOrden] = useState<OrdenTrabajo | null>(null)
+  const router = useRouter()
   const [detailOrden, setDetailOrden] = useState<OrdenTrabajo | null>(null)
-  const [prefill, setPrefill] = useState<OrderPrefill | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<OrdenTrabajo | null>(null)
 
-  // ── Escuchar evento del agente de voz ─────────────────────────────────────
+  // ── Agente de voz: el prefill viaja por sessionStorage a /ordenes/nueva ──
   useEffect(() => {
     const handler = (e: Event) => {
       const payload = (e as CustomEvent<OrderPrefill>).detail
-      setPrefill(payload)
-      setEditOrden(null)
-      setFormOpen(true)
+      try { sessionStorage.setItem("eti:orden-prefill", JSON.stringify(payload)) } catch { /* sin prefill */ }
+      router.push("/ordenes/nueva")
     }
     window.addEventListener("eti:open-order-form", handler)
     return () => window.removeEventListener("eti:open-order-form", handler)
-  }, [])
+  }, [router])
 
   const PER_PAGE = 20
 
@@ -121,24 +120,9 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
     fetchOrdenes(p, search, estadoFilter)
   }
 
-  const handleOrdenSaved = (orden: OrdenTrabajo) => {
-    if (editOrden) {
-      setOrdenes((prev) => prev.map((o) => (o.id === orden.id ? orden : o)))
-    } else {
-      setOrdenes((prev) => [orden, ...prev])
-      setTotal((t) => t + 1)
-    }
-    setEditOrden(null)
-    setPrefill(null)
-    setFormOpen(false)
-  }
-
   const handleDeleteClick = (orden: OrdenTrabajo) => setDeleteTarget(orden)
 
-  const handleEdit = (orden: OrdenTrabajo) => {
-    setEditOrden(orden)
-    setFormOpen(true)
-  }
+  const handleEdit = (orden: OrdenTrabajo) => router.push(`/ordenes/${orden.id}/editar`)
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
 
@@ -244,13 +228,15 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
         actions={
           <>
             <EscanearOrdenButton />
-            <Button
-              onClick={() => { setEditOrden(null); setFormOpen(true) }}
-              className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
-            >
-              <Plus className="w-4 h-4" />
-              Nueva Orden
-            </Button>
+            {can("ordenes:crear") && (
+              <Button
+                onClick={() => router.push("/ordenes/nueva")}
+                className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
+              >
+                <Plus className="w-4 h-4" />
+                Nueva Orden
+              </Button>
+            )}
           </>
         }
       />
@@ -344,13 +330,6 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
       )}
 
       {/* ── Dialogs ── */}
-      <OrdenFormDialog
-        open={formOpen}
-        onOpenChange={(o) => { setFormOpen(o); if (!o) { setEditOrden(null); setPrefill(null) } }}
-        orden={editOrden}
-        prefill={prefill}
-        onSaved={handleOrdenSaved}
-      />
       {detailOrden && (
         <OrdenDetailDialog
           orden={detailOrden}

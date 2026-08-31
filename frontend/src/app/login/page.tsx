@@ -6,8 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Eye, EyeOff, Loader2, AlertCircle, Mail, Lock, ArrowRight } from "lucide-react"
 
-// Tipografía display (.font-display) y el @font-face de Century Gothic viven en globals.css.
-// Questrial (fallback) lo carga el root layout como --font-questrial. Fuente única de verdad.
+/**
+ * Login — diseño aprobado "split de marca":
+ * izquierda azul pleno con wordmark, titular editorial gigante, datos reales y
+ * la cinta de etiquetas en movimiento (lo que produce la planta); derecha el
+ * formulario en navy con inputs de 60px pensados para usuarios mayores.
+ * Animaciones (.login-tape / .login-swirl) viven en globals.css.
+ */
 
 // ── Formulario ────────────────────────────────────────────────────────────────
 function LoginForm() {
@@ -52,149 +57,138 @@ function LoginForm() {
   }
 
   const fieldCls =
-    "w-full h-[52px] rounded-[13px] border-[1.5px] border-[#e7e8f2] bg-[#f4f5fa] pl-11 pr-4 text-[15px] text-[#141733] placeholder:text-[#aab0c0] outline-none transition-all focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"
+    "w-full h-[60px] rounded-[15px] border-[1.5px] border-border bg-input pl-12 pr-4 text-[18px] font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground outline-none transition-all focus:border-gold focus:ring-4 focus:ring-gold/15"
 
   return (
-    <div className="w-full max-w-[410px]">
-      <div className="rounded-[24px] bg-white p-8 sm:p-10 shadow-[0_40px_80px_-30px_rgba(6,8,40,0.7)] ring-1 ring-white/10">
-        {/* Mobile logo */}
-        <div className="lg:hidden flex items-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#20236f] to-[#0e1046] flex items-center justify-center overflow-hidden">
-            <Image src="/logoSOLO.png" alt="Etiplast" width={30} height={30} className="object-contain" />
+    <div className="w-full max-w-[430px]">
+      <h1 className="font-brand text-[36px] leading-tight tracking-tight text-foreground">
+        Buen día
+      </h1>
+      <p className="mt-2 text-[17px] text-muted-foreground">Entrá con tu cuenta para abrir el sistema.</p>
+
+      {sessionExpired && (
+        <div className="mt-7 flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-[14.5px] leading-snug text-amber-200" role="alert">
+          <AlertCircle className="mt-0.5 h-[18px] w-[18px] shrink-0" />
+          <span>Tu sesión expiró. Ingresá de nuevo para continuar.</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-7 flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-[14.5px] leading-snug text-red-200" role="alert">
+          <AlertCircle className="mt-0.5 h-[18px] w-[18px] shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="mt-8 space-y-6" noValidate>
+        <div>
+          <label htmlFor="login-email" className="mb-2.5 block text-[13.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">Email</label>
+          <div className="relative">
+            <Mail className="absolute left-[17px] top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="login-email" name="email" type="email" autoComplete="email" required spellCheck={false}
+              value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="usuario@etiplast.com" className={fieldCls}
+            />
           </div>
-          <span className="text-2xl font-bold text-[#141733] font-display">
-            eti<span className="text-[#d9c400]">plast</span>
-          </span>
         </div>
 
-        <h1 className="text-[29px] font-semibold text-[#141733] tracking-tight font-display">
-          Bienvenido de vuelta
-        </h1>
-        <p className="text-[#7a7e9c] mt-1.5 text-[14.5px]">Ingresá tus credenciales para continuar</p>
-
-        {sessionExpired && (
-          <div className="mt-6 flex items-start gap-3 p-3.5 rounded-xl bg-[#fff8e6] border border-[#f4e2a2] text-[#8a6a00] text-[13.5px] leading-snug" role="alert">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>Tu sesión expiró. Ingresá de nuevo para continuar.</span>
+        <div>
+          <label htmlFor="login-password" className="mb-2.5 block text-[13.5px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">Contraseña</label>
+          <div className="relative">
+            <Lock className="absolute left-[17px] top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="login-password" name="password" type={showPassword ? "text" : "password"}
+              autoComplete="current-password" required
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••" className={`${fieldCls} pr-14`}
+            />
+            <button
+              type="button" onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              className="absolute right-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-[10px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+            </button>
           </div>
-        )}
+        </div>
 
-        {error && (
-          <div className="mt-6 flex items-start gap-3 p-3.5 rounded-xl bg-[#fbecec] border border-[#f3c9c9] text-[#b3261e] text-[13.5px] leading-snug" role="alert">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
+        <label className="flex w-fit cursor-pointer items-center gap-2.5 text-[15px] font-semibold text-muted-foreground">
+          <input type="checkbox" defaultChecked className="h-[20px] w-[20px] rounded-[6px] border-[1.5px] border-border accent-gold" />
+          Recordarme
+        </label>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
-          <div>
-            <label htmlFor="login-email" className="block text-[13px] font-medium text-[#141733] mb-2">Email</label>
-            <div className="relative">
-              <Mail className="w-[18px] h-[18px] absolute left-[15px] top-1/2 -translate-y-1/2 text-[#7a7e9c]" />
-              <input
-                id="login-email" name="email" type="email" autoComplete="email" required spellCheck={false}
-                value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="usuario@etiplast.com" className={fieldCls}
-              />
-            </div>
-          </div>
+        <button
+          type="submit" disabled={loading}
+          className="flex h-[60px] w-full items-center justify-center gap-2.5 rounded-[15px] bg-gold text-[19px] font-extrabold text-gold-foreground shadow-[0_18px_34px_-16px_rgba(245,235,74,0.45)] transition hover:-translate-y-px hover:brightness-95 disabled:pointer-events-none disabled:opacity-60"
+        >
+          {loading ? (
+            <><Loader2 className="h-5 w-5 animate-spin" />Ingresando…</>
+          ) : (
+            <>Entrar al sistema<ArrowRight className="h-5 w-5" strokeWidth={2.6} /></>
+          )}
+        </button>
+      </form>
 
-          <div>
-            <label htmlFor="login-password" className="block text-[13px] font-medium text-[#141733] mb-2">Contraseña</label>
-            <div className="relative">
-              <Lock className="w-[18px] h-[18px] absolute left-[15px] top-1/2 -translate-y-1/2 text-[#7a7e9c]" />
-              <input
-                id="login-password" name="password" type={showPassword ? "text" : "password"}
-                autoComplete="current-password" required
-                value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••" className={`${fieldCls} pr-11`}
-              />
-              <button
-                type="button" onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#7a7e9c] hover:text-[#141733] transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[13.5px] pt-0.5">
-            <label className="flex items-center gap-2 text-[#7a7e9c] cursor-pointer">
-              <input type="checkbox" className="w-[17px] h-[17px] rounded-[5px] border-[1.5px] border-[#e7e8f2] accent-brand" />
-              Recordarme
-            </label>
-            <a href="#" className="text-brand font-semibold hover:underline">¿Olvidaste tu contraseña?</a>
-          </div>
-
-          <button
-            type="submit" disabled={loading}
-            className="w-full h-[54px] rounded-[13px] bg-brand hover:bg-brand-strong text-white font-semibold text-[16px] tracking-[0.2px] flex items-center justify-center gap-2.5 shadow-[0_16px_30px_-14px_rgba(41,45,150,0.55)] transition-colors disabled:opacity-60 font-display"
-          >
-            {loading ? (
-              <><Loader2 className="w-5 h-5 animate-spin" />Ingresando…</>
-            ) : (
-              <>Ingresar
-                <span className="w-[22px] h-[22px] rounded-full bg-gold text-[#101248] flex items-center justify-center">
-                  <ArrowRight className="w-[13px] h-[13px]" />
-                </span>
-              </>
-            )}
-          </button>
-        </form>
-      </div>
-
-      <p className="text-center text-white/50 text-[12.5px] mt-6">
+      <p className="mt-8 text-center text-[13.5px] text-muted-foreground/70">
         Etiplast ERP · © {new Date().getFullYear()} · Todos los derechos reservados
       </p>
     </div>
   )
 }
 
-// ── Página — fondo azul siempre (azul + blanco + amarillo) ────────────────────
+// ── Página — split: marca (azul pleno) + formulario (navy) ───────────────────
 export default function LoginPage() {
   return (
-    <div className="min-h-screen relative overflow-hidden text-white bg-brand">
-      {/* Logo de marca de agua */}
-      <Image
-        src="/logoSOLO.png"
-        alt=""
-        aria-hidden
-        width={820}
-        height={820}
-        priority
-        className="pointer-events-none select-none absolute top-1/2 -left-40 -translate-y-1/2 w-[560px] lg:w-[820px] max-w-none opacity-[0.06]"
-      />
+    <div className="grid min-h-screen grid-cols-1 bg-background text-foreground lg:grid-cols-[1.15fr_1fr]">
 
-      <div className="relative z-10 min-h-screen grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] items-center gap-10 px-6 sm:px-[6vw] py-12">
-        {/* Marca */}
-        <section className="hidden lg:block max-w-[460px]">
-          <h1 className="text-[56px] leading-none font-bold tracking-[-1px] font-display">
-            eti<span className="text-etiplast-500">plast</span>
-          </h1>
-          <p className="mt-2 text-[12px] tracking-[0.44em] uppercase text-[#aab0ee] font-medium">Etiquetas y envases</p>
-          <p className="mt-9 text-[27px] leading-[1.35] text-[#eef0ff] font-display font-normal">
-            El sistema que hace girar tu <span className="text-etiplast-500 font-semibold">producción</span>, de la orden al despacho.
+      {/* ══ Izquierda: la marca trabajando ══ */}
+      {/* Azul de la empresa PLANO (#292d96) — igual que el hero de etiplastargentina.com (bg-primary-500). */}
+      <section className="bg-brand relative flex flex-col justify-between overflow-hidden px-7 pt-8 text-white sm:px-12 sm:pt-11">
+        {/* Swirl gigante girando imperceptible */}
+        <Image
+          src="/logoSOLO.png" alt="" aria-hidden width={560} height={560} priority
+          className="login-swirl pointer-events-none select-none absolute -bottom-40 -right-40 w-[560px] max-w-none object-contain opacity-10 brightness-0 invert"
+        />
+
+        {/* Wordmark */}
+        <div className="relative flex items-center gap-3.5">
+          <Image src="/logoSOLO.png" alt="Etiplast" width={44} height={44} className="h-11 w-11 shrink-0 object-contain" />
+          <span className="font-brand text-[30px] lowercase leading-none tracking-tight text-etiplast-500">
+            etiplast
+          </span>
+        </div>
+
+        {/* Titular editorial + datos reales */}
+        <div className="relative my-8 lg:my-10">
+          {/* Mismo tamaño que el hero de etiplastargentina.com (text-5xl→8xl, leading 0.92) */}
+          <h2 className="font-brand text-5xl font-bold leading-[0.92] tracking-tight sm:text-7xl lg:text-8xl">
+            La planta,<br />en <span className="text-etiplast-500">una sola</span><br />pantalla.
+          </h2>
+          <p className="mt-6 hidden max-w-[46ch] text-[18.5px] leading-relaxed text-white/75 lg:block">
+            Clientes, presentaciones, órdenes de trabajo y stock — todo el circuito de Etiplast, ordenado y al alcance de un click.
           </p>
-          <div className="mt-11 flex gap-10">
+          <div className="mt-9 hidden gap-10 lg:flex">
             <div>
-              <div className="text-[28px] font-bold text-etiplast-500 font-display">Desde 2008</div>
-              <div className="text-[13px] text-[#aab0ee] mt-0.5">Fabricando en Córdoba</div>
+              <div className="font-brand text-[32px] leading-none tracking-tight">Desde <span className="text-etiplast-500">2008</span></div>
+              <div className="mt-1.5 text-[12.5px] font-bold uppercase tracking-[0.14em] text-white/55">Fabricando en Córdoba</div>
             </div>
             <div>
-              <div className="text-[28px] font-bold text-etiplast-500 font-display">8 colores</div>
-              <div className="text-[13px] text-[#aab0ee] mt-0.5">Impresión fotográfica</div>
+              <div className="font-brand text-[32px] leading-none tracking-tight">8 <span className="text-etiplast-500">colores</span></div>
+              <div className="mt-1.5 text-[12.5px] font-bold uppercase tracking-[0.14em] text-white/55">Impresión fotográfica</div>
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* Formulario */}
-        <section className="flex justify-center">
-          <Suspense fallback={<div className="w-full max-w-[410px] h-[440px] animate-pulse rounded-[24px] bg-white/10" />}>
-            <LoginForm />
-          </Suspense>
-        </section>
-      </div>
+        <div className="pb-10" />
+      </section>
+
+      {/* ══ Derecha: formulario ══ */}
+      <section className="flex items-center justify-center px-6 py-12 sm:px-10">
+        <Suspense fallback={<div className="h-[520px] w-full max-w-[430px] animate-pulse rounded-3xl bg-white/5" />}>
+          <LoginForm />
+        </Suspense>
+      </section>
     </div>
   )
 }

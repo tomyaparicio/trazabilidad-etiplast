@@ -7,13 +7,14 @@
 
 import type {
   Cliente, ClienteProducto, ClientesListParams, ClientesListResponse,
-  DashboardStats, Filtros,
+  DashboardStats, DashboardFinanzas, Filtros,
   RazonSocial,
   UserAdmin, CreateUserRequest, UpdateUserRequest,
   OrdenTrabajo, OrdenesListResponse, OrdenesListParams, CreateOrdenRequest,
   Paginated, Maquina,
-  Presupuesto, StockItem, StockMovimiento, Remito, PlanProduccion,
+  Presupuesto, StockItem, StockMovimiento, Remito,
   QcPlantilla, QcRegistro, Notificacion, AuditEntry,
+  RoleCatalogo, RolePermisos, MisPermisos, RoleInput,
   ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
   ReporteClientesTop, ReporteStockResumen, Trazabilidad,
 } from "./types"
@@ -109,10 +110,33 @@ export const api = {
     create: (data: object) => post<Cliente>("/api/clientes", data),
     update: (id: number, data: object) => put<Cliente>(`/api/clientes/${id}`, data),
     delete: (id: number) => del<void>(`/api/clientes/${id}`),
+    /** Descarga la base completa como .xlsx (planilla "Datos Clientes"). */
+    exportExcel: async (): Promise<void> => {
+      const res = await fetch("/api/backend/clientes/export/excel", { credentials: "include" })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { detail?: string }).detail || `Error ${res.status}`)
+      }
+      // Nombre desde Content-Disposition (filename="...") con fallback.
+      const disposition = res.headers.get("content-disposition") || ""
+      const match = disposition.match(/filename="?([^";]+)"?/i)
+      const filename = match?.[1] || "Datos Clientes Etiplast.xlsx"
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    },
   },
   dashboard: {
     stats: () => get<DashboardStats>("/api/dashboard/stats"),
     filtros: () => get<Filtros>("/api/dashboard/filtros"),
+    /** Métricas financieras filtradas por período (sin params = histórico). */
+    finanzas: (params?: { year?: number; month?: number }) =>
+      get<DashboardFinanzas>("/api/dashboard/finanzas", params as Record<string, number | undefined>),
   },
   /** Auth (usa rutas Next.js locales + proxy para /me) */
   auth: {
@@ -165,6 +189,18 @@ export const api = {
         return get<Paginated<AuditEntry>>("/api/admin/auditoria", p)
       },
     },
+    /** ABM de roles configurables (RBAC) — solo admin */
+    roles: {
+      list: () => get<{ data: RolePermisos[] }>("/api/admin/roles"),
+      create: (data: RoleInput) => post<RolePermisos>("/api/admin/roles", data),
+      update: (id: number, data: RoleInput) => put<RolePermisos>(`/api/admin/roles/${id}`, data),
+      delete: (id: number) => del<void>(`/api/admin/roles/${id}`),
+    },
+  },
+  /** Roles y permisos — catálogo (para la matriz) y permisos del usuario actual (para el gate) */
+  roles: {
+    catalogo: () => get<RoleCatalogo>("/api/roles/catalogo"),
+    mias: () => get<MisPermisos>("/api/roles/mias"),
   },
   /** Razones Sociales (entidades legales que agrupan marcas) */
   razonessociales: {
@@ -248,16 +284,6 @@ export const api = {
   /** Trazabilidad por lote (bobinas → OT → remito → cliente) */
   trazabilidad: {
     porLote: (lote: string) => get<Trazabilidad>("/api/trazabilidad", { lote }),
-  },
-  /** Planificación de producción (grilla por máquina/etapa) */
-  planificacion: {
-    list: (params?: { desde?: string; hasta?: string; maquina_id?: number; etapa?: string }) => {
-      const p = params as Record<string, string | number | undefined> | undefined
-      return get<PlanProduccion[]>("/api/planificacion", p)
-    },
-    create: (data: object) => post<PlanProduccion>("/api/planificacion", data),
-    update: (id: number, data: object) => put<PlanProduccion>(`/api/planificacion/${id}`, data),
-    delete: (id: number) => del<void>(`/api/planificacion/${id}`),
   },
   /** Control de calidad */
   calidad: {

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_admin, verify_token
+from dependencies import require_permiso, verify_token
 from models import (
     Cliente, ClienteProducto, OrdenExtrusionBobina, OrdenTrabajo,
 )
@@ -171,7 +171,7 @@ async def obtener_orden(
 @router.post("/ordenes", status_code=201, summary="Crear nueva orden de trabajo")
 async def crear_orden(
     payload: OrdenCreateSchema,
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("ordenes:crear")),
     db: Session = Depends(get_db),
 ):
     # exclude_none: las claves ausentes/None se omiten (los `.get(k, default)` siguen
@@ -282,7 +282,7 @@ async def crear_orden(
 async def actualizar_orden(
     orden_id: int,
     payload: OrdenUpdateSchema,
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("ordenes:editar")),
     db: Session = Depends(get_db),
 ):
     # exclude_unset: solo los campos enviados → actualización parcial (`if k in datos`).
@@ -392,7 +392,7 @@ async def actualizar_orden(
 @router.delete("/ordenes/{orden_id}", status_code=204, summary="Eliminar orden de trabajo (solo admin)")
 async def eliminar_orden(
     orden_id: int,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("ordenes:borrar")),
     db: Session = Depends(get_db),
 ):
     orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()

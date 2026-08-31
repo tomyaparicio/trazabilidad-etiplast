@@ -2,7 +2,7 @@
  * Tipos para la API.
  */
 
-export type { Cliente, ClienteProducto, DashboardStats, Filtros, RazonSocial, Maquina } from "@/types/database"
+export type { Cliente, ClienteProducto, DashboardStats, DashboardFinanzas, Filtros, RazonSocial, Maquina } from "@/types/database"
 
 /** Respuesta paginada genérica del backend */
 export type Paginated<T> = {
@@ -13,8 +13,10 @@ export type Paginated<T> = {
   total_pages: number
 }
 
+import type { Cliente as _Cliente } from "@/types/database"
+
 export type ClientesListResponse = {
-  data: unknown[]
+  data: _Cliente[]
   total: number
   page: number
   per_page: number
@@ -54,6 +56,40 @@ export type UpdateUserRequest = {
   apellido?: string
   role?: string
   is_active?: boolean
+}
+
+// ─── Roles y permisos (RBAC) ─────────────────────────────────────────────────
+
+/** Catálogo de lo POSIBLE: vistas del sidebar + módulos con sus acciones. */
+export type RoleCatalogo = {
+  vistas: { clave: string; nombre: string }[]
+  modulos: { clave: string; nombre: string; acciones: string[] }[]
+}
+
+/** Un rol configurable (fila de la tabla `roles`). */
+export type RolePermisos = {
+  id: number
+  clave: string
+  nombre: string
+  vistas: string[]
+  acciones: string[]
+  protegido: boolean
+}
+
+/** Permisos del usuario autenticado (para el gate del frontend). */
+export type MisPermisos = {
+  id?: number
+  clave: string
+  nombre: string
+  vistas: string[]
+  acciones: string[]
+  protegido: boolean
+}
+
+export type RoleInput = {
+  nombre: string
+  vistas: string[]
+  acciones: string[]
 }
 
 // ─── Órdenes de Trabajo ────────────────────────────────────────────────────
@@ -244,23 +280,6 @@ export type Remito = {
   domicilio_entrega: string | null
   observaciones: string | null
   items: RemitoItem[]
-}
-
-// ─── Planificación de producción ───────────────────────────────────────────
-
-export type PlanProduccion = {
-  id: number
-  orden_trabajo_id: number
-  orden_numero?: string | null
-  cliente_marca?: string | null
-  maquina_id: number | null
-  maquina_nombre?: string | null
-  etapa: string
-  fecha_inicio: string | null
-  fecha_fin: string | null
-  orden_prioridad: number | null
-  estado: string
-  notas: string | null
 }
 
 // ─── Control de calidad ────────────────────────────────────────────────────

@@ -7,8 +7,12 @@ import type { Bobina, Cliente, ClienteProducto, EstadoOrden, OrdenTrabajo, UserA
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { Loader2, Plus, Trash2, Search, ChevronDown, Check, Package, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  Loader2, Plus, Trash2, Search, ChevronDown, Check, Package, ChevronLeft, ChevronRight,
+  ClipboardList, Layers, Printer, Scissors, PackageCheck, ShieldCheck, CalendarDays, Calculator, Factory,
+  Building2, Flag, UserRound, Wrench,
+  type LucideIcon,
+} from "lucide-react"
 import type { OrderPrefill } from "@/lib/voice/types"
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -29,29 +33,46 @@ const ESTADOS_OT: { value: EstadoOrden; label: string }[] = [
   { value: "cancelada",  label: "Cancelada" },
 ]
 
-const STEPS = [
-  { id: 1, label: "General"      },
-  { id: 2, label: "Extrusión"    },
-  { id: 3, label: "Impresión"    },
-  { id: 4, label: "Troquelado"   },
-  { id: 5, label: "Finalización" },
+const STEPS: { id: number; label: string; icon: LucideIcon }[] = [
+  { id: 1, label: "General",      icon: ClipboardList },
+  { id: 2, label: "Extrusión",    icon: Layers        },
+  { id: 3, label: "Impresión",    icon: Printer       },
+  { id: 4, label: "Troquelado",   icon: Scissors      },
+  { id: 5, label: "Finalización", icon: PackageCheck  },
 ]
 
-function SubSection({ title }: { title: string }) {
+function SubSection({ title, icon: Icon }: { title: string; icon?: LucideIcon }) {
   return (
     <div className="flex items-center gap-3 mb-4 mt-6 first:mt-0">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-brand dark:text-blue-400 shrink-0">{title}</h3>
+      {Icon && <Icon className="h-4 w-4 shrink-0 text-gold" strokeWidth={2.2} />}
+      <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.16em] text-gold shrink-0">{title}</h3>
       <div className="flex-1 h-px bg-border" />
     </div>
   )
 }
 
-function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({ label, icon: Icon, children, className = "" }: { label: string; icon?: LucideIcon; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
+    <div className={`flex flex-col gap-2 ${className}`}>
+      <label className="flex items-center gap-1.5 text-[12.5px] font-bold text-muted-foreground uppercase tracking-wider">
+        {Icon && <Icon className="h-[15px] w-[15px] shrink-0 text-gold/90" strokeWidth={2.4} />}
+        {label}
+      </label>
       {children}
     </div>
+  )
+}
+
+/** Bloque visual: agrupa campos relacionados en una tarjeta con título dorado. */
+function Bloque({ title, icon: Icon, children, className = "" }: { title: string; icon: LucideIcon; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-2xl border border-border bg-secondary/30 p-5 ${className}`}>
+      <div className="mb-4 flex items-center gap-2.5">
+        <Icon className="h-4 w-4 shrink-0 text-gold" strokeWidth={2.2} />
+        <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.16em] text-gold">{title}</h3>
+      </div>
+      {children}
+    </section>
   )
 }
 
@@ -292,16 +313,19 @@ function ordenToForm(orden: OrdenTrabajo): ReturnType<typeof emptyForm> {
 // ─── Componente principal ──────────────────────────────────────────────────
 
 interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  orden: OrdenTrabajo | null
+  /** Orden a editar (null/ausente = alta nueva). */
+  orden?: OrdenTrabajo | null
   prefill?: OrderPrefill | null
-  onSaved: (orden: OrdenTrabajo) => void
+  /** Volver al listado (saved=true si se guardó; el listado refresca al montar). */
+  onDone: (saved?: boolean) => void
 }
 
-export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }: Props) {
+/** Vista de página completa del wizard de orden de trabajo (ya no es dialog). */
+export function OrdenFormVista({ orden = null, prefill, onDone }: Props) {
   const [form, setForm]                         = useState(emptyForm())
   const [step, setStep]                         = useState(1)
+  // Dirección del último movimiento (avanzar = entra desde la derecha).
+  const [dir, setDir]                           = useState<1 | -1>(1)
   const [clienteName, setClienteName]           = useState("")
   const [clienteProductos, setClienteProductos] = useState<ClienteProducto[]>([])
   const [usuarios, setUsuarios]                 = useState<UserAdmin[]>([])
@@ -314,7 +338,6 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
   }, [])
 
   useEffect(() => {
-    if (!open) return
     setStep(1)
     setError("")
     if (orden) {
@@ -359,8 +382,8 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
       setClienteName("")
       setClienteProductos([])
     }
-   
-  }, [open, orden, prefill])
+
+  }, [orden, prefill])
 
   type Form = ReturnType<typeof emptyForm>
   const set = (key: keyof Form, value: unknown) => setForm((f) => ({ ...f, [key]: value }))
@@ -405,9 +428,10 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
   const goNext = () => {
     if (step === 1 && !form.cliente_id) { setError("Seleccioná un cliente para continuar"); return }
     setError("")
+    setDir(1)
     setStep((s) => Math.min(s + 1, STEPS.length))
   }
-  const goPrev = () => { setError(""); setStep((s) => Math.max(s - 1, 1)) }
+  const goPrev = () => { setError(""); setDir(-1); setStep((s) => Math.max(s - 1, 1)) }
 
   const handleSubmit = async () => {
     if (saving) return
@@ -417,10 +441,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
       const saved = orden ? await api.ordenes.update(orden.id, payload) : await api.ordenes.create(payload)
       toast.success(orden ? `Orden ${saved.numero} actualizada` : `Orden ${saved.numero} creada`)
       setSuccess(true)
-      setTimeout(() => {
-        setSuccess(false)
-        onSaved(saved)
-      }, 1600)
+      setTimeout(() => onDone(true), 1500)
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error al guardar"
       setError(msg)
@@ -434,93 +455,125 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
 
   const renderStep = () => {
     switch (step) {
-      // ── Step 1: General ─────────────────────────────────────────────────
+      // ── Step 1: General — 2 bloques: el pedido / asignación ─────────────
       case 1:
         return (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Marca" className="sm:col-span-2">
-                <ClienteSelector value={form.cliente_id || null} onSelect={handleSelectCliente} initialName={clienteName} />
-              </Field>
-              <Field label="Fecha">
-                <Input type="date" value={form.fecha ?? ""} onChange={(e) => set("fecha", e.target.value)} className="h-9 text-sm" />
-              </Field>
-            </div>
-
-            {clienteProductos.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Field label="Producto" className="sm:col-span-2">
-                  <ProductoSelector productos={clienteProductos} value={form.cliente_producto_id ?? null} onSelect={handleSelectProducto} />
+            {/* ① El pedido: para quién y qué se produce */}
+            <Bloque title="El pedido" icon={ClipboardList}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label="Marca" icon={Building2} className="sm:col-span-2">
+                  <ClienteSelector value={form.cliente_id || null} onSelect={handleSelectCliente} initialName={clienteName} />
                 </Field>
-                <Field label="Estado">
+                <Field label="Fecha" icon={CalendarDays}>
+                  <Input type="date" value={form.fecha ?? ""} onChange={(e) => set("fecha", e.target.value)} />
+                </Field>
+                {clienteProductos.length > 0 && (
+                  <Field label="Producto" icon={Package} className="sm:col-span-3">
+                    <ProductoSelector productos={clienteProductos} value={form.cliente_producto_id ?? null} onSelect={handleSelectProducto} />
+                  </Field>
+                )}
+              </div>
+            </Bloque>
+
+            {/* ② Asignación: quién la lleva y en qué estado arranca */}
+            <Bloque title="Asignación y estado" icon={UserRound}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Field label="Responsable" icon={UserRound}>
+                  <Select value={form.responsable_id ?? ""} onChange={(e) => set("responsable_id", e.target.value === "" ? null : Number(e.target.value))}>
+                    <option value="">Sin asignar</option>
+                    {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre_completo || u.email}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Operador" icon={Wrench}>
+                  <Input value={form.operador} onChange={(e) => set("operador", e.target.value)} placeholder="Nombre del operador" />
+                </Field>
+                <Field label="Estado" icon={Flag}>
                   <Select value={form.estado} onChange={(e) => set("estado", e.target.value)}>
                     {ESTADOS_OT.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                   </Select>
                 </Field>
               </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Responsable" className="sm:col-span-2">
-                <Select value={form.responsable_id ?? ""} onChange={(e) => set("responsable_id", e.target.value === "" ? null : Number(e.target.value))}>
-                  <option value="">Sin asignar</option>
-                  {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre_completo || u.email}</option>)}
-                </Select>
-              </Field>
-              {clienteProductos.length === 0 && (
-                <Field label="Estado">
-                  <Select value={form.estado} onChange={(e) => set("estado", e.target.value)}>
-                    {ESTADOS_OT.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-                  </Select>
-                </Field>
-              )}
-            </div>
-
-            <Field label="Operador">
-              <Input value={form.operador} onChange={(e) => set("operador", e.target.value)} placeholder="Nombre del operador" className="h-9 text-sm" />
-            </Field>
+            </Bloque>
           </div>
         )
 
-      // ── Step 2: Extrusión ───────────────────────────────────────────────
+      // ── Step 2: Extrusión — 3 bloques: film / bobinas / producción ──────
       case 2:
         return (
           <div className="space-y-4">
-            <div>
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">MTS / KG por Bobina</label>
-              <div className="rounded-lg border border-border overflow-hidden">
+            {/* ① El film: qué material se extruye */}
+            <Bloque title="El film" icon={Layers}>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Field label="Ancho (mm)">
+                  <Input type="number" step="0.01" placeholder="0.00" value={form.extrusion_ancho ?? ""}
+                    onChange={(e) => set("extrusion_ancho", num(e.target.value))} />
+                </Field>
+                <Field label="Micronaje (µ)">
+                  <Input type="number" step="1" placeholder="60" value={form.extrusion_espesor ?? ""}
+                    onChange={(e) => set("extrusion_espesor", num(e.target.value))} />
+                </Field>
+                <Field label="Color">
+                  <Select value={form.extrusion_color ?? "Blanco"} onChange={(e) => set("extrusion_color", e.target.value)}>
+                    <option value="Blanco">Blanco</option>
+                    <option value="Cristal">Cristal</option>
+                  </Select>
+                </Field>
+                <Field label="Tratamiento">
+                  <Select value={form.extrusion_trat ?? "Con"} onChange={(e) => set("extrusion_trat", e.target.value)}>
+                    <option value="Con">Con</option>
+                    <option value="Sin">Sin</option>
+                  </Select>
+                </Field>
+                <Field label="Formulación / Lámina" className="col-span-2">
+                  <Input placeholder="2045/208" value={form.extrusion_formulacion ?? ""}
+                    onChange={(e) => set("extrusion_formulacion", e.target.value)} />
+                </Field>
+              </div>
+            </Bloque>
+
+            {/* ② Las bobinas: cuántas y sus medidas */}
+            <Bloque title="Las bobinas" icon={Package}>
+              <div className="mb-4 grid grid-cols-2 gap-4 sm:w-1/2">
+                <Field label="Cant. Bobinas">
+                  <Input type="number" placeholder="0" value={form.extrusion_cant_bob ?? ""}
+                    onChange={(e) => set("extrusion_cant_bob", num(e.target.value))} />
+                </Field>
+              </div>
+              <label className="mb-2 block text-[12.5px] font-bold uppercase tracking-wider text-muted-foreground">MTS / KG por bobina</label>
+              <div className="overflow-hidden rounded-xl border border-border bg-card/60">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/40 border-b border-border">
+                  <thead className="border-b border-border bg-muted/40">
                     <tr>
-                      <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">#</th>
-                      <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">Metros</th>
-                      <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">KG/Bob</th>
-                      <th className="text-left px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase">N° Lote</th>
+                      <th className="px-3 py-2.5 text-left text-[11.5px] font-bold uppercase text-muted-foreground">#</th>
+                      <th className="px-3 py-2.5 text-left text-[11.5px] font-bold uppercase text-muted-foreground">Metros</th>
+                      <th className="px-3 py-2.5 text-left text-[11.5px] font-bold uppercase text-muted-foreground">KG/Bob</th>
+                      <th className="px-3 py-2.5 text-left text-[11.5px] font-bold uppercase text-muted-foreground">N° Lote</th>
                       <th className="w-10" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {form.bobinas.map((b, i) => (
                       <tr key={i}>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
+                        <td className="px-3 py-2 text-[13px] font-bold text-muted-foreground">{i + 1}</td>
                         <td className="px-3 py-2">
                           <Input type="number" step="0.01" placeholder="0.00" value={b.metros ?? ""}
-                            onChange={(e) => updateBobina(i, "metros", e.target.value)} className="h-7 text-sm w-28" />
+                            onChange={(e) => updateBobina(i, "metros", e.target.value)} className="w-32" />
                         </td>
                         <td className="px-3 py-2">
                           <Input type="number" step="0.001" placeholder="0.000" value={b.kg_bob ?? ""}
-                            onChange={(e) => updateBobina(i, "kg_bob", e.target.value)} className="h-7 text-sm w-28" />
+                            onChange={(e) => updateBobina(i, "kg_bob", e.target.value)} className="w-32" />
                         </td>
                         <td className="px-3 py-2">
                           <Input placeholder="Opcional" value={(b as BobinaForm).numero_lote ?? ""}
-                            onChange={(e) => updateBobina(i, "numero_lote", e.target.value)} className="h-7 text-sm w-32" />
+                            onChange={(e) => updateBobina(i, "numero_lote", e.target.value)} className="w-36" />
                         </td>
                         <td className="px-2 py-2">
                           {form.bobinas.length > 1 && (
                             <button type="button" onClick={() => removeBobina(i)}
                               aria-label={`Eliminar fila de bobina ${i + 1}`}
-                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-                              <Trash2 className="w-3.5 h-3.5" />
+                              className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           )}
                         </td>
@@ -529,61 +582,30 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
                   </tbody>
                 </table>
               </div>
-              <button type="button" onClick={addBobina} className="mt-2 flex items-center gap-1.5 text-xs text-primary hover:underline">
-                <Plus className="w-3.5 h-3.5" /> Agregar fila
+              <button type="button" onClick={addBobina}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3.5 py-2 text-[13.5px] font-bold text-muted-foreground transition-colors hover:border-gold/50 hover:text-gold">
+                <Plus className="h-4 w-4" /> Agregar fila
               </button>
-            </div>
+            </Bloque>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <Field label="Ancho (mm)">
-                <Input type="number" step="0.01" placeholder="0.00" value={form.extrusion_ancho ?? ""}
-                  onChange={(e) => set("extrusion_ancho", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-              <Field label="Color">
-                <Select value={form.extrusion_color ?? "Blanco"} onChange={(e) => set("extrusion_color", e.target.value)}>
-                  <option value="Blanco">Blanco</option>
-                  <option value="Cristal">Cristal</option>
-                </Select>
-              </Field>
-              <Field label="Tratamiento">
-                <Select value={form.extrusion_trat ?? "Con"} onChange={(e) => set("extrusion_trat", e.target.value)}>
-                  <option value="Con">Con</option>
-                  <option value="Sin">Sin</option>
-                </Select>
-              </Field>
-              <Field label="Micronaje (µ)">
-                <Input type="number" step="1" placeholder="60" value={form.extrusion_espesor ?? ""}
-                  onChange={(e) => set("extrusion_espesor", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Cant. Bobinas">
-                <Input type="number" placeholder="0" value={form.extrusion_cant_bob ?? ""}
-                  onChange={(e) => set("extrusion_cant_bob", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-              <Field label="Formulación / Lámina">
-                <Input placeholder="2045/208" value={form.extrusion_formulacion ?? ""}
-                  onChange={(e) => set("extrusion_formulacion", e.target.value)} className="h-9 text-sm" />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Máquina">
-                <Input placeholder="Ej: EXT-01" value={form.extrusion_maquina ?? ""}
-                  onChange={(e) => set("extrusion_maquina", e.target.value)} className="h-9 text-sm" />
-              </Field>
-              <Field label="Operador">
-                <Input placeholder="Nombre del operador" value={form.operador_extrusion ?? ""}
-                  onChange={(e) => set("operador_extrusion", e.target.value)} className="h-9 text-sm" />
-              </Field>
-            </div>
-
-            <Field label="Observaciones">
-              <textarea value={form.extrusion_observaciones ?? ""} placeholder="Notas de extrusión"
-                onChange={(e) => set("extrusion_observaciones", e.target.value)} rows={2}
-                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
-            </Field>
+            {/* ③ La producción: quién y en qué máquina */}
+            <Bloque title="La producción" icon={Factory}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Máquina">
+                  <Input placeholder="Ej: EXT-01" value={form.extrusion_maquina ?? ""}
+                    onChange={(e) => set("extrusion_maquina", e.target.value)} />
+                </Field>
+                <Field label="Operador">
+                  <Input placeholder="Nombre del operador" value={form.operador_extrusion ?? ""}
+                    onChange={(e) => set("operador_extrusion", e.target.value)} />
+                </Field>
+                <Field label="Observaciones" className="sm:col-span-2">
+                  <textarea value={form.extrusion_observaciones ?? ""} placeholder="Notas de extrusión"
+                    onChange={(e) => set("extrusion_observaciones", e.target.value)} rows={2}
+                    className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+                </Field>
+              </div>
+            </Bloque>
           </div>
         )
 
@@ -670,14 +692,14 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
       case 5:
         return (
           <div className="space-y-4">
-            <SubSection title="Control de Calidad" />
+            <SubSection title="Control de Calidad" icon={ShieldCheck} />
             <Field label="Observaciones">
               <textarea value={form.control_calidad ?? ""} placeholder="Notas de control de calidad..."
                 onChange={(e) => set("control_calidad", e.target.value)} rows={3}
                 className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
             </Field>
 
-            <SubSection title="Fechas por Etapa" />
+            <SubSection title="Fechas por Etapa" icon={CalendarDays} />
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {([
                 ["fecha_diseno",     "Diseño"],
@@ -694,7 +716,7 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
               ))}
             </div>
 
-            <SubSection title="Totales" />
+            <SubSection title="Totales" icon={Calculator} />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Cantidad">
                 <Input type="number" placeholder="0" value={form.cantidad ?? ""}
@@ -735,12 +757,11 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+    <div className="min-h-full w-full bg-background pb-0">
 
         {/* ── Overlay de éxito ────────────────────────────────────────────── */}
         {success && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm rounded-xl gap-5 animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm gap-5 animate-in fade-in duration-300">
             <div className="flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/15 border-2 border-emerald-500 animate-in zoom-in-50 duration-300">
               <Check className="w-10 h-10 text-emerald-500 stroke-[2.5]" />
             </div>
@@ -751,87 +772,92 @@ export function OrdenFormDialog({ open, onOpenChange, orden, prefill, onSaved }:
           </div>
         )}
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="px-6 pt-5 pb-4 border-b border-border shrink-0">
-          <DialogTitle className="text-base font-semibold mb-4">
-            {orden ? `Editar ${orden.numero}` : "Nueva Orden de Trabajo"}
-            {clienteName && <span className="ml-2 text-sm font-normal text-muted-foreground">· {clienteName}</span>}
-          </DialogTitle>
+        {/* ── Header: banner azul de marca full-bleed + stepper de barras ── */}
+        <div className="bg-brand relative overflow-hidden px-5 pt-5 text-white sm:px-8 lg:px-10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logoSOLO.png" alt="" aria-hidden className="pointer-events-none absolute -right-10 -top-6 h-52 w-52 select-none object-contain opacity-[0.12] brightness-0 invert" />
+          <button
+            type="button"
+            onClick={() => onDone(false)}
+            className="relative -ml-1 mb-3 inline-flex items-center gap-1.5 rounded-lg px-1 py-1 text-[13px] font-semibold text-white/70 transition-colors hover:text-white"
+          >
+            <ChevronLeft className="h-4 w-4" /> Volver a órdenes
+          </button>
+          <p className="relative text-center text-[11px] font-extrabold uppercase tracking-[0.22em] text-white/65">
+            {orden ? "Editar orden" : "Nueva orden de trabajo"}
+          </p>
+          <h1 className="font-brand relative mt-1 text-center text-[30px] leading-tight tracking-tight text-white">
+            {orden ? `Editar ${orden.numero}` : "Nueva orden"}
+            {clienteName && <span className="ml-2.5 text-[17px] font-normal text-white/70">· {clienteName}</span>}
+          </h1>
 
-          {/* Step indicator */}
-          <div className="flex items-center gap-0">
-            {STEPS.map((s, i) => {
+          {/* Stepper: barra + número + nombre (solo pasos ya visitados son clickeables) */}
+          <div className="relative mt-4 flex gap-1.5">
+            {STEPS.map((s) => {
               const isDone    = s.id < step
               const isCurrent = s.id === step
               return (
-                <div key={s.id} className="flex items-center flex-1 last:flex-none">
-                  <button
-                    type="button"
-                    onClick={() => { if (isDone) { setError(""); setStep(s.id) } }}
-                    disabled={!isDone}
-                    className="flex flex-col items-center gap-1 group"
-                  >
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                      isDone
-                        ? "bg-emerald-500 border-emerald-500 text-white cursor-pointer"
-                        : isCurrent
-                          ? "bg-brand border-brand text-white"
-                          : "bg-background border-border text-muted-foreground"
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => { if (isDone) { setError(""); setDir(-1); setStep(s.id) } }}
+                  disabled={!isDone}
+                  className={`flex flex-1 flex-col gap-2 px-0.5 pb-3.5 text-left ${isDone ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <span className={`h-[4px] rounded-full ${isCurrent ? "bg-gold" : isDone ? "bg-gold/50" : "bg-white/20"}`} />
+                  <span className={`flex items-center gap-2 text-[12.5px] font-extrabold ${isCurrent ? "text-white" : isDone ? "text-white/80" : "text-white/45"}`}>
+                    <span className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 ${
+                      isCurrent ? "border-gold bg-gold text-gold-foreground" : isDone ? "border-gold/60 bg-gold/20 text-gold" : "border-white/35"
                     }`}>
-                      {isDone ? <Check className="w-3.5 h-3.5" /> : s.id}
-                    </div>
-                    <span className={`text-[10px] font-semibold leading-none whitespace-nowrap transition-colors ${
-                      isCurrent ? "text-brand dark:text-blue-400" : isDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/50"
-                    }`}>
-                      {s.label}
+                      {isDone ? <Check className="h-3.5 w-3.5" /> : <s.icon className="h-3.5 w-3.5" strokeWidth={2.4} />}
                     </span>
-                  </button>
-                  {i < STEPS.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-2 mb-3 rounded-full transition-colors ${isDone ? "bg-emerald-500" : "bg-border"}`} />
-                  )}
-                </div>
+                    <span className="hidden sm:inline">{s.label}</span>
+                  </span>
+                </button>
               )
             })}
           </div>
         </div>
 
-        {/* ── Content ────────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {renderStep()}
+        {/* ── Content (key={step} → anima la entrada en la dirección del movimiento) ── */}
+        <div className="ot-wizard min-h-[calc(100vh-320px)] px-5 py-7 sm:px-8 lg:px-10">
+          <div key={step} className={`animate-in fade-in duration-300 ${dir === 1 ? "slide-in-from-right-8" : "slide-in-from-left-8"}`}>
+            {renderStep()}
+          </div>
           {error && (
-            <p className="mt-4 text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-2">{error}</p>
+            <p className="mt-4 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[14.5px] font-semibold text-red-200">{error}</p>
           )}
         </div>
 
-        {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <div className="px-6 py-4 border-t border-border shrink-0 flex items-center justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={step === 1 ? () => onOpenChange(false) : goPrev}
-            disabled={saving}
-            className="gap-1.5"
-          >
-            {step > 1 && <ChevronLeft className="w-4 h-4" />}
-            {step === 1 ? "Cancelar" : "Anterior"}
-          </Button>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{step} / {STEPS.length}</span>
+        {/* ── Footer sticky: la navegación siempre a la vista.
+             (el dock de IA ahora vive centrado, ya no tapa los botones) ── */}
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-background/95 px-5 py-4 backdrop-blur sm:px-8 lg:px-10">
+          <span className="text-[14px] font-extrabold text-muted-foreground">
+            Paso <span className="text-foreground">{step}</span> de {STEPS.length}
+          </span>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={step === 1 ? () => onDone(false) : goPrev}
+              disabled={saving}
+              className="inline-flex h-12 items-center gap-1.5 rounded-xl border-[1.5px] border-border px-5 text-[15px] font-extrabold text-foreground transition-colors hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-40"
+            >
+              {step > 1 && <ChevronLeft className="h-[18px] w-[18px]" />}
+              {step === 1 ? "Cancelar" : "Atrás"}
+            </button>
             {step < STEPS.length ? (
-              <Button type="button" onClick={goNext} className="bg-brand hover:bg-brand-strong text-white gap-1.5">
-                Siguiente <ChevronRight className="w-4 h-4" />
-              </Button>
+              <button type="button" onClick={goNext} className="inline-flex h-12 items-center gap-2 rounded-xl bg-gold px-6 text-[15.5px] font-extrabold text-gold-foreground transition hover:brightness-95">
+                Continuar <ChevronRight className="h-5 w-5" />
+              </button>
             ) : (
-              <Button type="button" onClick={handleSubmit} disabled={saving} className="bg-brand hover:bg-brand-strong text-white gap-2">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              <button type="button" onClick={handleSubmit} disabled={saving} className="inline-flex h-12 items-center gap-2 rounded-xl bg-gold px-6 text-[15.5px] font-extrabold text-gold-foreground transition hover:brightness-95 disabled:opacity-60">
+                {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
                 {orden ? "Guardar cambios" : "Crear orden"}
-              </Button>
+              </button>
             )}
           </div>
         </div>
 
-      </DialogContent>
-    </Dialog>
+    </div>
   )
 }

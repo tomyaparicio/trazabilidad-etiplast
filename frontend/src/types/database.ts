@@ -4,6 +4,7 @@ export interface ClienteProducto {
   nombre: string | null
   envase: string | null
   envase_codificado: string | null
+  ubicacion: string | null
   volumen_cantidad: number | null
   volumen_unidad: string | null
   lamina: string | null
@@ -103,6 +104,11 @@ export interface DashboardFinanzas {
   presupuestos_pendientes: number
   presupuestos_total: number
   tasa_aprobacion: number
+  /** Período aplicado (null/ausente = histórico completo). */
+  anio?: number | null
+  mes?: number | null
+  /** Años con órdenes cargadas — para armar el filtro. */
+  anios_disponibles?: number[]
 }
 
 export interface Filtros {

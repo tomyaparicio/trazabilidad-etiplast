@@ -213,15 +213,19 @@
 }
 /* Tipografía display de marca — títulos, métricas y wordmark. En Tailwind v4 los
    utilities custom se declaran con @utility (no @layer utilities, que no emitía el peso). */
-/* UI display (títulos, métricas): Poppins, con cuerpo (600). */
+/* Títulos en toda la app: la MISMA cadena que etiplastargentina.com.
+   La web declara "Century Gothic", "Questrial" — y como Century Gothic casi
+   nunca está instalada, lo que se ve en la práctica es QUESTRIAL (Google
+   Fonts). Acá replicamos eso: Century Gothic si existe → Questrial (igual que
+   la web) → Jost de último recurso. */
 @utility font-display {
-  font-family: var(--font-display), system-ui, sans-serif;
+  font-family: "Century Gothic", var(--font-questrial), var(--font-brand), system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-/* Wordmark de marca: Jost (≈ Century Gothic) con cuerpo (600). */
+/* Wordmark de marca: misma letra que los títulos. */
 @utility font-brand {
-  font-family: var(--font-brand), var(--font-questrial), system-ui, sans-serif;
+  font-family: "Century Gothic", var(--font-questrial), var(--font-brand), system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -266,33 +270,68 @@
   border-radius: 22px;
   background: linear-gradient(158deg, color-mix(in srgb, var(--card), #ffffff 3%), var(--card));
   border: 1px solid var(--border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 26px 50px -34px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 26px 50px -18px rgba(20, 23, 75, 0.30), 0 8px 18px -8px rgba(20, 23, 75, 0.14);
   transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), border-color 0.3s, box-shadow 0.3s;
 }
 .stat-card:hover {
   transform: translateY(-3px);
   border-color: color-mix(in srgb, var(--primary) 32%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 34px 60px -18px rgba(20, 23, 75, 0.38), 0 10px 22px -8px rgba(20, 23, 75, 0.18);
 }
+/* En oscuro las cards son planas (sin glows): sólo un realce interno sutil. */
+[data-theme="dark"] .stat-card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 26px 50px -34px rgba(0, 0, 0, 0.6); }
+[data-theme="dark"] .stat-card:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 30px 60px -30px rgba(0, 0, 0, 0.7); }
 
-/* Card "hero" rellena (KPI destacado) y banner de saludo — azul de marca */
+/* Card "hero" rellena (KPI destacado) y banner de saludo — azul de marca
+   PLANO (#292d96), sin degradés ni glows: decisión del usuario (2026-08-30). */
 .stat-hero, .dash-banner {
   border: none;
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 30px 60px -30px rgba(41, 45, 150, 0.9);
+  background: var(--color-brand);
+  box-shadow: 0 26px 50px -18px rgba(20, 23, 75, 0.32), 0 8px 18px -8px rgba(20, 23, 75, 0.16);
 }
-.stat-hero {
-  background:
-    radial-gradient(120% 130% at 88% 6%, rgba(138, 141, 255, 0.5), transparent 52%),
-    radial-gradient(90% 120% at 0% 100%, rgba(73, 194, 255, 0.28), transparent 55%),
-    linear-gradient(140deg, #1b1f6b 0%, #2b30b0 100%);
-}
+[data-theme="dark"] .stat-hero, [data-theme="dark"] .dash-banner { box-shadow: none; }
 .dash-banner {
   overflow: hidden;
   border-radius: 24px;
-  background:
-    radial-gradient(120% 150% at 92% -10%, rgba(138, 141, 255, 0.42), transparent 55%),
-    linear-gradient(135deg, #1b1f6b, #2b30b0);
+}
+
+/* ── Wizard Nueva OT: campos BLANCOS (alto contraste, usuarios mayores) ──
+   Los !important le ganan a las variantes dark:* de Input/Select sin tocar
+   cada campo. Scoped a .ot-wizard: no afecta al resto del sistema. */
+.ot-wizard input:not([type="checkbox"]):not([type="radio"]),
+.ot-wizard select,
+.ot-wizard textarea {
+  min-height: 46px;
+  font-size: 15.5px;
+  font-weight: 600;
+  border-radius: 12px;
+  background: #ffffff !important;
+  color: #141733 !important;
+  border-color: #cfd2e4 !important;
+}
+.ot-wizard textarea { min-height: 90px; }
+.ot-wizard input::placeholder,
+.ot-wizard textarea::placeholder {
+  color: #9aa0b8;
+  font-weight: 400;
+}
+.ot-wizard input:focus-visible,
+.ot-wizard select:focus-visible,
+.ot-wizard textarea:focus-visible {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 0 4px rgba(245, 235, 74, 0.22) !important;
+}
+/* Labels bien visibles sobre el fondo oscuro (qué es cada campo) */
+.ot-wizard label { color: color-mix(in srgb, var(--foreground) 88%, transparent); }
+/* El chevron del Select debe leerse sobre blanco */
+.ot-wizard [data-slot="select"] + svg { color: #6a7090; }
+
+/* ── Login: swirl de fondo girando lento ── */
+@keyframes eti-spin-slow { to { transform: rotate(360deg); } }
+.login-swirl { animation: eti-spin-slow 240s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .login-swirl { animation: none; }
 }
 
 /* Pill de variación (verde sube / rojo baja) */
@@ -305,6 +344,53 @@
 .delta-pill.is-down {
   background: rgba(251, 113, 133, 0.14); color: #fb7185; border-color: rgba(251, 113, 133, 0.22);
 }
+
+/* ── Editorial: composición tipo revista (números protagonistas, hairlines, menos cajas) ── */
+.ed-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted-foreground); }
+.ed-figure { font-family: "Century Gothic", var(--font-questrial), var(--font-brand), system-ui, sans-serif; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 0.92; }
+/* Franja de stats separada por hairlines verticales (sin cajas) */
+.ed-strip > * + * { border-left: 1px solid var(--border); }
+/* Zona "isla": sólo contorno fino + esquinas suaves, fondo casi transparente.
+   En MODO CLARO lleva sombra suave para despegarse del fondo blanco; en oscuro
+   queda plana (decisión del usuario: sin glows sobre navy). */
+.ed-island {
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--card) 60%, transparent);
+  box-shadow: 0 26px 50px -18px rgba(20, 23, 75, 0.30), 0 8px 18px -8px rgba(20, 23, 75, 0.14);
+}
+/* Islas clickeables (accesos rápidos): al hover la sombra se agranda. */
+a.ed-island:hover { box-shadow: 0 34px 60px -18px rgba(20, 23, 75, 0.38), 0 10px 22px -8px rgba(20, 23, 75, 0.18); }
+[data-theme="dark"] .ed-island,
+[data-theme="dark"] a.ed-island:hover { box-shadow: none; }
+/* Islas con color (fondo tintado por sección) */
+.ed-island--blue {
+  background: radial-gradient(130% 130% at 100% 0%, rgba(124, 136, 255, 0.16), transparent 52%), var(--card);
+  border-color: rgba(124, 136, 255, 0.20);
+}
+/* Isla dorada: en claro el tinte amarillo sobre blanco ensucia → tinte azul. */
+.ed-island--gold {
+  background: radial-gradient(130% 130% at 100% 0%, rgba(41, 45, 150, 0.07), transparent 52%), var(--card);
+  border-color: rgba(41, 45, 150, 0.16);
+}
+[data-theme="dark"] .ed-island--gold {
+  background: radial-gradient(130% 130% at 100% 0%, rgba(245, 235, 74, 0.13), transparent 52%), var(--card);
+  border-color: rgba(245, 235, 74, 0.22);
+}
+.ed-island--green {
+  background: radial-gradient(130% 130% at 100% 0%, rgba(67, 214, 163, 0.13), transparent 52%), var(--card);
+  border-color: rgba(67, 214, 163, 0.22);
+}
+/* Isla rellena con el azul de marca Etiplast (#292d96) PLANO — igual que el
+   hero de etiplastargentina.com (sin degradé ni glow, decisión del usuario). */
+.ed-island--brand {
+  background: var(--color-brand);
+  border-color: transparent;
+  color: #fff;
+  /* Hereda la sombra de .ed-island en claro; en oscuro la anula la regla de arriba. */
+}
+.ed-island--brand .ed-eyebrow { color: rgba(255, 255, 255, 0.72); }
+.ed-hair { height: 1px; width: 100%; background: var(--border); }
 
 /* Barras del gráfico mensual */
 .bar-grow { transform-origin: bottom; animation: eti-grow 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }

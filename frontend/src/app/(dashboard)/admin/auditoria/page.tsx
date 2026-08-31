@@ -154,7 +154,7 @@ export default function AuditoriaPage() {
       {/* ── Header ── */}
       <PageHeader
         icon={ScrollText}
-        iconClassName="text-gold"
+        iconClassName="text-white"
         title="Auditoría"
         subtitle={total > 0 ? `${total} registros de actividad` : "Registro de actividad del sistema"}
       />

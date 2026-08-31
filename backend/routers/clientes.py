@@ -11,7 +11,7 @@ from sqlalchemy import cast, func, or_, String
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_admin, verify_token
+from dependencies import require_permiso, verify_token
 from models import (
     Cliente, ClienteContacto, ClienteProducto,
     ClienteUbicacion, Provincia, RazonSocial, Rubro,
@@ -32,7 +32,7 @@ def _eager_options():
         joinedload(Cliente.razon_social_obj),
         joinedload(Cliente.ubicacion).joinedload(ClienteUbicacion.provincia_obj),
         joinedload(Cliente.contacto),
-        joinedload(Cliente.productos),
+        joinedload(Cliente.productos).joinedload(ClienteProducto.maquina_impresora),
     ]
 
 
@@ -180,6 +180,137 @@ async def listar_clientes(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# GET /api/clientes/export/excel — planilla completa estilo "Datos Clientes"
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Columnas del Excel histórico (hoja "Editable" de NUEVO Datos Clientes.xlsx):
+# una fila por producto, con los datos del cliente repetidos.
+EXPORT_COLUMNAS = [
+    ("N° Cliente",      9),
+    ("Marca",          23),
+    ("Razon Social",   28),
+    ("Domicilio",      23),
+    ("Localidad",      19),
+    ("Provincia",      17),
+    ("País",           12),
+    ("CUIT",           16),
+    ("Telefono",       20),
+    ("Producto",       32),
+    ("Muestra",        10),
+    ("Alto",            7),
+    ("Cierre",         10),
+    ("Tipo de Envase", 16),
+    ("Codigo Envase",  15),
+    ("Ubicacion",      11),
+    ("Lamina",         14),
+    ("Cilindro",        9),
+    ("Maquina",        10),
+    ("Transporte",     28),
+]
+
+
+@router.get("/clientes/export/excel", summary="Exportar todos los clientes a Excel")
+async def exportar_clientes_excel(
+    _user: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    """
+    Genera un .xlsx con la base completa de clientes (una fila por producto),
+    replicando el formato de la planilla histórica "Datos Clientes":
+    encabezado en negrita con borde inferior, primera fila congelada.
+    """
+    import io
+    from datetime import date
+
+    from fastapi.responses import StreamingResponse
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, Side
+    from openpyxl.utils import get_column_letter
+
+    clientes = (
+        db.query(Cliente)
+        .options(*_eager_options())
+        .all()
+    )
+    # N° Cliente con la MISMA regla que el UI (Cliente.to_dict): prioriza el
+    # numero de la razón social (compartido entre marcas) y cae al id_cliente.
+    def _numero(c):
+        rs = c.razon_social_obj
+        return rs.numero if rs and rs.numero is not None else c.id_cliente
+
+    # Orden estable: por número de cliente (nulos al final) y marca.
+    clientes.sort(key=lambda c: (_numero(c) is None, _numero(c) or 0, (c.marca or "").upper()))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Clientes"
+    ws.freeze_panes = "A2"
+
+    borde_fino = Border(bottom=Side(style="thin"))
+    for col, (titulo, ancho) in enumerate(EXPORT_COLUMNAS, start=1):
+        celda = ws.cell(row=1, column=col, value=titulo)
+        celda.font = Font(bold=True)
+        celda.border = borde_fino
+        celda.alignment = Alignment(vertical="center", wrap_text=True)
+        ws.column_dimensions[get_column_letter(col)].width = ancho
+    ws.row_dimensions[1].height = 30
+
+    def _num(valor):
+        """Numeric → float para que Excel lo trate como número."""
+        return float(valor) if valor is not None else None
+
+    fila = 2
+    for c in clientes:
+        rs = c.razon_social_obj
+        ub = c.ubicacion
+        ct = c.contacto
+        base = [
+            _numero(c),
+            c.marca,
+            (rs.razon_social if rs else None) or c.razon_social,
+            ub.domicilio if ub else None,
+            ub.localidad if ub else None,
+            (ub.provincia_obj.nombre if ub and ub.provincia_obj else None),
+            ub.pais if ub else None,
+            (rs.cuit if rs else None) or c.cuit,
+            ct.telefono if ct else None,
+        ]
+        transporte = ub.transporte if ub else None
+        # Sin productos → una fila igual, con las columnas de producto vacías.
+        productos = c.productos or [None]
+        for p in productos:
+            maquina = None
+            if p is not None and p.maquina_impresora:
+                maquina = p.maquina_impresora.codigo or p.maquina_impresora.nombre
+            fila_producto = [
+                p.nombre if p else None,
+                p.muestra if p else None,
+                _num(p.alto) if p else None,
+                _num(p.cierre) if p else None,
+                p.envase if p else None,
+                p.envase_codificado if p else None,
+                p.ubicacion if p else None,
+                p.lamina if p else None,
+                _num(p.cilindro) if p else None,
+                maquina,
+            ]
+            for col, valor in enumerate(base + fila_producto + [transporte], start=1):
+                ws.cell(row=fila, column=col, value=valor)
+            fila += 1
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    nombre = f"Datos Clientes Etiplast {date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # GET /api/clientes/{id}
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -207,7 +338,7 @@ async def obtener_cliente(
 @router.post("/clientes", status_code=201, summary="Crear nuevo cliente")
 async def crear_cliente(
     payload: ClienteCreateSchema,
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("clientes:crear")),
     db: Session = Depends(get_db),
 ):
     # Validación vía Pydantic; se opera sobre un dict para no cambiar la lógica.
@@ -271,14 +402,15 @@ async def crear_cliente(
     ))
 
     # Crear producto (si hay algún campo de producto)
-    campos_producto = ["producto", "envase", "envase_codificado", "volumen_cantidad", "volumen_unidad",
-                       "lamina", "muestra", "alto", "cilindro", "cierre"]
+    campos_producto = ["producto", "envase", "envase_codificado", "ubicacion", "volumen_cantidad",
+                       "volumen_unidad", "lamina", "muestra", "alto", "cilindro", "cierre"]
     if any(datos.get(c) for c in campos_producto):
         db.add(ClienteProducto(
             cliente_id=cliente.id,
             nombre=datos.get("producto"),
             envase=datos.get("envase"),
             envase_codificado=datos.get("envase_codificado"),
+            ubicacion=datos.get("ubicacion"),
             volumen_cantidad=_to_float(datos.get("volumen_cantidad")),
             volumen_unidad=datos.get("volumen_unidad"),
             lamina=datos.get("lamina"),
@@ -309,7 +441,7 @@ async def crear_cliente(
 async def actualizar_cliente(
     cliente_id: int,
     payload: ClienteUpdateSchema,
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
     # exclude_unset: solo los campos realmente enviados → se preserva la semántica
@@ -381,8 +513,8 @@ async def actualizar_cliente(
 
     # — Producto principal —
     pr = cliente.productos[0] if cliente.productos else None
-    campos_producto = ["producto", "envase", "envase_codificado", "volumen_cantidad", "volumen_unidad",
-                       "lamina", "muestra", "alto", "cilindro", "cierre"]
+    campos_producto = ["producto", "envase", "envase_codificado", "ubicacion", "volumen_cantidad",
+                       "volumen_unidad", "lamina", "muestra", "alto", "cilindro", "cierre"]
 
     if any(c in datos for c in campos_producto):
         if not pr:
@@ -391,7 +523,7 @@ async def actualizar_cliente(
 
         if "producto" in datos:
             pr.nombre = datos["producto"]
-        for campo in ("envase", "envase_codificado", "volumen_unidad", "lamina", "muestra"):
+        for campo in ("envase", "envase_codificado", "ubicacion", "volumen_unidad", "lamina", "muestra"):
             if campo in datos:
                 setattr(pr, campo, datos[campo])
         for campo in ("volumen_cantidad", "alto", "cilindro", "cierre"):
@@ -417,7 +549,7 @@ async def actualizar_cliente(
 async def crear_producto_cliente(
     cliente_id: int,
     datos: Dict[str, Any] = Body(...),
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
     if not db.query(Cliente).filter(Cliente.id == cliente_id).first():
@@ -428,6 +560,7 @@ async def crear_producto_cliente(
         nombre=datos.get("nombre"),
         envase=datos.get("envase"),
         envase_codificado=datos.get("envase_codificado"),
+        ubicacion=datos.get("ubicacion"),
         volumen_cantidad=_to_float(datos.get("volumen_cantidad")),
         volumen_unidad=datos.get("volumen_unidad"),
         lamina=datos.get("lamina"),
@@ -448,7 +581,7 @@ async def actualizar_producto_cliente(
     cliente_id: int,
     producto_id: int,
     datos: Dict[str, Any] = Body(...),
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
     producto = db.query(ClienteProducto).filter(
@@ -458,7 +591,7 @@ async def actualizar_producto_cliente(
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    for campo in ("nombre", "envase", "envase_codificado", "volumen_unidad", "lamina", "muestra"):
+    for campo in ("nombre", "envase", "envase_codificado", "ubicacion", "volumen_unidad", "lamina", "muestra"):
         if campo in datos:
             setattr(producto, campo, datos[campo])
     for campo in ("volumen_cantidad", "alto", "cilindro", "cierre"):
@@ -476,7 +609,7 @@ async def actualizar_producto_cliente(
 async def eliminar_producto_cliente(
     cliente_id: int,
     producto_id: int,
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
     producto = db.query(ClienteProducto).filter(
@@ -492,7 +625,7 @@ async def eliminar_producto_cliente(
 @router.delete("/clientes/{cliente_id}", status_code=204, summary="Eliminar cliente (solo admin)")
 async def eliminar_cliente(
     cliente_id: int,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("clientes:borrar")),
     db: Session = Depends(get_db),
 ):
     cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()

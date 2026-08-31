@@ -4,8 +4,10 @@ Router del dashboard — Etiplast ERP
 Estadísticas y datos para filtros.
 Usa las tablas de catálogo (rubros, provincias) para queries más eficientes.
 """
-from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
@@ -15,37 +17,56 @@ from models import Cliente, ClienteProducto, ClienteUbicacion, OrdenTrabajo, Pre
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
 
-def _metricas_financieras(db: Session) -> dict:
-    """Agregados de $ para el tab Administrativo.
+def _metricas_financieras(db: Session, year: Optional[int] = None, month: Optional[int] = None) -> dict:
+    """Agregados de $ para el tab Administrativo, filtrables por período.
 
     "Facturación" = valor de las órdenes (total_final); NO representa dinero
     efectivamente cobrado (el sistema no registra pagos/cobros). Se excluyen
     las órdenes en borrador y canceladas.
+
+    Período: sin params = histórico completo (comportamiento original).
+    `year` acota todos los agregados a ese año; `month` (requiere year) acota
+    los agregados a ese mes, pero la serie mensual sigue siendo del año entero
+    (así el gráfico muestra el año con el mes elegido en contexto).
     """
+    from datetime import date
+
     vivas = OrdenTrabajo.estado.notin_(["cancelada", "borrador"])
+
+    # Filtros de período sobre la fecha de creación (agregados).
+    periodo_ot, periodo_pres = [], []
+    if year:
+        periodo_ot.append(extract("year", OrdenTrabajo.created_at) == year)
+        periodo_pres.append(extract("year", Presupuesto.created_at) == year)
+        if month:
+            periodo_ot.append(extract("month", OrdenTrabajo.created_at) == month)
+            periodo_pres.append(extract("month", Presupuesto.created_at) == month)
+
     facturacion_total = (
-        db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0)).filter(vivas).scalar()
+        db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0))
+        .filter(vivas, *periodo_ot)
+        .scalar()
     )
     facturacion_completadas = (
         db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0))
-        .filter(OrdenTrabajo.estado == "completada")
+        .filter(OrdenTrabajo.estado == "completada", *periodo_ot)
         .scalar()
     )
     ticket_promedio = (
         db.query(func.coalesce(func.avg(OrdenTrabajo.total_final), 0))
-        .filter(vivas, OrdenTrabajo.total_final.isnot(None))
+        .filter(vivas, OrdenTrabajo.total_final.isnot(None), *periodo_ot)
         .scalar()
     )
 
     def _presu(estado: str):
         monto = (
             db.query(func.coalesce(func.sum(Presupuesto.total), 0))
-            .filter(Presupuesto.estado == estado)
+            .filter(Presupuesto.estado == estado, *periodo_pres)
             .scalar()
         )
         cant = (
             db.query(func.count(Presupuesto.id))
-            .filter(Presupuesto.estado == estado)
+            .filter(Presupuesto.estado == estado, *periodo_pres)
             .scalar()
         )
         return float(monto or 0), int(cant or 0)
@@ -55,33 +76,74 @@ def _metricas_financieras(db: Session) -> dict:
 
     # Tasa de aprobación: aprobados sobre presupuestos ya presentados (no borrador)
     presupuestos_total = (
-        db.query(func.count(Presupuesto.id)).filter(Presupuesto.estado != "borrador").scalar() or 0
+        db.query(func.count(Presupuesto.id))
+        .filter(Presupuesto.estado != "borrador", *periodo_pres)
+        .scalar() or 0
     )
     tasa_aprobacion = round(aprob_cant / presupuestos_total * 100) if presupuestos_total else 0
 
-    # Facturación por mes (para el gráfico) + variación mes-a-mes
+    # Serie mensual para el gráfico: del año elegido (completa, con ceros) o
+    # histórica (últimos 8 meses con datos) si no hay filtro.
     mes_col = func.to_char(func.date_trunc("month", OrdenTrabajo.created_at), "YYYY-MM")
-    filas = (
-        db.query(mes_col.label("mes"), func.coalesce(func.sum(OrdenTrabajo.total_final), 0).label("monto"))
-        .filter(vivas)
-        .group_by(mes_col)
-        .order_by(mes_col)
-        .all()
-    )
-    serie = [{"mes": f.mes, "monto": float(f.monto or 0)} for f in filas]
+    q_serie = db.query(
+        mes_col.label("mes"),
+        func.coalesce(func.sum(OrdenTrabajo.total_final), 0).label("monto"),
+    ).filter(vivas)
+    if year:
+        q_serie = q_serie.filter(extract("year", OrdenTrabajo.created_at) == year)
+    filas = q_serie.group_by(mes_col).order_by(mes_col).all()
+    por_mes = {f.mes: float(f.monto or 0) for f in filas}
+
+    hoy = date.today()
+    if year:
+        # Año completo (hasta el mes actual si es el año en curso).
+        ultimo = hoy.month if year == hoy.year else 12
+        serie = [{"mes": f"{year}-{m:02d}", "monto": por_mes.get(f"{year}-{m:02d}", 0.0)} for m in range(1, ultimo + 1)]
+    else:
+        serie = [{"mes": m, "monto": v} for m, v in sorted(por_mes.items())][-8:]
+
+    def _monto_mes(a: int, m: int) -> float:
+        return float(
+            db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0))
+            .filter(
+                vivas,
+                extract("year", OrdenTrabajo.created_at) == a,
+                extract("month", OrdenTrabajo.created_at) == m,
+            )
+            .scalar() or 0
+        )
+
+    # Variación mes-a-mes: del mes elegido vs su anterior (cruza el año si hace
+    # falta); sin mes elegido, últimos dos puntos de la serie.
     facturacion_mom = None
-    if len(serie) >= 2:
+    if year and month:
+        actual = por_mes.get(f"{year}-{month:02d}", 0.0)
+        previo = _monto_mes(year, month - 1) if month > 1 else _monto_mes(year - 1, 12)
+        if previo:
+            facturacion_mom = round((actual - previo) / previo * 100)
+        elif actual:
+            facturacion_mom = 100
+    elif len(serie) >= 2:
         actual, previo = serie[-1]["monto"], serie[-2]["monto"]
         if previo:
             facturacion_mom = round((actual - previo) / previo * 100)
         elif actual:
             facturacion_mom = 100
 
+    # Años con órdenes (para armar el filtro en el frontend).
+    anios = [
+        int(r[0]) for r in
+        db.query(extract("year", OrdenTrabajo.created_at)).distinct().order_by(extract("year", OrdenTrabajo.created_at).desc()).all()
+        if r[0] is not None
+    ]
+    if hoy.year not in anios:
+        anios.insert(0, hoy.year)
+
     return {
         "facturacion_total":             float(facturacion_total or 0),
         "facturacion_completadas":       float(facturacion_completadas or 0),
         "facturacion_mom":               facturacion_mom,
-        "facturacion_mensual":           serie[-8:],
+        "facturacion_mensual":           serie,
         "ticket_promedio":               round(float(ticket_promedio or 0), 2),
         "presupuestos_aprobados_monto":  aprob_monto,
         "presupuestos_pendientes_monto": pend_monto,
@@ -89,7 +151,24 @@ def _metricas_financieras(db: Session) -> dict:
         "presupuestos_pendientes":       pend_cant,
         "presupuestos_total":            int(presupuestos_total),
         "tasa_aprobacion":               tasa_aprobacion,
+        "anio":                          year,
+        "mes":                           month,
+        "anios_disponibles":             anios,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /api/dashboard/finanzas — métricas financieras filtrables por período
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/dashboard/finanzas", summary="Métricas financieras (filtrables por año y mes)")
+async def dashboard_finanzas(
+    year: Optional[int] = Query(None, ge=2000, le=2100, description="Año a filtrar"),
+    month: Optional[int] = Query(None, ge=1, le=12, description="Mes a filtrar (requiere year)"),
+    _user: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    return _metricas_financieras(db, year=year, month=month)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

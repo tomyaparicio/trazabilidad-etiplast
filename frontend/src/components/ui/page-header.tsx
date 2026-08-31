@@ -14,7 +14,8 @@ export function PageHeader({
   subtitle,
   eyebrow,
   icon: Icon,
-  iconClassName = "text-gold",
+  // Blanco por defecto: el icono va sobre el banner azul de marca.
+  iconClassName = "text-white",
   actions,
   children,
   className,
@@ -33,7 +34,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "bg-hero relative -mx-5 -mt-5 overflow-hidden px-5 py-8 text-white sm:-mx-8 sm:-mt-8 sm:px-8 sm:py-9 lg:-mx-10 lg:-mt-10 lg:px-10",
+        "bg-hero relative -mx-5 -mt-5 overflow-hidden rounded-b-3xl px-5 py-8 text-white sm:-mx-8 sm:-mt-8 sm:px-8 sm:py-9 lg:-mx-10 lg:-mt-10 lg:px-10",
         className,
       )}
     >

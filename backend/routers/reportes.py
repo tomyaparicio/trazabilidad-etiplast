@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from dependencies import verify_token
 from models import (
-    Cliente, Maquina, OrdenExtrusionBobina, OrdenTrabajo, PlanProduccion,
+    Cliente, OrdenExtrusionBobina, OrdenTrabajo,
     StockItem,
 )
 
@@ -104,23 +104,22 @@ async def reporte_produccion(
         )
 
         if agrupar == "maquina":
-            # OT -> PlanProduccion -> Maquina. Una OT puede planificarse en varias
-            # máquinas; se cuenta por (OT, máquina) planificada.
+            # Máquina de extrusión de la OT (texto libre, igual que operador).
+            # Antes se mapeaba vía planificación; ese módulo fue dado de baja.
+            maquina_col = func.coalesce(func.nullif(OrdenTrabajo.extrusion_maquina, ""), "Sin máquina")
             rows = (
                 _aplicar_rango_fecha(
                     db.query(
-                        func.coalesce(Maquina.nombre, "Sin máquina").label("grupo"),
+                        maquina_col.label("grupo"),
                         func.count(func.distinct(OrdenTrabajo.id)).label("ots"),
                         func.coalesce(func.sum(OrdenTrabajo.cantidad), 0).label("cantidad"),
                         func.coalesce(func.sum(kg_subq.c.kg), 0).label("kg"),
                     )
                     .select_from(OrdenTrabajo)
-                    .join(PlanProduccion, PlanProduccion.orden_trabajo_id == OrdenTrabajo.id)
-                    .join(Maquina, Maquina.id == PlanProduccion.maquina_id)
                     .outerjoin(kg_subq, kg_subq.c.orden_id == OrdenTrabajo.id),
                     OrdenTrabajo.fecha, d_desde, d_hasta,
                 )
-                .group_by(Maquina.nombre)
+                .group_by(maquina_col)
                 .order_by(func.count(func.distinct(OrdenTrabajo.id)).desc())
                 .all()
             )

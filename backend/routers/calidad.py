@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_admin, verify_token
+from dependencies import require_permiso, verify_token
 from models import (
     OrdenTrabajo, QcPlantilla, QcPlantillaItem, QcRegistro, QcRegistroItem,
 )
@@ -100,7 +100,7 @@ async def listar_plantillas(
 @router.post("/calidad/plantillas", status_code=201, summary="Crear plantilla QC")
 async def crear_plantilla(
     datos: QcPlantillaCreateSchema,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("calidad:crear")),
     db: Session = Depends(get_db),
 ):
     if datos.etapa not in ETAPAS_VALIDAS:
@@ -140,7 +140,7 @@ async def crear_plantilla(
 async def actualizar_plantilla(
     plantilla_id: int,
     datos: QcPlantillaUpdateSchema,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("calidad:editar")),
     db: Session = Depends(get_db),
 ):
     plantilla = _get_plantilla(db, plantilla_id)
@@ -173,7 +173,7 @@ async def actualizar_plantilla(
                summary="Eliminar plantilla QC (soft si tiene registros)")
 async def eliminar_plantilla(
     plantilla_id: int,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("calidad:borrar")),
     db: Session = Depends(get_db),
 ):
     plantilla = _get_plantilla(db, plantilla_id)
@@ -239,7 +239,7 @@ async def listar_registros_orden(
 async def crear_registro_orden(
     orden_id: int,
     datos: QcRegistroCreateSchema,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("calidad:crear")),
     db: Session = Depends(get_db),
 ):
     orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()

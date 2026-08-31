@@ -1140,6 +1140,17 @@ MIGRATIONS_SEQ_RESYNC = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Ubicación física del envase por producto (columna P del Excel histórico:
+# "Ubicacion", ej. "A-3" / "G-2" — dónde se guarda el envase codificado).
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_PRODUCTO_UBICACION = [
+    ("Productos: Agregar columna ubicacion a cliente_productos",
+     "ALTER TABLE cliente_productos ADD COLUMN IF NOT EXISTS ubicacion VARCHAR(100)"),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -1172,7 +1183,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION
 
     aplicadas = 0
     salteadas = 0
@@ -1209,6 +1220,27 @@ def run_migrations():
                 fallidas += 1
                 print(f"  ✗ {name}: {e}")
                 print("     ↳ se omite y se continúa")
+
+    # ── Seed de roles RBAC por defecto (idempotente) ──
+    try:
+        from sqlalchemy.orm import Session as _Session
+        from models import Role
+        import rbac
+        with _Session(bind=engine) as s:
+            existentes = {r.clave for r in s.query(Role).all()}
+            creados = 0
+            for rd in rbac.ROLES_DEFAULT:
+                if rd["clave"] not in existentes:
+                    s.add(Role(
+                        clave=rd["clave"], nombre=rd["nombre"],
+                        vistas=rd["vistas"], acciones=rd["acciones"], protegido=rd["protegido"],
+                    ))
+                    creados += 1
+            if creados:
+                s.commit()
+            print(f"Roles RBAC: {creados} sembrados, {len(existentes)} ya estaban.")
+    except Exception as e:  # noqa: BLE001 — no debe tumbar el arranque
+        print(f"  ✗ seed de roles falló (se continúa): {e}")
 
     print(f"\nMigraciones: {aplicadas} aplicadas, {salteadas} ya estaban, {fallidas} con error.")
     print("=" * 52)

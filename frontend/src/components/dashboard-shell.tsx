@@ -9,6 +9,8 @@ import { AiAssistant } from "@/components/ai-assistant"
 import { CommandPalette } from "@/components/command-palette"
 import { AppDock } from "@/components/app-dock"
 import { useTheme } from "@/components/theme-provider"
+import { PermisosProvider } from "@/components/permisos-provider"
+import { RouteGuard } from "@/components/route-guard"
 
 interface DashboardShellProps {
   userEmail?: string
@@ -19,6 +21,9 @@ interface DashboardShellProps {
 
 export function DashboardShell({ userEmail, userName, userRole, children }: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  // Botón del dock oculto por pedido del usuario; los asistentes se invocan
+  // por voz ("Hola Eti") o Ctrl+Espacio. Volver a un useState si se re-muestra.
+  const aiDockOpen = false
   // Colapsar el sidebar en desktop (recordado entre navegaciones/recargas).
   const [collapsed, setCollapsed] = useState(false)
   const themeCtx = useTheme()
@@ -32,7 +37,9 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
   }, [collapsed])
 
   return (
+    <PermisosProvider userRole={userRole}>
     <div className="flex h-screen bg-background text-foreground">
+      <RouteGuard />
       <Sidebar
         userEmail={userEmail}
         userName={userName}
@@ -55,8 +62,11 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
         {children}
       </div>
 
-      <VoiceAgent />
-      <AiAssistant />
+      {/* ── IA sin botón flotante a la vista: los asistentes quedan montados
+           pero ocultos. El micrófono aparece solo al invocarlo ("Hola Eti" o
+           Ctrl+Espacio); el estado del dock queda por si se vuelve a mostrar. ── */}
+      <VoiceAgent dockOpen={aiDockOpen} />
+      <AiAssistant dockOpen={aiDockOpen} />
       <CommandPalette isAdmin={isAdmin} />
       <Toaster
         richColors
@@ -70,5 +80,6 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
         }}
       />
     </div>
+    </PermisosProvider>
   )
 }

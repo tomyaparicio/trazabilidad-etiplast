@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_admin, verify_token
+from dependencies import require_permiso, verify_token
 from models import (
     Cliente, OrdenExtrusionBobina, OrdenTrabajo, Remito, RemitoItem,
     StockItem, StockMovimiento,
@@ -180,7 +180,7 @@ async def obtener_remito(
 @router.post("/remitos", status_code=201, summary="Crear nuevo remito")
 async def crear_remito(
     payload: RemitoCreateSchema,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("remitos:crear")),
     db: Session = Depends(get_db),
 ):
     cliente = db.query(Cliente).filter(Cliente.id == payload.cliente_id).first()
@@ -235,7 +235,7 @@ async def crear_remito(
 async def actualizar_remito(
     remito_id: int,
     payload: RemitoUpdateSchema,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("remitos:editar")),
     db: Session = Depends(get_db),
 ):
     remito = _get_remito(db, remito_id)
@@ -320,7 +320,7 @@ async def actualizar_remito(
 @router.delete("/remitos/{remito_id}", status_code=204, summary="Eliminar remito (solo admin, solo pendiente)")
 async def eliminar_remito(
     remito_id: int,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("remitos:borrar")),
     db: Session = Depends(get_db),
 ):
     remito = _get_remito(db, remito_id)
@@ -344,7 +344,7 @@ async def eliminar_remito(
 @router.post("/remitos/{remito_id}/despachar", summary="Despachar remito (egresos de stock + notificación)")
 async def despachar_remito(
     remito_id: int,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("remitos:editar")),
     db: Session = Depends(get_db),
 ):
     remito = _get_remito(db, remito_id)

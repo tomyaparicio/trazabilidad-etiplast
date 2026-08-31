@@ -1,16 +1,18 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
-  ArrowRight, TriangleAlert, RefreshCw, Plus, BarChart3,
+  ArrowRight, TriangleAlert, RefreshCw, Plus, BarChart3, Loader2,
   Activity, Workflow, Tags, PackageCheck, Wallet, FileCheck2, FileClock, TrendingUp,
+  ClipboardList, Users,
 } from "lucide-react"
+import { Select } from "@/components/ui/select"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/ui/page-container"
-import type { DashboardStats, OrdenResumen } from "@/types/database"
+import type { DashboardStats, DashboardFinanzas, OrdenResumen } from "@/types/database"
 import type { OrdenesSeriePunto } from "@/lib/api/types"
 
 const stateStyle: Record<string, string> = {
@@ -25,6 +27,59 @@ const stateLabel: Record<string, string> = {
 }
 const RUBRO_COLORS = ["var(--primary-400)", "var(--primary-300)", "var(--gold)", "var(--primary-200)", "#34d399", "#49c2ff"]
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+// Options legibles del <select> nativo (popup del SO es claro).
+const OPT_STYLE = { color: "#0b0d1e", backgroundColor: "#fff" } as const
+
+/** Número animado: cuenta desde lo que se está mostrando hasta el valor nuevo
+ *  (ease-out). Respeta prefers-reduced-motion (muestra el valor directo). */
+function NumAnim({ value, format, duration = 900 }: { value: number; format: (n: number) => string; duration?: number }) {
+  const [shown, setShown] = useState(0)
+  const actual = useRef(0) // último valor pintado (para animar desde ahí)
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      actual.current = value
+      setShown(value)
+      return
+    }
+    const desde = actual.current
+    if (desde === value) return
+    let raf = 0
+    const t0 = performance.now()
+    const paso = (t: number) => {
+      const p = Math.min((t - t0) / duration, 1)
+      const eased = 1 - Math.pow(1 - p, 3)
+      const v = desde + (value - desde) * eased
+      actual.current = v
+      setShown(v)
+      if (p < 1) raf = requestAnimationFrame(paso)
+      else actual.current = value
+    }
+    raf = requestAnimationFrame(paso)
+    return () => cancelAnimationFrame(raf)
+  }, [value, duration])
+
+  return <>{format(shown)}</>
+}
+
+// DEMO — datos de ejemplo para VER el diseño mientras no haya facturación real.
+// Se usa sólo si el backend devuelve todo en 0. Quitar cuando haya datos reales.
+const DEMO_FIN: DashboardFinanzas = {
+  facturacion_total: 542376,
+  facturacion_completadas: 380000,
+  facturacion_mom: 12,
+  facturacion_mensual: [
+    { mes: "2026-03", monto: 320000 }, { mes: "2026-04", monto: 410000 }, { mes: "2026-05", monto: 280000 },
+    { mes: "2026-06", monto: 520000 }, { mes: "2026-07", monto: 470000 }, { mes: "2026-08", monto: 542376 },
+  ],
+  ticket_promedio: 53200,
+  presupuestos_aprobados_monto: 890000,
+  presupuestos_pendientes_monto: 420000,
+  presupuestos_aprobados: 6,
+  presupuestos_pendientes: 4,
+  presupuestos_total: 10,
+  tasa_aprobacion: 68,
+}
 
 type TabKey = "admin" | "prod" | "comercial"
 const TABS: { key: TabKey; label: string }[] = [
@@ -88,7 +143,19 @@ function Gauge({ pct, label }: { pct: number; label: string }) {
   const cx = 92, cy = 94, r = 80, N = 30
   const p = Math.max(0, Math.min(100, Math.round(pct)))
   const frac = p / 100
-  const stops = [[73, 194, 255], [138, 141, 255], [245, 235, 74]]
+  // La punta del gauge es dorada en oscuro; en claro cierra en azul de marca
+  // (el amarillo sobre blanco se lava).
+  const [claro, setClaro] = useState(false)
+  useEffect(() => {
+    const leer = () => setClaro(document.documentElement.getAttribute("data-theme") !== "dark")
+    leer()
+    const obs = new MutationObserver(leer)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] })
+    return () => obs.disconnect()
+  }, [])
+  const stops = claro
+    ? [[73, 194, 255], [91, 97, 230], [41, 45, 150]]
+    : [[73, 194, 255], [138, 141, 255], [245, 235, 74]]
   const lerp = (a: number, b: number, f: number) => Math.round(a + (b - a) * f)
   const grad = (f: number) => {
     const seg = f < 0.5 ? 0 : 1, lf = f < 0.5 ? f / 0.5 : (f - 0.5) / 0.5
@@ -112,6 +179,64 @@ function Gauge({ pct, label }: { pct: number; label: string }) {
       <text x="92" y="80" textAnchor="middle" className="font-display" style={{ fill: "var(--foreground)" }} fontSize="33" fontWeight="700" letterSpacing="-1">{p}%</text>
       <text x="92" y="100" textAnchor="middle" style={{ fill: "var(--muted-foreground)" }} fontSize="11" fontWeight="600" letterSpacing="1.5">{label}</text>
     </svg>
+  )
+}
+
+/** Curva suave (Catmull-Rom → Bézier) para líneas/áreas orgánicas. */
+function smoothPath(p: number[][]) {
+  if (p.length < 2) return p.length ? `M${p[0][0]} ${p[0][1]}` : ""
+  let d = `M${p[0][0].toFixed(1)} ${p[0][1].toFixed(1)}`
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6
+    d += ` C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`
+  }
+  return d
+}
+
+/** Facturación mensual como barras legibles: valor arriba de cada barra,
+ *  mes abajo, y el mes actual (último) destacado en dorado. */
+function FacturacionBars({ data, height = 172, hotMes }: { data: { mes: string; monto: number }[]; height?: number; hotMes?: string }) {
+  if (!data.some((d) => d.monto > 0)) {
+    return <div className="flex items-center justify-center text-sm text-white/60" style={{ height }}>Aún no hay facturación para graficar.</div>
+  }
+  const max = Math.max(...data.map((d) => d.monto), 1)
+  // Mes destacado: el filtrado (si hay) o el último de la serie (mes en curso).
+  const idxSel = hotMes ? data.findIndex((d) => d.mes === hotMes) : -1
+  const hotIdx = idxSel >= 0 ? idxSel : data.length - 1
+  const compacto = new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 })
+  const completo = new Intl.NumberFormat("es-AR")
+  return (
+    <div className="flex items-stretch gap-2 sm:gap-3" style={{ height }}>
+      {data.map((d, i) => {
+        const hot = i === hotIdx
+        const pct = Math.max((d.monto / max) * 100, d.monto > 0 ? 4 : 1.5)
+        const mes = MESES[Number(d.mes.split("-")[1]) - 1] || d.mes
+        return (
+          <div
+            key={d.mes}
+            title={`${mes}: $ ${completo.format(Math.round(d.monto))}`}
+            className="group flex h-full flex-1 flex-col items-center"
+          >
+            {/* Zona de barra: el padding superior deja lugar al valor de la más alta */}
+            <div className="flex w-full flex-1 items-end justify-center pt-7">
+              <div
+                className={`bar-grow relative w-full max-w-[56px] rounded-t-[5px] transition-colors ${
+                  hot ? "bg-gold" : "bg-white/30 group-hover:bg-white/50"
+                }`}
+                style={{ height: `${pct}%`, animationDelay: `${i * 70}ms` }}
+              >
+                <span className={`absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[13px] font-bold tabular-nums ${hot ? "text-gold" : "text-white/90"}`}>
+                  {d.monto > 0 ? `$${compacto.format(d.monto)}` : "—"}
+                </span>
+              </div>
+            </div>
+            <span className={`mt-2 text-[12px] font-bold uppercase tracking-wide ${hot ? "text-gold" : "text-white/60"}`}>{mes}</span>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -159,6 +284,26 @@ export default function DashboardPage() {
   const [error, setError] = useState(false)
   const [tab, setTab] = useState<TabKey>("admin")
 
+  // Filtro de período de las finanzas (Administrativo): año + mes opcionales.
+  const [anioF, setAnioF] = useState<number | "">("")
+  const [mesF, setMesF] = useState<number | "">("")
+  const [finPeriodo, setFinPeriodo] = useState<DashboardFinanzas | null>(null)
+  const [finLoading, setFinLoading] = useState(false)
+
+  useEffect(() => {
+    if (!anioF) {
+      setFinPeriodo(null)
+      return
+    }
+    let vivo = true
+    setFinLoading(true)
+    api.dashboard.finanzas({ year: anioF, month: mesF || undefined })
+      .then((d) => { if (vivo) setFinPeriodo(d) })
+      .catch(() => { if (vivo) setFinPeriodo(null) })
+      .finally(() => { if (vivo) setFinLoading(false) })
+    return () => { vivo = false }
+  }, [anioF, mesF])
+
   const load = useCallback(() => {
     setLoading(true)
     setError(false)
@@ -185,7 +330,11 @@ export default function DashboardPage() {
   const pctConRs = totalMarcas ? Math.round(((totalMarcas - (stats?.marcas_sin_rs ?? 0)) / totalMarcas) * 100) : 0
   const pctConProd = totalMarcas ? Math.round(((stats?.marcas_con_productos ?? 0) / totalMarcas) * 100) : 0
 
-  const fin = stats?.finanzas
+  // Usa datos reales; si aún no hay facturación cargada, cae a DEMO_FIN para ver el diseño.
+  const finBase = stats?.finanzas && stats.finanzas.facturacion_total > 0 ? stats.finanzas : DEMO_FIN
+  // Filtro de período: si hay año elegido, pisa los datos con los del período.
+  const fin = finPeriodo ?? finBase
+  const aniosDisponibles = fin?.anios_disponibles ?? finBase?.anios_disponibles ?? [new Date().getFullYear()]
   const aprobPct = fin && fin.presupuestos_total ? Math.round((fin.presupuestos_aprobados / fin.presupuestos_total) * 100) : 0
 
   const serieValues = serie.map((p) => p.cantidad)
@@ -229,90 +378,155 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Banner con el nombre */}
-      <section className="dash-banner eti-in relative flex flex-wrap items-end justify-between gap-4 px-7 py-6">
-        <div aria-hidden className="pointer-events-none absolute -right-14 top-1/2 size-56 -translate-y-1/2 rounded-full border-[30px] border-white/[0.06]" />
-        <div className="relative min-w-0">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.24em] text-white/70">Panel de control · {today}</p>
-          <h1 className="font-display mt-2 text-[30px] font-bold leading-tight tracking-tight">Buen día, <span className="text-gold">{userName}</span></h1>
-          <p className="mt-2 text-sm text-white/70">Esto es lo que está pasando hoy en el taller.</p>
+      {/* Header editorial — saludo grande sobre el lienzo, sin caja */}
+      <header className="eti-in flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          {/* El swirl del logo es blanco: en claro necesita fondo azul de marca
+              para verse; en oscuro va suelto sobre el navy. */}
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand sm:h-14 sm:w-14 dark:bg-transparent">
+            <Image src="/logoSOLO.png" alt="Etiplast" width={56} height={56} className="h-9 w-9 object-contain sm:h-11 sm:w-11 dark:h-12 dark:w-12 dark:sm:h-14 dark:sm:w-14" priority />
+          </div>
+          <div className="min-w-0">
+            <p className="ed-eyebrow">Panel de control · {today}</p>
+            {/* En claro el dorado sobre blanco se lava → azul de marca; en oscuro, dorado. */}
+            <h1 className="ed-figure mt-2 text-[clamp(30px,4vw,40px)] text-foreground">Buen día, <span className="text-brand dark:text-gold">{userName}</span></h1>
+          </div>
         </div>
-        <div className="relative flex shrink-0 flex-wrap items-center gap-2.5">
-          <Link href="/reportes" className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/35 bg-white/[0.06] px-4 text-sm font-semibold text-white transition-colors hover:bg-white/15">
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+          {/* Filtro de período de finanzas (solo aplica al tab Administrativo) */}
+          {tab === "admin" && (
+            <>
+              {finLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              <div className="w-[122px]">
+                <Select
+                  value={String(anioF)}
+                  onChange={(e) => { const v = e.target.value; setAnioF(v ? Number(v) : ""); if (!v) setMesF("") }}
+                  aria-label="Filtrar finanzas por año"
+                  className="h-10 rounded-xl border-border bg-transparent text-sm font-semibold text-foreground md:text-sm"
+                >
+                  <option value="" style={OPT_STYLE}>Histórico</option>
+                  {aniosDisponibles.map((a) => <option key={a} value={a} style={OPT_STYLE}>{a}</option>)}
+                </Select>
+              </div>
+              <div className="w-[136px]">
+                <Select
+                  value={String(mesF)}
+                  onChange={(e) => setMesF(e.target.value ? Number(e.target.value) : "")}
+                  disabled={!anioF}
+                  aria-label="Filtrar finanzas por mes"
+                  className="h-10 rounded-xl border-border bg-transparent text-sm font-semibold text-foreground disabled:opacity-40 md:text-sm"
+                >
+                  <option value="" style={OPT_STYLE}>Todo el año</option>
+                  {MESES.map((m, i) => <option key={m} value={i + 1} style={OPT_STYLE}>{m}</option>)}
+                </Select>
+              </div>
+            </>
+          )}
+          <Link href="/reportes" className="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-foreground transition-colors hover:bg-card">
             <BarChart3 className="size-4" /> Reportes
           </Link>
-          <Link href="/ordenes" className="inline-flex h-10 items-center gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground shadow-[0_12px_24px_-12px_rgba(245,235,74,.6)] transition-transform hover:-translate-y-0.5">
+          <Link href="/ordenes" className="inline-flex h-10 items-center gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground shadow-[0_12px_24px_-12px_rgba(245,235,74,.5)] transition-transform hover:-translate-y-0.5">
             <Plus className="size-4" /> Nueva orden
           </Link>
         </div>
-      </section>
+      </header>
 
+      {/* Contenido del tab — reanima ("emerge") al cambiar de sección (key={tab}) */}
+      <div key={tab} className="eti-emerge space-y-6">
       {/* ═══ ADMINISTRATIVO ═══ */}
       {tab === "admin" && (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {/* Facturación (hero) */}
-            <article className="stat-hero stat-card eti-in flex min-h-[172px] flex-col p-6" style={delay(0)}>
-              <div aria-hidden className="pointer-events-none absolute -right-14 -top-14 size-52 rounded-full border-[26px] border-white/[0.06]" />
-              <p className="relative text-[12.5px] font-medium text-white/75">Facturación</p>
-              <p className="relative mt-3.5 font-display text-[38px] font-bold leading-none tabular-nums tracking-tight">{money(fin?.facturacion_total)}</p>
-              <div className="relative mt-3 flex items-center gap-2.5">
-                <DeltaPill pct={fin?.facturacion_mom ?? null} />
-                <span className="text-xs text-white/70">vs mes anterior</span>
-              </div>
-              <p className="relative mt-auto pt-4 text-xs text-white/65">Completadas: {money(fin?.facturacion_completadas)}</p>
-            </article>
+          {/* Fila superior: facturación (mitad) + accesos rápidos (mitad) */}
+          <div className="grid gap-6 lg:grid-cols-2">
 
-            {/* Presup. aprobados */}
-            <article className="stat-card eti-in flex min-h-[172px] flex-col p-6" style={delay(1)}>
-              <div className="flex items-center gap-2.5">
-                <span className={`${iconChip} bg-emerald-500/15 text-emerald-300`}><FileCheck2 className="size-4" /></span>
-                <p className={kpiLabel}>Presup. aprobados</p>
-              </div>
-              <p className={kpiVal}>{money(fin?.presupuestos_aprobados_monto)}</p>
-              <p className={kpiCap}>{nf.format(fin?.presupuestos_aprobados ?? 0)} presupuestos</p>
-              <div className="mt-auto h-2 overflow-hidden rounded-full bg-secondary pt-0">
-                <span className="block h-full rounded-full bg-[linear-gradient(90deg,#49c2ff,var(--primary))]" style={{ width: `${aprobPct}%` }} />
-              </div>
-            </article>
-
-            {/* Gauge tasa de aprobación */}
-            <article className="stat-card eti-in flex flex-col items-center p-6 text-center sm:col-span-2 xl:col-span-1 xl:row-span-2" style={delay(2)}>
-              <p className={`${kpiLabel} self-start`}>Tasa de aprobación</p>
-              <div className="my-auto"><Gauge pct={fin?.tasa_aprobacion ?? 0} label="APROBACIÓN" /></div>
-              <p className="flex items-center justify-center gap-2 text-[12px] text-muted-foreground">
-                {nf.format(fin?.presupuestos_aprobados ?? 0)} de {nf.format(fin?.presupuestos_total ?? 0)} ganados
+          {/* Hero editorial: número gigante + tendencia orgánica */}
+          <section className="ed-island ed-island--brand eti-in relative flex flex-col gap-5 overflow-hidden p-7" style={delay(0)}>
+            {/* Marca de agua: swirl de Etiplast (igual patrón que el PageHeader) */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logoSOLO.png"
+              alt=""
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-12 -top-10 h-56 w-auto select-none object-contain opacity-[0.1] brightness-0 invert"
+            />
+            <div className="relative">
+              <p className="ed-eyebrow">
+                Facturación · {anioF ? (mesF ? `${MESES[(mesF as number) - 1]} ${anioF}` : `Año ${anioF}`) : "valor de órdenes"}
               </p>
-            </article>
-
-            {/* Por aprobar */}
-            <article className="stat-card eti-in flex min-h-[172px] flex-col p-6" style={delay(3)}>
-              <div className="flex items-center gap-2.5">
-                <span className={`${iconChip} bg-amber-500/15 text-amber-300`}><FileClock className="size-4" /></span>
-                <p className={kpiLabel}>Por aprobar</p>
+              <p className="ed-figure mt-3 text-[clamp(44px,6vw,64px)] text-white"><NumAnim value={fin?.facturacion_total ?? 0} format={money} /></p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <DeltaPill pct={fin?.facturacion_mom ?? null} />
+                <span className="text-sm text-white/70">vs mes anterior · Completadas <NumAnim value={fin?.facturacion_completadas ?? 0} format={money} /></span>
               </div>
-              <p className={kpiVal}>{money(fin?.presupuestos_pendientes_monto)}</p>
-              <p className={kpiCap}>{nf.format(fin?.presupuestos_pendientes ?? 0)} pendientes</p>
-            </article>
-
-            {/* Ticket promedio */}
-            <article className="stat-card eti-in flex min-h-[172px] flex-col p-6" style={delay(4)}>
-              <div className="flex items-center gap-2.5">
-                <span className={`${iconChip} bg-primary/15 text-primary-300`}><TrendingUp className="size-4" /></span>
-                <p className={kpiLabel}>Ticket promedio</p>
-              </div>
-              <p className={kpiVal}>{money(fin?.ticket_promedio)}</p>
-              <p className={kpiCap}>por orden</p>
-            </article>
+            </div>
+            <div className="relative mt-auto min-w-0">
+              <FacturacionBars
+                data={fin?.facturacion_mensual ?? []}
+                height={150}
+                hotMes={anioF && mesF ? `${anioF}-${String(mesF).padStart(2, "0")}` : undefined}
+              />
+            </div>
           </section>
 
-          {/* Facturación mensual */}
-          <section className="stat-card eti-in p-6" style={delay(5)}>
-            <div className="mb-5 flex items-center gap-2.5">
-              <span className={`${iconChip} bg-gold/15 text-gold`}><Wallet className="size-4" /></span>
-              <h2 className="font-display text-base font-semibold">Facturación mensual</h2>
+          {/* Accesos rápidos: las dos acciones más frecuentes del día a día */}
+          <div className="eti-in grid gap-6 sm:grid-cols-2 lg:grid-cols-1" style={delay(0)}>
+            {[
+              { href: "/ordenes/nueva", icon: ClipboardList, titulo: "Nueva orden de trabajo", desc: "Cargar una OT para producción", cta: "Crear orden" },
+              { href: "/clientes",      icon: Users,         titulo: "Clientes",               desc: "Marcas, presentaciones y datos", cta: "Ver clientes" },
+            ].map(({ href, icon: Icon, titulo, desc, cta }) => (
+              <Link
+                key={href}
+                href={href}
+                className="ed-island group relative flex flex-1 items-center gap-5 overflow-hidden p-7 transition-all duration-200 hover:-translate-y-0.5 hover:border-gold/40"
+              >
+                <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand text-white transition-colors group-hover:bg-gold group-hover:text-gold-foreground">
+                  <Icon className="size-7" strokeWidth={1.9} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-display text-[21px] font-bold leading-tight text-foreground transition-colors group-hover:text-gold">{titulo}</span>
+                  <span className="mt-1 block text-[13.5px] text-muted-foreground">{desc}</span>
+                  <span className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-bold text-brand dark:text-primary-300">
+                    {cta} <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1" />
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+
+          </div>
+
+          {/* Franja de stats — hairlines, sin cajas */}
+          <section className="ed-strip eti-in grid grid-cols-2 gap-y-5 border-y border-border py-5 lg:grid-cols-4" style={delay(1)}>
+            <div className="px-5">
+              <p className="ed-eyebrow flex items-center gap-2"><span className="size-2 rounded-[3px] bg-emerald-400" />Presup. aprobados</p>
+              <p className="ed-figure mt-2 text-[26px] text-emerald-600 dark:text-emerald-300"><NumAnim value={fin?.presupuestos_aprobados_monto ?? 0} format={money} /></p>
+              <p className="mt-1.5 text-xs text-muted-foreground">{nf.format(fin?.presupuestos_aprobados ?? 0)} presupuestos</p>
             </div>
-            <MonthlyBars data={fin?.facturacion_mensual ?? []} />
+            <div className="px-5">
+              <p className="ed-eyebrow flex items-center gap-2"><span className="size-2 rounded-[3px] bg-amber-400" />Por aprobar</p>
+              <p className="ed-figure mt-2 text-[26px] text-amber-600 dark:text-amber-300"><NumAnim value={fin?.presupuestos_pendientes_monto ?? 0} format={money} /></p>
+              <p className="mt-1.5 text-xs text-muted-foreground">{nf.format(fin?.presupuestos_pendientes ?? 0)} pendientes</p>
+            </div>
+            <div className="px-5">
+              <p className="ed-eyebrow flex items-center gap-2"><span className="size-2 rounded-[3px] bg-primary-500 dark:bg-primary-300" />Ticket promedio</p>
+              <p className="ed-figure mt-2 text-[26px] text-primary-600 dark:text-primary-300"><NumAnim value={fin?.ticket_promedio ?? 0} format={money} /></p>
+              <p className="mt-1.5 text-xs text-muted-foreground">por orden</p>
+            </div>
+            <div className="px-5">
+              <p className="ed-eyebrow flex items-center gap-2"><span className="size-2 rounded-[3px] bg-brand dark:bg-gold" />Facturado (cerradas)</p>
+              <p className="ed-figure mt-2 text-[26px] text-brand dark:text-gold"><NumAnim value={fin?.facturacion_completadas ?? 0} format={money} /></p>
+              <p className="mt-1.5 text-xs text-muted-foreground">órdenes completadas</p>
+            </div>
+          </section>
+
+          {/* Tasa de aprobación — gauge en isla */}
+          <section className="ed-island ed-island--gold eti-in flex flex-col items-center gap-6 p-7 text-center sm:flex-row sm:justify-between sm:text-left" style={delay(2)}>
+            <div className="max-w-sm">
+              <p className="ed-eyebrow">Tasa de aprobación</p>
+              <p className="ed-figure mt-3 text-[clamp(38px,5vw,52px)] text-foreground"><NumAnim value={fin?.tasa_aprobacion ?? 0} format={(n) => String(Math.round(n))} />%</p>
+              <p className="mt-2 text-sm text-muted-foreground">{nf.format(fin?.presupuestos_aprobados ?? 0)} de {nf.format(fin?.presupuestos_total ?? 0)} presupuestos ganados</p>
+            </div>
+            <Gauge pct={fin?.tasa_aprobacion ?? 0} label="APROBACIÓN" />
           </section>
 
           <p className="text-xs text-muted-foreground">
@@ -469,7 +683,7 @@ export default function DashboardPage() {
             <article className="stat-hero stat-card eti-in flex min-h-[188px] flex-col p-6" style={delay(2)}>
               <div aria-hidden className="pointer-events-none absolute -right-14 -top-14 size-52 rounded-full border-[26px] border-white/[0.06]" />
               <div className="relative flex items-center gap-2.5">
-                <span className={`${iconChip} bg-white/15 text-gold`}><Tags className="size-4" /></span>
+                <span className={`${iconChip} bg-white/15 text-white`}><Tags className="size-4" /></span>
                 <p className="text-[12.5px] font-medium text-white/75">Base comercial</p>
               </div>
               <p className="relative mt-3.5 font-display text-[38px] font-bold leading-none tabular-nums">{nf.format(totalMarcas)}</p>
@@ -524,6 +738,7 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+      </div>
     </PageContainer>
   )
 }

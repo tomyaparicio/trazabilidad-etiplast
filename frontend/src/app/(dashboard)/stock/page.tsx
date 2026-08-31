@@ -6,6 +6,7 @@ import { api } from "@/lib/api"
 import type { StockItem, TipoStockItem } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
+import { usePermisos } from "@/components/permisos-provider"
 import { Boxes, Plus, AlertTriangle } from "lucide-react"
 import { StockTable } from "./_components/stock-table"
 import { StockItemDialog } from "./_components/stock-item-dialog"
@@ -17,6 +18,7 @@ const TABS: { value: TipoStockItem; label: string }[] = [
 ]
 
 export default function StockPage() {
+  const { can } = usePermisos()
   const [tab, setTab] = useState<TipoStockItem>("materia_prima")
   const [alertas, setAlertas] = useState<StockItem[]>([])
   const [nuevoOpen, setNuevoOpen] = useState(false)
@@ -41,13 +43,15 @@ export default function StockPage() {
         title="Stock"
         subtitle="Materias primas, producto terminado e insumos"
         actions={
-          <Button
-            onClick={() => setNuevoOpen(true)}
-            className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo ítem
-          </Button>
+          can("stock:crear") ? (
+            <Button
+              onClick={() => setNuevoOpen(true)}
+              className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo ítem
+            </Button>
+          ) : undefined
         }
       />
 

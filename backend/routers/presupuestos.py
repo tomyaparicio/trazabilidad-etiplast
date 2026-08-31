@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_admin, verify_token
+from dependencies import require_permiso, verify_token
 from models import Cliente, OrdenTrabajo, Presupuesto, PresupuestoItem
 from schemas import PresupuestoCreateSchema, PresupuestoItemSchema, PresupuestoUpdateSchema
 from services import auditoria, notificaciones
@@ -201,7 +201,7 @@ async def obtener_presupuesto(
 @router.post("/presupuestos", status_code=201, summary="Crear nuevo presupuesto")
 async def crear_presupuesto(
     datos: PresupuestoCreateSchema,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("presupuestos:crear")),
     db: Session = Depends(get_db),
 ):
     _validar_estado(datos.estado)
@@ -264,7 +264,7 @@ async def crear_presupuesto(
 async def actualizar_presupuesto(
     presupuesto_id: int,
     datos_raw: Dict[str, Any] = Body(...),
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("presupuestos:editar")),
     db: Session = Depends(get_db),
 ):
     # Validación manual: el schema ignora claves extra (p.ej. `id` de cada ítem),
@@ -346,7 +346,7 @@ async def actualizar_presupuesto(
 @router.delete("/presupuestos/{presupuesto_id}", status_code=204, summary="Eliminar presupuesto (solo admin)")
 async def eliminar_presupuesto(
     presupuesto_id: int,
-    user: dict = Depends(verify_admin),
+    user: dict = Depends(require_permiso("presupuestos:borrar")),
     db: Session = Depends(get_db),
 ):
     presupuesto = db.query(Presupuesto).filter(Presupuesto.id == presupuesto_id).first()
@@ -376,7 +376,7 @@ async def eliminar_presupuesto(
              summary="Convertir presupuesto en orden de trabajo (borrador)")
 async def convertir_presupuesto(
     presupuesto_id: int,
-    user: dict = Depends(verify_token),
+    user: dict = Depends(require_permiso("presupuestos:aprobar")),
     db: Session = Depends(get_db),
 ):
     presupuesto = _get_presupuesto(db, presupuesto_id)

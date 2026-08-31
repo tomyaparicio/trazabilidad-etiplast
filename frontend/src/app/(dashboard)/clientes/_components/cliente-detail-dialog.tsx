@@ -4,25 +4,15 @@ import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, ClienteProducto, Maquina, RazonSocial } from "@/types/database"
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-  Pencil, Check, Loader2, AlertCircle, CheckCircle2, X, Plus, Trash2,
+  Pencil, Check, Loader2, AlertCircle, CheckCircle2, Plus, Trash2,
   Building2, MapPin, Phone, FileText, Hash, Boxes, Truck, TriangleAlert,
-  MessageCircle, Navigation,
+  MessageCircle, Navigation, ChevronLeft,
 } from "lucide-react"
 
-// ─── Gradient by rubro ────────────────────────────────────────────────────────
-const RUBRO_GRAD: Record<string, [string, string]> = {
-  Agua:             ["#0e7490", "#22d3ee"],
-  "Jugos-Gaseosas": ["#c2410c", "#f97316"],
-  Limpieza:         ["#065f46", "#34d399"],
-  Agroquimicos:     ["#991b1b", "#f87171"],
-  Aceite:           ["#92400e", "#fbbf24"],
-}
-const getGrad = (r?: string | null): [string, string] => RUBRO_GRAD[r ?? ""] ?? ["#1a1866", "#292d96"]
-
+// Detalle de cliente: hero + overview interactivo + tabs.
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
   { key: "general",    label: "General",      icon: Hash      },
@@ -31,9 +21,15 @@ const TABS = [
   { key: "contacto",   label: "Contacto",     icon: Phone     },
   { key: "transporte", label: "Transporte",   icon: Truck     },
   { key: "notas",      label: "Notas",        icon: FileText  },
-  { key: "productos",  label: "Productos",    icon: Boxes     },
 ] as const
 type TabKey = typeof TABS[number]["key"]
+
+// Extrae el tamaño/presentación del nombre: "Agua x 500 ml" → "500 ml"; sin " x " → null.
+const sizeFrom = (n?: string | null) => {
+  if (!n) return null
+  const p = n.split(/\s+x\s+/i)
+  return p.length > 1 ? p[p.length - 1].trim() : null
+}
 
 // ─── Field card ───────────────────────────────────────────────────────────────
 function FieldCard({
@@ -146,15 +142,16 @@ function RazonSocialSelector({
 
 // ─── Products ─────────────────────────────────────────────────────────────────
 type ProdForm = {
-  nombre: string; envase: string; envase_codificado: string
+  nombre: string; envase: string; envase_codificado: string; ubicacion: string
   volumen_cantidad: string; volumen_unidad: string
   lamina: string; muestra: string; alto: string; cilindro: string; cierre: string
   maquina_impresora_id: string
 }
-const EMPTY: ProdForm = { nombre:"", envase:"", envase_codificado:"", volumen_cantidad:"", volumen_unidad:"", lamina:"", muestra:"", alto:"", cilindro:"", cierre:"", maquina_impresora_id:"" }
+const EMPTY: ProdForm = { nombre:"", envase:"", envase_codificado:"", ubicacion:"", volumen_cantidad:"", volumen_unidad:"", lamina:"", muestra:"", alto:"", cilindro:"", cierre:"", maquina_impresora_id:"" }
 const toForm = (p: ClienteProducto): ProdForm => ({
   nombre: p.nombre ?? "", envase: p.envase ?? "",
   envase_codificado: p.envase_codificado ?? "",
+  ubicacion: p.ubicacion ?? "",
   volumen_cantidad: p.volumen_cantidad != null ? String(p.volumen_cantidad) : "",
   volumen_unidad: p.volumen_unidad ?? "", lamina: p.lamina ?? "", muestra: p.muestra ?? "",
   alto: p.alto != null ? String(p.alto) : "",
@@ -165,6 +162,7 @@ const toForm = (p: ClienteProducto): ProdForm => ({
 const toBody = (f: ProdForm) => ({
   nombre: f.nombre || null, envase: f.envase || null,
   envase_codificado: f.envase_codificado || null,
+  ubicacion: f.ubicacion || null,
   volumen_cantidad: f.volumen_cantidad ? Number(f.volumen_cantidad) : null,
   volumen_unidad: f.volumen_unidad || null, lamina: f.lamina || null, muestra: f.muestra || null,
   alto: f.alto ? Number(f.alto) : null,
@@ -173,93 +171,87 @@ const toBody = (f: ProdForm) => ({
   maquina_impresora_id: f.maquina_impresora_id ? Number(f.maquina_impresora_id) : null,
 })
 
-const ACCENT_COLORS = ["#f59e0b","#06b6d4","#8b5cf6","#10b981","#f43f5e","#0ea5e9"]
-
-const SPEC_STYLES: Record<string, string> = {
-  "Lámina":    "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/25",
-  "Envase":    "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25",
-  "Cód. Env.": "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25",
-  "Alto":      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25",
-  "Cilindro":  "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/25",
-  "Cierre":    "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25",
-  "Muestra":   "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/25",
-  "Impresora": "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/25",
-}
-
 function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   producto: ClienteProducto; idx: number
   onEdit: () => void; onDelete: () => void; deleting: boolean; disabled: boolean
 }) {
-  const accent = ACCENT_COLORS[idx % ACCENT_COLORS.length]
+  // El tamaño sale del nombre ("Agua x 500 cc" → "500 cc"); si no, del volumen cargado.
+  const nameSize = sizeFrom(producto.nombre)
+  const volSize = producto.volumen_cantidad != null
+    ? `${producto.volumen_cantidad}${producto.volumen_unidad ? ` ${producto.volumen_unidad}` : ""}`
+    : null
+  const size = nameSize ?? volSize
+  const tipo = (producto.nombre || "").split(/\s+x\s+/i)[0].trim()
+  const code = `P-${String(idx + 1).padStart(2, "0")}`
+  // La celda Envase va SIEMPRE y concentra sus datos: nombre + código + ubicación.
+  const envaseSub = [
+    { label: "Código",    value: producto.envase_codificado || null },
+    { label: "Ubicación", value: producto.ubicacion || null },
+  ]
   const specs = [
-    producto.lamina                 && { k: "Lámina",    v: producto.lamina },
-    producto.envase                 && { k: "Envase",    v: producto.envase },
-    producto.envase_codificado      && { k: "Cód. Env.", v: producto.envase_codificado },
-    producto.alto                   && { k: "Alto",      v: String(producto.alto) },
-    producto.cilindro               && { k: "Cilindro",  v: String(producto.cilindro) },
-    producto.cierre                 && { k: "Cierre",    v: String(producto.cierre) },
-    producto.muestra                && { k: "Muestra",   v: producto.muestra },
+    { k: "Envase", v: producto.envase || "—", sub: envaseSub },
+    producto.lamina                   && { k: "Lámina",    v: producto.lamina },
+    producto.alto                     && { k: "Alto",      v: String(producto.alto) },
+    producto.cilindro                 && { k: "Cilindro",  v: String(producto.cilindro) },
+    producto.cierre                   && { k: "Cierre",    v: String(producto.cierre) },
+    producto.muestra                  && { k: "Muestra",   v: producto.muestra },
     producto.maquina_impresora_nombre && { k: "Impresora", v: producto.maquina_impresora_nombre },
-  ].filter(Boolean) as { k: string; v: string }[]
+  ].filter(Boolean) as { k: string; v: string; sub?: { label: string; value: string | null }[] }[]
 
   return (
-    <div
-      className="group relative rounded-xl bg-card border border-border overflow-hidden transition-all duration-200 hover:shadow-xl hover:-translate-y-px"
-      style={{ borderLeftColor: `${accent}80`, borderLeftWidth: "3px" }}
-    >
-      {/* Ambient glow from accent */}
+    <div className="group relative grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-white/15 md:grid-cols-[220px_1fr]">
+      <div className="absolute right-3 top-3 z-10 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <button type="button" onClick={onEdit} disabled={disabled}
+          className="grid h-8 w-8 place-items-center rounded-lg bg-card/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-30">
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onClick={onDelete} disabled={deleting || disabled}
+          className="grid h-8 w-8 place-items-center rounded-lg bg-card/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-30">
+          {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+
+      {/* Lead: identidad de la presentación */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: `radial-gradient(ellipse at top left, ${accent}0d, transparent 55%)` }}
-      />
-      {/* Index watermark */}
-      <span
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-7xl font-black pointer-events-none select-none leading-none"
-        style={{ color: `${accent}0a` }}
+        className="relative border-b border-white/10 p-5 md:border-b-0 md:border-r"
+        style={{ background: "var(--color-brand)" }}
       >
-        {String(idx + 1).padStart(2, "0")}
-      </span>
-
-      <div className="relative p-5">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-baseline gap-2.5 flex-wrap min-w-0">
-            <p className="text-[15px] font-bold text-foreground leading-tight">
-              {producto.nombre || <span className="text-muted-foreground/40 font-normal italic text-sm">Sin nombre</span>}
-            </p>
-            {producto.volumen_cantidad != null && (
-              <span
-                className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
-                style={{ background: `${accent}1a`, color: accent, border: `1px solid ${accent}40` }}
-              >
-                {producto.volumen_cantidad}{producto.volumen_unidad ?? ""}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-0.5 opacity-20 group-hover:opacity-100 transition-opacity shrink-0">
-            <button type="button" onClick={onEdit} disabled={disabled}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30">
-              <Pencil className="w-3 h-3" />
-            </button>
-            <button type="button" onClick={onDelete} disabled={deleting || disabled}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30">
-              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-            </button>
-          </div>
-        </div>
-
-        {specs.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {specs.map(({ k, v }) => (
-              <span key={k} className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border ${SPEC_STYLES[k] ?? "bg-muted/40 text-muted-foreground border-border"}`}>
-                <span className="opacity-55 font-medium">{k}</span>
-                <span className="font-semibold">{v}</span>
-              </span>
-            ))}
-          </div>
+        <div className="font-mono text-[12px] font-bold tracking-[0.12em] text-white/55">{code}</div>
+        {size ? (
+          <>
+            <div className="mt-3 text-[13.5px] font-extrabold uppercase tracking-[0.2em] text-white/85">{tipo || "Producto"}</div>
+            <div className="mt-0.5 text-[40px] font-extrabold leading-[0.95] tracking-tight text-white">{size}</div>
+          </>
         ) : (
-          <p className="text-xs text-muted-foreground/25 italic">Sin especificaciones</p>
+          <div className="mt-3 text-2xl font-extrabold leading-tight text-white">
+            {producto.nombre || <span className="text-base font-normal italic text-white/40">Sin nombre</span>}
+          </div>
         )}
       </div>
+
+      {/* Specs: grilla técnica de producción */}
+      {specs.length > 0 ? (
+        <dl className="flex h-full flex-wrap">
+          {specs.map(({ k, v, sub }, i) => (
+            <div key={k} className={`flex min-w-[112px] flex-1 flex-col justify-center px-5 py-3.5 ${i > 0 ? "border-l border-border" : ""}`}>
+              <dt className="font-mono text-[11.5px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{k}</dt>
+              <dd className={`mt-1.5 text-[21px] font-extrabold tabular-nums ${v === "—" ? "text-muted-foreground/40" : "text-foreground"}`}>{v}</dd>
+              {sub && (
+                <div className="mt-1.5 flex flex-col gap-0.5">
+                  {sub.map((s) => (
+                    <div key={s.label} className="flex items-baseline gap-2">
+                      <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{s.label}</span>
+                      <span className={`font-mono text-[14px] font-bold tracking-wide ${s.value ? "text-gold" : "text-muted-foreground/40"}`}>{s.value || "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="flex items-center px-6 py-6 text-[15px] italic text-muted-foreground/40">Sin especificaciones cargadas</div>
+      )}
     </div>
   )
 }
@@ -285,7 +277,7 @@ function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, en
         {([
           ["volumen_cantidad","Volumen","number"],["volumen_unidad","Unidad","text"],
           ["lamina","Lámina","text"],["muestra","Muestra","text"],
-          ["envase_codificado","Cód. Envase","text"],
+          ["envase_codificado","Cód. Envase","text"],["ubicacion","Ubicación","text"],
           ["alto","Alto","number"],["cilindro","Cilindro","number"],["cierre","Cierre","number"],
         ] as [keyof ProdForm, string, string][]).map(([k, label, type]) => (
           <div key={k}>
@@ -418,7 +410,7 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="flex flex-col gap-3">
         {productos.map((p, i) =>
           editingId === p.id
             ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} envases={envases} impresoras={impresoras} />
@@ -446,14 +438,14 @@ const CAMPOS_EDITABLES = [
   "observaciones","latitud","longitud",
 ]
 
-interface ClienteDetailDialogProps {
+interface ClienteDetalleProps {
   cliente: Cliente | null
-  onClose: () => void
+  onBack: () => void
   onUpdate: (updated: Cliente) => void
   onDelete?: (id: number) => void
 }
 
-export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: ClienteDetailDialogProps) {
+export function ClienteDetalle({ cliente, onBack, onUpdate, onDelete }: ClienteDetalleProps) {
   const [tab, setTab] = useState<TabKey>("general")
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<Record<string, unknown>>({})
@@ -473,10 +465,6 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
       .catch(() => setHermanas([]))
   }, [cliente?.razon_social_id, cliente?.id, editing])
 
-  const handleOpen = (open: boolean) => {
-    if (!open) { onClose(); setEditing(false); setSaveMsg(""); setTab("general"); setConfirmDelete(false) }
-  }
-
   const handleDelete = async () => {
     if (!cliente || deleting) return
     setDeleting(true)
@@ -484,7 +472,7 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
       await api.clientes.delete(cliente.id)
       onDelete?.(cliente.id)
       toast.success(`Cliente "${cliente.marca ?? ""}" eliminado`)
-      handleOpen(false)
+      onBack()
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "No se pudo eliminar el cliente")
     }
@@ -525,10 +513,34 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
 
   const set = (key: string, val: string) => setEditData((p) => ({ ...p, [key]: val || null }))
   const d = editing ? editData : (cliente as Record<string, unknown> | null)
-  const [gFrom, gTo] = getGrad(cliente?.rubro)
-  const isProductosTab = tab === "productos"
 
-  const fieldProps = { editing: editing && !isProductosTab, editData, onChange: set }
+  // Acciones rápidas del hero (modo vista).
+  const heroTel = cliente?.telefono ?? null
+  const heroWa = heroTel ? heroTel.replace(/[\s\-()]/g, "").replace(/^0/, "54").replace(/^(?!\+)/, "54") : null
+  const heroWaUrl = heroWa ? `https://wa.me/${heroWa}` : null
+  const heroTelUrl = heroTel ? `tel:${heroTel.replace(/[^\d+]/g, "")}` : null
+  const heroAddr = [cliente?.domicilio, cliente?.localidad, cliente?.provincia, "Argentina"].filter(Boolean)
+  const heroMapsUrl = cliente?.latitud != null && cliente?.longitud != null
+    ? `https://www.google.com/maps?q=${cliente.latitud},${cliente.longitud}`
+    : heroAddr.length > 1
+      ? `https://www.google.com/maps/search/${encodeURIComponent(heroAddr.join(", "))}`
+      : null
+
+  // Datos del cliente (grilla técnica bajo las presentaciones).
+  const datos: { label: string; value: string | null }[] = cliente ? [
+    { label: "Localidad",       value: cliente.localidad },
+    { label: "Provincia",       value: cliente.provincia },
+    { label: "País",            value: cliente.pais },
+    { label: "CUIT",            value: cliente.cuit },
+    { label: "Teléfono",        value: cliente.telefono },
+    { label: "Domicilio",       value: cliente.domicilio },
+    { label: "Transporte",      value: cliente.transporte },
+    { label: "Dom. transporte", value: cliente.transporte_domicilio },
+    { label: "Loc. transporte", value: cliente.transporte_localidad },
+    { label: "Coordenadas",     value: cliente.latitud != null && cliente.longitud != null ? `${cliente.latitud}, ${cliente.longitud}` : null },
+  ] : []
+
+  const fieldProps = { editing, editData, onChange: set }
 
   const renderTab = () => {
     switch (tab) {
@@ -701,153 +713,237 @@ export function ClienteDetailDialog({ cliente, onClose, onUpdate, onDelete }: Cl
             <FieldCard label="Observaciones" fieldKey="observaciones" value={d?.observaciones as string} {...fieldProps} />
           </div>
         )
-      case "productos":
-        return cliente ? (
-          <ProductosTab clienteId={cliente.id} productos={productos} onProductosChange={setProductos} />
-        ) : null
     }
   }
 
   return (
-    <Dialog open={!!cliente} onOpenChange={handleOpen}>
-      <DialogContent
-        showCloseButton={false}
-        className="w-[95vw] max-w-[900px] h-[85vh] max-h-[85vh] overflow-hidden flex flex-col p-0 bg-card border-border shadow-2xl rounded-2xl"
+    <div className="min-h-full w-full overflow-y-auto bg-background pb-12">
+      {/* ── Hero (banda a lo ancho, con Volver adentro) ── */}
+      <div
+        className="relative overflow-hidden border-b border-white/10 px-5 pb-8 pt-5 text-white sm:px-8 lg:px-10"
+        style={{ background: "var(--color-brand)" }}
       >
-        {/* ── Gradient top strip ── */}
-        <div className="h-1 rounded-t-2xl shrink-0" style={{ background: `linear-gradient(to right, ${gFrom}, ${gTo})` }} />
+          {/* Logo Etiplast como marca de agua */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logoSOLO.png"
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-12 top-1/2 h-96 w-96 -translate-y-1/2 select-none object-contain opacity-[0.13] brightness-0 invert"
+          />
 
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-3.5">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-lg"
-              style={{ background: `linear-gradient(135deg, ${gFrom}, ${gTo})` }}
+          <div className="relative mb-3 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="-ml-1 inline-flex items-center gap-1.5 rounded-lg px-1 py-1 text-[13px] font-semibold text-white/70 transition-colors hover:text-white"
             >
-              {String(d?.marca || "?")[0]?.toUpperCase()}
-            </div>
-            <div>
-              <DialogTitle className="text-base font-bold text-foreground leading-tight">
-                {String(d?.marca || "—")}
-              </DialogTitle>
-              <div className="flex items-center flex-wrap gap-2 mt-0.5">
-                <DialogDescription className="text-xs text-muted-foreground">
-                  Cliente #{cliente?.id_cliente}
-                </DialogDescription>
-                {cliente?.rubro && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                    style={{ color: gTo, borderColor: `${gTo}50`, background: `${gFrom}25` }}>
-                    {cliente.rubro}
-                  </span>
-                )}
-                {!editing && d?.razon_social ? (
-                  <span className="text-xs text-muted-foreground">· {String(d.razon_social)}</span>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 shrink-0">
-            {/* ── Confirmación de eliminación ── */}
-            {confirmDelete ? (
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-center gap-1.5 text-xs text-red-400 font-semibold">
-                  <TriangleAlert className="w-3.5 h-3.5" />
-                  ¿Eliminar &ldquo;{cliente?.marca}&rdquo;?
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}
-                  className="h-8 text-xs rounded-lg bg-transparent border-border text-muted-foreground hover:bg-muted/50 px-3">
-                  Cancelar
-                </Button>
-                <Button size="sm" onClick={handleDelete} disabled={deleting}
-                  className="h-8 text-xs rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 gap-1.5 px-3">
-                  {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                  Eliminar
-                </Button>
-              </div>
-            ) : (
-              <>
-                {saveMsg === "success" && (
-                  <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5" />Guardado
-                  </span>
-                )}
-                {saveMsg === "error" && (
-                  <span className="flex items-center gap-1.5 text-xs text-red-400 font-semibold">
-                    <AlertCircle className="w-3.5 h-3.5" />Error
-                  </span>
-                )}
-                {!editing && (
-                  <Button size="sm" onClick={() => setConfirmDelete(true)}
-                    className="h-8 w-8 p-0 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                )}
-                {!isProductosTab && (!editing ? (
-                  <Button size="sm" onClick={startEditing}
-                    className="h-8 text-xs rounded-lg bg-muted/50 hover:bg-muted text-secondary-foreground border border-border gap-1.5 px-3">
-                    <Pencil className="w-3.5 h-3.5" />Editar
-                  </Button>
-                ) : (
-                  <>
-                    <Button variant="outline" size="sm" onClick={cancelEditing}
-                      className="h-8 text-xs rounded-lg bg-transparent border-border text-muted-foreground hover:bg-muted/50">
-                      Cancelar
-                    </Button>
-                    <Button size="sm" onClick={handleSave} disabled={saving}
-                      className="h-8 text-xs rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 gap-1.5 px-3">
-                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Guardar
-                    </Button>
-                  </>
-                ))}
-              </>
-            )}
-            <div className="w-px h-5 bg-border" />
-            <button type="button" onClick={() => handleOpen(false)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
-              <X className="w-4 h-4" />
+              <ChevronLeft className="h-4 w-4" /> Volver a clientes
             </button>
-          </div>
-        </div>
 
-        {/* ── Tab bar ── */}
-        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border bg-muted/10 overflow-x-auto shrink-0">
-          {TABS.map(({ key, label, icon: Icon }) => {
-            const isActive = tab === key
-            const isProd = key === "productos"
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { setTab(key); if (editing) cancelEditing() }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 border ${
-                  isActive
-                    ? isProd
-                      ? "bg-gold/15 text-gold border-gold/35 shadow-sm"
-                      : "bg-gold/15 text-gold border-gold/35 shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent"
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" strokeWidth={2} />
-                {label}
-                {isProd && productos.length > 0 && (
-                  <span className={`ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                    isActive ? "bg-gold/20 text-gold" : "bg-muted text-muted-foreground"
-                  }`}>
-                    {productos.length}
+            <div className="flex items-center gap-2 shrink-0">
+              {confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-red-100">
+                    <TriangleAlert className="h-3.5 w-3.5" />
+                    ¿Eliminar &ldquo;{cliente?.marca}&rdquo;?
+                  </div>
+                  <button type="button" onClick={() => setConfirmDelete(false)} disabled={deleting}
+                    className="h-9 rounded-lg border border-white/25 bg-white/10 px-3 text-xs font-bold text-white transition-colors hover:bg-white/20 disabled:opacity-50">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={handleDelete} disabled={deleting}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-red-300/40 bg-red-500/30 px-3 text-xs font-bold text-white transition-colors hover:bg-red-500/45 disabled:opacity-50">
+                    {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    Eliminar
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {saveMsg === "success" && (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200">
+                      <CheckCircle2 className="h-3.5 w-3.5" />Guardado
+                    </span>
+                  )}
+                  {saveMsg === "error" && (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-red-200">
+                      <AlertCircle className="h-3.5 w-3.5" />Error
+                    </span>
+                  )}
+                  {!editing && (
+                    <button type="button" onClick={() => setConfirmDelete(true)} aria-label="Eliminar"
+                      className="grid h-9 w-9 place-items-center rounded-lg border border-red-300/30 bg-red-500/15 text-red-100 transition-colors hover:bg-red-500/30">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                  {!editing ? (
+                    <button type="button" onClick={startEditing}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3.5 text-[13px] font-bold text-white transition-colors hover:bg-white/20">
+                      <Pencil className="h-3.5 w-3.5" />Editar
+                    </button>
+                  ) : (
+                    <>
+                      <button type="button" onClick={cancelEditing}
+                        className="h-9 rounded-lg border border-white/25 bg-white/10 px-3.5 text-[13px] font-bold text-white transition-colors hover:bg-white/20">
+                        Cancelar
+                      </button>
+                      <button type="button" onClick={handleSave} disabled={saving}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gold px-3.5 text-[13px] font-bold text-gold-foreground transition hover:brightness-95 disabled:opacity-50">
+                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}Guardar
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <p className="relative text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">Ficha de cliente</p>
+
+          <div className="relative mt-3 flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="grid h-[76px] w-[76px] shrink-0 place-items-center rounded-2xl bg-gold text-[32px] font-black text-gold-foreground shadow-lg ring-1 ring-white/25">
+                {String(d?.marca || "?")[0]?.toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <h1 className="font-display truncate text-[40px] font-bold leading-[1.05] text-white">
+                  {String(d?.marca || "—")}
+                </h1>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="text-[13px] font-semibold text-white/75">Cliente #{cliente?.id_cliente}</p>
+                  {cliente?.rubro && (
+                    <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                      {cliente.rubro}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {!editing && (
+            <div className="relative mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
+                {cliente?.razon_social && (
+                  <span className="inline-flex min-w-0 items-center gap-2 text-[15px] font-semibold text-white/90">
+                    <Building2 className="h-4 w-4 shrink-0 text-white/60" />
+                    <span className="truncate">{cliente.razon_social}</span>
                   </span>
                 )}
-              </button>
-            )
-          })}
-        </div>
+                {cliente?.transporte && (
+                  <span className="inline-flex items-center gap-2 text-[15px] font-semibold text-white/90">
+                    <Truck className="h-4 w-4 shrink-0 text-white/60" />
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-white/55">Transp.</span>
+                    {cliente.transporte}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {heroWaUrl ? (
+                  <a href={heroWaUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gold px-4 py-2 text-[13.5px] font-bold text-gold-foreground transition hover:brightness-95">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                  </a>
+                ) : (
+                  <button type="button" onClick={() => { startEditing(); setTab("contacto") }} title="Sin teléfono cargado — clic para agregar"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gold px-4 py-2 text-[13.5px] font-bold text-gold-foreground transition hover:brightness-95">
+                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                  </button>
+                )}
+                {heroTelUrl ? (
+                  <a href={heroTelUrl}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-[13.5px] font-bold text-white transition hover:bg-white/20">
+                    <Phone className="h-4 w-4" /> Llamar
+                  </a>
+                ) : (
+                  <button type="button" onClick={() => { startEditing(); setTab("contacto") }} title="Sin teléfono cargado — clic para agregar"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-[13.5px] font-bold text-white transition hover:bg-white/20">
+                    <Phone className="h-4 w-4" /> Llamar
+                  </button>
+                )}
+                {heroMapsUrl ? (
+                  <a href={heroMapsUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-[13.5px] font-bold text-white transition hover:bg-white/20">
+                    <Navigation className="h-4 w-4" /> Mapa
+                  </a>
+                ) : (
+                  <button type="button" onClick={() => { startEditing(); setTab("ubicacion") }} title="Sin coordenadas — clic para agregar"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-[13.5px] font-bold text-white transition hover:bg-white/20">
+                    <Navigation className="h-4 w-4" /> Mapa
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+      </div>
 
-        {/* ── Tab content ── */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          {renderTab()}
-        </div>
+      <div className="px-5 pt-7 sm:px-8 lg:px-10">
+        {editing ? (
+          <>
+            {/* ── Tabs de edición ── */}
+            <div className="mb-6 flex items-center gap-1.5 overflow-x-auto border-b border-border pb-3">
+              {TABS.map(({ key, label, icon: Icon }) => {
+                const isActive = tab === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 border ${
+                      isActive
+                        ? "bg-gold/15 text-gold border-gold/35 shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" strokeWidth={2} />
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            {renderTab()}
+          </>
+        ) : (
+          <div>
+            {/* ── Presentaciones (protagonista) ── */}
+            <div className="mb-6 flex flex-wrap items-baseline gap-3">
+              <span className="text-2xl leading-none text-gold">★</span>
+              <h2 className="font-display text-[28px] font-bold text-foreground">Presentaciones</h2>
+              {productos.length > 0 && (
+                <span className="rounded-full bg-gold/15 px-3 py-0.5 text-sm font-bold text-gold">{productos.length}</span>
+              )}
+              <span className="ml-auto text-[15px] font-medium text-muted-foreground">Lo que le producimos a este cliente</span>
+            </div>
+            {cliente && (
+              <ProductosTab clienteId={cliente.id} productos={productos} onProductosChange={setProductos} />
+            )}
 
-      </DialogContent>
-    </Dialog>
+            {/* ── Datos del cliente ── */}
+            <div className="mt-10">
+              <div className="mb-4 flex items-center gap-2.5">
+                <Building2 className="h-6 w-6 text-gold" />
+                <h2 className="text-[26px] font-bold text-foreground">Datos del cliente</h2>
+              </div>
+              <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-border sm:grid-cols-3 lg:grid-cols-4">
+                {datos.map((f) => (
+                  <div key={f.label} className="border-b border-r border-border p-5">
+                    <div className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{f.label}</div>
+                    <div className="mt-2 text-[19px] font-bold text-foreground">
+                      {f.value || <span className="font-medium text-muted-foreground/40">—</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {cliente?.observaciones && (
+                <div className="mt-3 rounded-2xl border border-border p-5">
+                  <div className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Observaciones</div>
+                  <div className="mt-2 text-[15px] font-medium leading-relaxed text-foreground/90">{cliente.observaciones}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

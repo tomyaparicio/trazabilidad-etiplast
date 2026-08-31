@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from config import SECRET_KEY, ALGORITHM
 from database import get_db
-from models import User
+from models import User, Role
 
 
 def verify_token(
@@ -54,3 +54,28 @@ def verify_admin(user: dict = Depends(verify_token)) -> dict:
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Acceso denegado: se requiere rol de administrador")
     return user
+
+
+def rol_permisos(clave: str, db: Session) -> Optional[Role]:
+    """Rol (fila) por clave, o None."""
+    return db.query(Role).filter(Role.clave == clave).first()
+
+
+def require_permiso(accion: str):
+    """Dependency factory: exige que el rol del usuario tenga `accion` (ej. 'clientes:crear').
+
+    - El rol protegido (admin) puede todo.
+    - Si el rol no tiene fila en `roles` pero es 'admin', también se permite (compat).
+    """
+    def _dep(user: dict = Depends(verify_token), db: Session = Depends(get_db)) -> dict:
+        rol = rol_permisos(user.get("role"), db)
+        if rol is None:
+            if user.get("role") == "admin":
+                return user
+            raise HTTPException(status_code=403, detail="Rol sin permisos configurados")
+        if rol.protegido:
+            return user
+        if accion not in (rol.acciones or []):
+            raise HTTPException(status_code=403, detail=f"Sin permiso para: {accion}")
+        return user
+    return _dep

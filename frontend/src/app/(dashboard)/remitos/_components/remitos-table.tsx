@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Remito, EstadoRemito } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
+import { usePermisos } from "@/components/permisos-provider"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
@@ -58,6 +59,7 @@ export function estadoRemitoBadge(estado: EstadoRemito) {
 // ─── Componente principal ──────────────────────────────────────────────────
 
 export function RemitosTable() {
+  const { can } = usePermisos()
   const [remitos, setRemitos] = useState<RemitoX[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -237,13 +239,15 @@ export function RemitosTable() {
         title="Remitos"
         subtitle={`${total} remito${total !== 1 ? "s" : ""} registrado${total !== 1 ? "s" : ""}`}
         actions={
-          <Button
-            onClick={() => { setEditRemito(null); setFormOpen(true) }}
-            className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo Remito
-          </Button>
+          can("remitos:crear") ? (
+            <Button
+              onClick={() => { setEditRemito(null); setFormOpen(true) }}
+              className="h-11 gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-gold-foreground hover:bg-gold hover:brightness-95"
+            >
+              <Plus className="w-4 h-4" />
+              Nuevo Remito
+            </Button>
+          ) : undefined
         }
       />
 

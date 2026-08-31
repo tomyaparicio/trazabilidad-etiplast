@@ -261,6 +261,7 @@ class ClienteProducto(Base):
     nombre                = Column(String(200))
     envase                = Column(String(200))
     envase_codificado     = Column(String(100))
+    ubicacion             = Column(String(100))   # ubicación física del envase (ej: "A-3")
     volumen_cantidad      = Column(Numeric(12, 4))
     volumen_unidad        = Column(String(50))
     lamina                = Column(String(200))
@@ -286,6 +287,7 @@ class ClienteProducto(Base):
             "nombre":                self.nombre,
             "envase":                self.envase,
             "envase_codificado":     self.envase_codificado,
+            "ubicacion":             self.ubicacion,
             "volumen_cantidad":      float(self.volumen_cantidad) if self.volumen_cantidad else None,
             "volumen_unidad":        self.volumen_unidad,
             "lamina":                self.lamina,
@@ -356,6 +358,33 @@ class User(Base):
             "nombre_completo": self.nombre_completo,
             "is_active":       self.is_active,
             "role":            self.role,
+        }
+
+
+class Role(Base):
+    """Rol RBAC: define qué VISTAS ve y qué ACCIONES puede hacer. Editable por un admin."""
+    __tablename__ = "roles"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    clave      = Column(String(30), unique=True, nullable=False, index=True)   # slug: admin, user, operario…
+    nombre     = Column(String(80), nullable=False)
+    vistas     = Column(JSONB, nullable=False, default=list)                   # ["panel","clientes",…]
+    acciones   = Column(JSONB, nullable=False, default=list)                   # ["clientes:crear",…]
+    protegido  = Column(Boolean, default=False, nullable=False)                # admin: no se borra ni pierde permisos
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<Role clave={self.clave!r} nombre={self.nombre!r}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":        self.id,
+            "clave":     self.clave,
+            "nombre":    self.nombre,
+            "vistas":    self.vistas or [],
+            "acciones":  self.acciones or [],
+            "protegido": self.protegido,
         }
 
 
@@ -895,51 +924,6 @@ class StockMovimiento(Base):
 # ──────────────────────────────────────────────────────────────────────────────
 # Planificación de producción
 # ──────────────────────────────────────────────────────────────────────────────
-
-class PlanProduccion(Base):
-    """Asignación de una orden de trabajo a una máquina en un rango de fechas."""
-    __tablename__ = "plan_produccion"
-
-    id               = Column(Integer, primary_key=True, autoincrement=True)
-    orden_trabajo_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="CASCADE"), nullable=False, index=True)
-    maquina_id       = Column(Integer, ForeignKey("maquinas.id", ondelete="CASCADE"), nullable=False, index=True)
-    etapa            = Column(String(20))    # extrusion | impresion | troquelado
-    fecha_inicio     = Column(Date, index=True)
-    fecha_fin        = Column(Date)
-    orden_prioridad  = Column(Integer, default=0)
-    estado           = Column(String(20), default="planificada")
-    notas            = Column(Text)
-    created_by       = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at       = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at       = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    # Relaciones
-    orden_trabajo = relationship("OrdenTrabajo")
-    maquina       = relationship("Maquina")
-
-    def __repr__(self):
-        return f"<PlanProduccion orden_trabajo_id={self.orden_trabajo_id} maquina_id={self.maquina_id} etapa={self.etapa!r}>"
-
-    def to_dict(self) -> dict:
-        ot = self.orden_trabajo
-        return {
-            "id":               self.id,
-            "orden_trabajo_id": self.orden_trabajo_id,
-            "orden_numero":     ot.numero if ot else None,
-            "cliente_nombre":   ot.cliente.marca if (ot and ot.cliente) else None,
-            "maquina_id":       self.maquina_id,
-            "maquina_nombre":   self.maquina.nombre if self.maquina else None,
-            "etapa":            self.etapa,
-            "fecha_inicio":     self.fecha_inicio.isoformat() if self.fecha_inicio else None,
-            "fecha_fin":        self.fecha_fin.isoformat()    if self.fecha_fin    else None,
-            "orden_prioridad":  self.orden_prioridad,
-            "estado":           self.estado,
-            "notas":            self.notas,
-            "created_by":       self.created_by,
-            "created_at":       self.created_at.isoformat() if self.created_at else None,
-            "updated_at":       self.updated_at.isoformat() if self.updated_at else None,
-        }
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Control de calidad
