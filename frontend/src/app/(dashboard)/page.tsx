@@ -62,25 +62,6 @@ function NumAnim({ value, format, duration = 900 }: { value: number; format: (n:
   return <>{format(shown)}</>
 }
 
-// DEMO — datos de ejemplo para VER el diseño mientras no haya facturación real.
-// Se usa sólo si el backend devuelve todo en 0. Quitar cuando haya datos reales.
-const DEMO_FIN: DashboardFinanzas = {
-  facturacion_total: 542376,
-  facturacion_completadas: 380000,
-  facturacion_mom: 12,
-  facturacion_mensual: [
-    { mes: "2026-03", monto: 320000 }, { mes: "2026-04", monto: 410000 }, { mes: "2026-05", monto: 280000 },
-    { mes: "2026-06", monto: 520000 }, { mes: "2026-07", monto: 470000 }, { mes: "2026-08", monto: 542376 },
-  ],
-  ticket_promedio: 53200,
-  presupuestos_aprobados_monto: 890000,
-  presupuestos_pendientes_monto: 420000,
-  presupuestos_aprobados: 6,
-  presupuestos_pendientes: 4,
-  presupuestos_total: 10,
-  tasa_aprobacion: 68,
-}
-
 type TabKey = "admin" | "prod" | "comercial"
 const TABS: { key: TabKey; label: string }[] = [
   { key: "admin", label: "Administrativo" },
@@ -330,8 +311,9 @@ export default function DashboardPage() {
   const pctConRs = totalMarcas ? Math.round(((totalMarcas - (stats?.marcas_sin_rs ?? 0)) / totalMarcas) * 100) : 0
   const pctConProd = totalMarcas ? Math.round(((stats?.marcas_con_productos ?? 0) / totalMarcas) * 100) : 0
 
-  // Usa datos reales; si aún no hay facturación cargada, cae a DEMO_FIN para ver el diseño.
-  const finBase = stats?.finanzas && stats.finanzas.facturacion_total > 0 ? stats.finanzas : DEMO_FIN
+  // Sólo datos reales del backend (sin demo): si no hay facturación cargada,
+  // los importes se muestran en 0 y el gráfico avisa que no hay datos.
+  const finBase = stats?.finanzas ?? null
   // Filtro de período: si hay año elegido, pisa los datos con los del período.
   const fin = finPeriodo ?? finBase
   const aniosDisponibles = fin?.anios_disponibles ?? finBase?.anios_disponibles ?? [new Date().getFullYear()]
