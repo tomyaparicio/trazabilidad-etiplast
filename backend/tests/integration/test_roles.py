@@ -47,3 +47,44 @@ def test_abm_rol_con_validacion(api):
 def test_no_se_puede_borrar_admin(api):
     admin_rol = next(x for x in api.get("/api/admin/roles").json()["data"] if x["clave"] == "admin")
     assert api.delete(f"/api/admin/roles/{admin_rol['id']}").status_code == 400  # protegido
+
+
+def test_rol_personalizado_se_puede_asignar_a_un_usuario(api, db_session):
+    """Un rol creado en /admin/roles debe poder asignarse (antes el backend
+    tenía una lista fija admin/user/operario y lo rechazaba con 400)."""
+    from models import Role, User
+
+    clave, email = "administracion_test", "rol-custom@test.local"
+    # Limpieza previa (idempotente)
+    db_session.query(User).filter(User.email == email).delete(synchronize_session=False)
+    db_session.query(Role).filter(Role.clave == clave).delete(synchronize_session=False)
+    db_session.commit()
+
+    r = api.post("/api/admin/roles", json={
+        "clave": clave, "nombre": "Administración Test",
+        "vistas": ["panel", "facturas"], "acciones": ["facturas:ver"],
+    })
+    assert r.status_code in (200, 201), r.text
+
+    try:
+        # Crear un usuario con ese rol nuevo
+        r = api.post("/api/admin/usuarios", json={
+            "email": email, "password": "secreto123", "nombre": "Rol", "apellido": "Custom",
+            "role": clave,
+        })
+        assert r.status_code in (200, 201), r.text
+        uid = r.json()["id"]
+        assert r.json()["role"] == clave
+
+        # Y también cambiárselo por PUT
+        r = api.put(f"/api/admin/usuarios/{uid}", json={"role": "operario"})
+        assert r.status_code == 200, r.text
+        r = api.put(f"/api/admin/usuarios/{uid}", json={"role": clave})
+        assert r.status_code == 200 and r.json()["role"] == clave
+
+        # Un rol inexistente sigue rechazándose
+        assert api.put(f"/api/admin/usuarios/{uid}", json={"role": "no_existe"}).status_code == 400
+    finally:
+        db_session.query(User).filter(User.email == email).delete(synchronize_session=False)
+        db_session.query(Role).filter(Role.clave == clave).delete(synchronize_session=False)
+        db_session.commit()

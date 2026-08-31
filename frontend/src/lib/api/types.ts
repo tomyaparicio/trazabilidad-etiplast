@@ -220,6 +220,42 @@ export type Presupuesto = {
   items: PresupuestoItem[]
 }
 
+// ─── Facturas ──────────────────────────────────────────────────────────────
+
+export type EstadoFactura = "pendiente" | "cobrada" | "anulada"
+export type TipoFactura = "A" | "B" | "C" | "X"
+
+export type Factura = {
+  id: number
+  numero: string
+  tipo: TipoFactura | string
+  cliente_id: number | null
+  cliente_nombre?: string | null
+  orden_trabajo_id: number | null
+  orden_numero?: string | null
+  fecha: string | null
+  fecha_vencimiento: string | null
+  estado: EstadoFactura
+  fecha_cobro: string | null
+  subtotal: number | null
+  iva_porcentaje: number | null
+  total: number | null
+  observaciones: string | null
+  creador_nombre?: string | null
+  created_at?: string | null
+}
+
+export type FacturasListResponse = {
+  data: Factura[]
+  total: number
+  page: number
+  per_page: number
+  total_pages: number
+  /** Totales del listado ya filtrado (para la cabecera de la pantalla). */
+  monto_total: number
+  monto_cobrado: number
+}
+
 // ─── Stock ─────────────────────────────────────────────────────────────────
 
 export type TipoStockItem = "materia_prima" | "producto_terminado" | "insumo"

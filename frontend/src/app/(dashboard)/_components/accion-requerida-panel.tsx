@@ -54,11 +54,11 @@ export function AccionRequeridaPanel() {
     <section className="relative overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <span className="grid size-9 place-items-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-300">
+          <span className="grid size-9 place-items-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300">
             <AlertTriangle className="size-[17px]" />
           </span>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-300/90">Centro de acción</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300/90">Centro de acción</p>
             <h2 className="mt-1 text-base font-display">Requiere acción</h2>
           </div>
         </div>
@@ -80,7 +80,7 @@ export function AccionRequeridaPanel() {
                 <Icon className="size-4 shrink-0" />
                 <span className="hidden sm:inline">{label}</span>
                 <span className={`min-w-[20px] rounded-full px-1.5 py-0.5 text-center text-[10.5px] font-bold tabular-nums ${
-                  active ? "bg-amber-500/20 text-amber-300" : "bg-white/10 text-muted-foreground"
+                  active ? "bg-amber-500/20 text-amber-700 dark:text-amber-300" : "bg-white/10 text-muted-foreground"
                 }`}>
                   {count}
                 </span>
@@ -135,14 +135,14 @@ function OrdenesList({ items }: { items: OrdenTrabajo[] }) {
     <div className="grid gap-2 sm:grid-cols-2">
       {items.map((o) => (
         <Row key={o.id} href="/ordenes">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-300">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300">
             <ClipboardList className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-display text-sm font-semibold">{o.numero}</span>
             <span className="block truncate text-xs text-muted-foreground">{o.cliente_nombre || "Sin cliente"}</span>
           </span>
-          <span className="shrink-0 rounded-full bg-amber-500/15 px-2.5 py-1 text-[10.5px] font-semibold text-amber-300">Pendiente</span>
+          <span className="shrink-0 rounded-full bg-amber-500/15 px-2.5 py-1 text-[10.5px] font-semibold text-amber-700 dark:text-amber-300">Pendiente</span>
           <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Row>
       ))}
@@ -177,7 +177,7 @@ function StockList({ items }: { items: StockItem[] }) {
     <div className="grid gap-2 sm:grid-cols-2">
       {items.map((s) => (
         <Row key={s.id} href="/stock">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-rose-500/15 text-rose-300">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-300">
             <PackageX className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
@@ -185,7 +185,7 @@ function StockList({ items }: { items: StockItem[] }) {
             <span className="block truncate text-xs text-muted-foreground">{s.codigo}</span>
           </span>
           <span className="shrink-0 text-right">
-            <span className="block text-sm font-semibold tabular-nums text-rose-300">{s.stock_actual ?? 0} {s.unidad || ""}</span>
+            <span className="block text-sm font-semibold tabular-nums text-rose-700 dark:text-rose-300">{s.stock_actual ?? 0} {s.unidad || ""}</span>
             <span className="block text-[11px] tabular-nums text-muted-foreground">mín {s.stock_minimo ?? 0}</span>
           </span>
         </Row>

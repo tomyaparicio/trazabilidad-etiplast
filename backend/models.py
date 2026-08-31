@@ -743,6 +743,71 @@ class PresupuestoItem(Base):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Facturas (lo realmente facturado — alimenta el tab Administrativo)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Factura(Base):
+    """
+    Factura emitida a un cliente (FC-0001).
+
+    Es la fuente de verdad del dinero en el dashboard: `facturación` suma las
+    facturas no anuladas y `cobrado` las que están en estado 'cobrada'.
+    Puede vincularse opcionalmente a una orden de trabajo.
+    """
+    __tablename__ = "facturas"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    numero           = Column(String(30), unique=True, index=True)   # FC-0001
+    tipo             = Column(String(5), default="B")                # A | B | C | X
+    cliente_id       = Column(Integer, ForeignKey("clientes.id", ondelete="SET NULL"), nullable=True, index=True)
+    orden_trabajo_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="SET NULL"), nullable=True, index=True)
+    # NOT NULL a propósito: la fecha de emisión es el eje temporal de todos los
+    # agregados; una factura sin fecha sumaría en los totales pero desaparecería
+    # del gráfico y de cualquier filtro por año/mes.
+    fecha            = Column(Date, nullable=False, index=True)
+    fecha_vencimiento = Column(Date)
+    estado           = Column(String(20), default="pendiente", index=True)  # pendiente | cobrada | anulada
+    fecha_cobro      = Column(Date)
+    subtotal         = Column(Numeric(14, 2))
+    iva_porcentaje   = Column(Numeric(5, 2), default=21)
+    total            = Column(Numeric(14, 2))
+    observaciones    = Column(Text)
+    created_by       = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at       = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relaciones
+    cliente       = relationship("Cliente")
+    orden_trabajo = relationship("OrdenTrabajo")
+    creador       = relationship("User", foreign_keys=[created_by])
+
+    def __repr__(self):
+        return f"<Factura numero={self.numero!r} estado={self.estado!r} total={self.total}>"
+
+    def to_dict(self) -> dict:
+        return {
+            "id":                self.id,
+            "numero":            self.numero,
+            "tipo":              self.tipo,
+            "cliente_id":        self.cliente_id,
+            "cliente_nombre":    self.cliente.marca if self.cliente else None,
+            "orden_trabajo_id":  self.orden_trabajo_id,
+            "orden_numero":      self.orden_trabajo.numero if self.orden_trabajo else None,
+            "fecha":             self.fecha.isoformat()             if self.fecha             else None,
+            "fecha_vencimiento": self.fecha_vencimiento.isoformat() if self.fecha_vencimiento else None,
+            "estado":            self.estado,
+            "fecha_cobro":       self.fecha_cobro.isoformat()       if self.fecha_cobro       else None,
+            "subtotal":          float(self.subtotal)       if self.subtotal       is not None else None,
+            "iva_porcentaje":    float(self.iva_porcentaje) if self.iva_porcentaje is not None else None,
+            "total":             float(self.total)          if self.total          is not None else None,
+            "observaciones":     self.observaciones,
+            "created_by":        self.created_by,
+            "creador_nombre":    self.creador.nombre_completo if self.creador else None,
+            "created_at":        self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Stock
 # ──────────────────────────────────────────────────────────────────────────────
 

@@ -10,11 +10,11 @@ import type { SortDir } from "../_hooks/use-clientes"
 
 // ── Rubro: ícono + color por categoría (fallback = Tag / neutro) ────────────────
 const RUBRO_STYLES: Record<string, { icon: LucideIcon; text: string; bg: string; border: string }> = {
-  Agua:             { icon: Droplets, text: "text-cyan-200",    bg: "bg-cyan-500/15",    border: "border-cyan-400/40" },
-  "Jugos-Gaseosas": { icon: CupSoda,  text: "text-orange-200",  bg: "bg-orange-500/15",  border: "border-orange-400/40" },
-  Limpieza:         { icon: SprayCan, text: "text-emerald-200", bg: "bg-emerald-500/15", border: "border-emerald-400/40" },
-  Agroquimicos:     { icon: Sprout,   text: "text-red-200",     bg: "bg-red-500/15",     border: "border-red-400/40" },
-  Aceite:           { icon: Droplet,  text: "text-amber-200",   bg: "bg-amber-500/15",   border: "border-amber-400/40" },
+  Agua:             { icon: Droplets, text: "text-cyan-700 dark:text-cyan-200",       bg: "bg-cyan-500/15",    border: "border-cyan-500/40" },
+  "Jugos-Gaseosas": { icon: CupSoda,  text: "text-orange-700 dark:text-orange-200",   bg: "bg-orange-500/15",  border: "border-orange-500/40" },
+  Limpieza:         { icon: SprayCan, text: "text-emerald-700 dark:text-emerald-200", bg: "bg-emerald-500/15", border: "border-emerald-500/40" },
+  Agroquimicos:     { icon: Sprout,   text: "text-red-700 dark:text-red-200",         bg: "bg-red-500/15",     border: "border-red-500/40" },
+  Aceite:           { icon: Droplet,  text: "text-amber-700 dark:text-amber-200",     bg: "bg-amber-500/15",   border: "border-amber-500/40" },
 }
 const rubroStyle = (r: string) =>
   RUBRO_STYLES[r] ?? { icon: Tag, text: "text-muted-foreground", bg: "bg-muted/50", border: "border-border" }
@@ -44,14 +44,14 @@ const avatarFor = (name: string) => AVATAR_PALETTE[hashStr(name || "?") % AVATAR
 const norm = (s: string) => (s || "").toLowerCase()
 type ProductoStyle = { icon: LucideIcon; bg: string; text: string; border: string }
 const PRODUCTO_STYLES: (ProductoStyle & { match: string[] })[] = [
-  { match: ["lavandina", "cloro", "detergente", "limpia", "limpieza", "jabon", "desinfect", "suavizante"], icon: SprayCan,     bg: "bg-emerald-500/25", text: "text-emerald-100", border: "border-emerald-400/50" },
-  { match: ["agua", "mineral", "soda"],                               icon: Droplets,     bg: "bg-cyan-500/25",    text: "text-cyan-100",    border: "border-cyan-400/50" },
-  { match: ["jugo", "gaseosa", "bebida", "refresco", "energizante"],  icon: CupSoda,      bg: "bg-orange-500/25",  text: "text-orange-100",  border: "border-orange-400/50" },
-  { match: ["vino", "espumante", "cerveza", "licor"],                 icon: Wine,         bg: "bg-rose-500/25",    text: "text-rose-100",    border: "border-rose-400/50" },
-  { match: ["leche", "lacteo", "yogur", "crema"],                     icon: Milk,         bg: "bg-violet-500/25",  text: "text-violet-100",  border: "border-violet-400/50" },
-  { match: ["aceite", "oliva", "girasol"],                            icon: Droplet,      bg: "bg-amber-500/25",   text: "text-amber-100",   border: "border-amber-400/50" },
-  { match: ["agroquimic", "fertilizante", "herbicida", "pesticida", "fitosanitario"], icon: Sprout, bg: "bg-red-500/25", text: "text-red-100", border: "border-red-400/50" },
-  { match: ["quimico", "solvente", "acido"],                          icon: FlaskConical, bg: "bg-fuchsia-500/25", text: "text-fuchsia-100", border: "border-fuchsia-400/50" },
+  { match: ["lavandina", "cloro", "detergente", "limpia", "limpieza", "jabon", "desinfect", "suavizante"], icon: SprayCan,     bg: "bg-emerald-500/25", text: "text-emerald-700 dark:text-emerald-100", border: "border-emerald-400/50" },
+  { match: ["agua", "mineral", "soda"],                               icon: Droplets,     bg: "bg-cyan-500/25",    text: "text-cyan-700 dark:text-cyan-100",    border: "border-cyan-400/50" },
+  { match: ["jugo", "gaseosa", "bebida", "refresco", "energizante"],  icon: CupSoda,      bg: "bg-orange-500/25",  text: "text-orange-700 dark:text-orange-100",  border: "border-orange-400/50" },
+  { match: ["vino", "espumante", "cerveza", "licor"],                 icon: Wine,         bg: "bg-rose-500/25",    text: "text-rose-700 dark:text-rose-100",    border: "border-rose-400/50" },
+  { match: ["leche", "lacteo", "yogur", "crema"],                     icon: Milk,         bg: "bg-violet-500/25",  text: "text-violet-700 dark:text-violet-100",  border: "border-violet-400/50" },
+  { match: ["aceite", "oliva", "girasol"],                            icon: Droplet,      bg: "bg-amber-500/25",   text: "text-amber-700 dark:text-amber-100",   border: "border-amber-400/50" },
+  { match: ["agroquimic", "fertilizante", "herbicida", "pesticida", "fitosanitario"], icon: Sprout, bg: "bg-red-500/25", text: "text-red-700 dark:text-red-100", border: "border-red-400/50" },
+  { match: ["quimico", "solvente", "acido"],                          icon: FlaskConical, bg: "bg-fuchsia-500/25", text: "text-fuchsia-700 dark:text-fuchsia-100", border: "border-fuchsia-400/50" },
 ]
 const NEUTRO: ProductoStyle = { icon: Package, bg: "bg-muted/80", text: "text-foreground", border: "border-border" }
 const productoStyle = (producto?: string | null, rubro?: string | null): ProductoStyle => {

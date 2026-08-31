@@ -12,15 +12,16 @@ import { Select } from "@/components/ui/select"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/ui/page-container"
+import { usePermisos } from "@/components/permisos-provider"
 import type { DashboardStats, DashboardFinanzas, OrdenResumen } from "@/types/database"
 import type { OrdenesSeriePunto } from "@/lib/api/types"
 
 const stateStyle: Record<string, string> = {
   borrador: "bg-white/10 text-muted-foreground",
-  pendiente: "bg-amber-500/15 text-amber-300",
-  en_proceso: "bg-primary/20 text-primary-300",
-  completada: "bg-emerald-500/15 text-emerald-300",
-  cancelada: "bg-rose-500/15 text-rose-300",
+  pendiente: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  en_proceso: "bg-primary/20 text-primary-700 dark:text-primary-300",
+  completada: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  cancelada: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
 }
 const stateLabel: Record<string, string> = {
   borrador: "Borrador", pendiente: "Pendiente", en_proceso: "En producción", completada: "Completada", cancelada: "Cancelada",
@@ -263,7 +264,16 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("Usuario")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const { can } = usePermisos()
+  // El tab Administrativo muestra la facturación → sólo para quien puede verla.
+  const puedeVerPlata = can("facturas:ver")
+  const tabsVisibles = TABS.filter((t) => t.key !== "admin" || puedeVerPlata)
   const [tab, setTab] = useState<TabKey>("admin")
+
+  // Si el rol no puede ver la plata, se lo lleva al primer tab permitido.
+  useEffect(() => {
+    if (!puedeVerPlata && tab === "admin") setTab("prod")
+  }, [puedeVerPlata, tab])
 
   // Filtro de período de las finanzas (Administrativo): año + mes opcionales.
   const [anioF, setAnioF] = useState<number | "">("")
@@ -347,7 +357,7 @@ export default function DashboardPage() {
     <PageContainer>
       {/* Tabs centrados */}
       <div className="-mt-2 flex flex-wrap justify-center gap-2 sm:-mt-4 lg:-mt-6">
-        {TABS.map((t) => {
+        {tabsVisibles.map((t) => {
           const active = tab === t.key
           return (
             <button key={t.key} type="button" onClick={() => setTab(t.key)} aria-pressed={active}
@@ -433,12 +443,12 @@ export default function DashboardPage() {
             />
             <div className="relative">
               <p className="ed-eyebrow">
-                Facturación · {anioF ? (mesF ? `${MESES[(mesF as number) - 1]} ${anioF}` : `Año ${anioF}`) : "valor de órdenes"}
+                Facturación · {anioF ? (mesF ? `${MESES[(mesF as number) - 1]} ${anioF}` : `Año ${anioF}`) : "facturas emitidas"}
               </p>
               <p className="ed-figure mt-3 text-[clamp(44px,6vw,64px)] text-white"><NumAnim value={fin?.facturacion_total ?? 0} format={money} /></p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <DeltaPill pct={fin?.facturacion_mom ?? null} />
-                <span className="text-sm text-white/70">vs mes anterior · Completadas <NumAnim value={fin?.facturacion_completadas ?? 0} format={money} /></span>
+                <span className="text-sm text-white/70">vs mes anterior · Cobrado <NumAnim value={fin?.facturacion_completadas ?? 0} format={money} /></span>
               </div>
             </div>
             <div className="relative mt-auto min-w-0">
@@ -495,9 +505,9 @@ export default function DashboardPage() {
               <p className="mt-1.5 text-xs text-muted-foreground">por orden</p>
             </div>
             <div className="px-5">
-              <p className="ed-eyebrow flex items-center gap-2"><span className="size-2 rounded-[3px] bg-brand dark:bg-gold" />Facturado (cerradas)</p>
+              <p className="ed-eyebrow flex items-center gap-2"><span className="size-2 rounded-[3px] bg-brand dark:bg-gold" />Cobrado</p>
               <p className="ed-figure mt-2 text-[26px] text-brand dark:text-gold"><NumAnim value={fin?.facturacion_completadas ?? 0} format={money} /></p>
-              <p className="mt-1.5 text-xs text-muted-foreground">órdenes completadas</p>
+              <p className="mt-1.5 text-xs text-muted-foreground">facturas cobradas</p>
             </div>
           </section>
 
@@ -512,7 +522,7 @@ export default function DashboardPage() {
           </section>
 
           <p className="text-xs text-muted-foreground">
-            <span className="font-semibold">Facturación</span> = valor de las órdenes (excluye borradores y canceladas). No representa dinero efectivamente cobrado.
+            <span className="font-semibold">Facturación</span> = suma de las facturas emitidas (excluye las anuladas). <span className="font-semibold">Cobrado</span> = facturas marcadas como cobradas. Se cargan desde la sección Facturas.
           </p>
         </>
       )}
@@ -564,14 +574,14 @@ export default function DashboardPage() {
             <article className="stat-card eti-in flex min-h-[188px] flex-col p-6" style={delay(1)}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
-                  <span className={`${iconChip} bg-primary/15 text-primary-300`}><Activity className="size-4" /></span>
+                  <span className={`${iconChip} bg-primary/15 text-primary-700 dark:text-primary-300`}><Activity className="size-4" /></span>
                   <p className={kpiLabel}>Órdenes activas</p>
                 </div>
                 <DeltaPill pct={ordenesMoM} />
               </div>
               <div className="mt-4 flex items-end justify-between">
                 <p className="font-display text-[42px] font-bold leading-none tabular-nums">{nf.format(stats?.ordenes_activas ?? 0)}</p>
-                <span className="mb-1 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary-300"><span className="size-1.5 rounded-full bg-primary-300" /> En seguimiento</span>
+                <span className="mb-1 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-300"><span className="size-1.5 rounded-full bg-primary-300" /> En seguimiento</span>
               </div>
               <div className="mt-auto pt-3"><Sparkline values={serieValues} /></div>
               <p className="mt-1 text-[11px] text-muted-foreground">Pulso mensual · últimos 12 meses</p>
@@ -580,7 +590,7 @@ export default function DashboardPage() {
             <article className="stat-card eti-in flex min-h-[188px] flex-col p-6" style={delay(2)}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
-                  <span className={`${iconChip} bg-secondary text-primary-300`}><Workflow className="size-4" /></span>
+                  <span className={`${iconChip} bg-secondary text-primary-700 dark:text-primary-300`}><Workflow className="size-4" /></span>
                   <p className={kpiLabel}>Órdenes por etapa</p>
                 </div>
                 <span className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">4 etapas</span>
@@ -588,7 +598,7 @@ export default function DashboardPage() {
               <p className={kpiVal}>{nf.format(totalOrdenes)}</p>
               <div className="mt-auto pt-3"><MiniBars values={[draft, pending, inProgress, completed]} hot={2} /></div>
               <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Borr.</span><span>Pend.</span><span className="text-primary-300">Prod.</span><span>Listas</span>
+                <span>Borr.</span><span>Pend.</span><span className="text-primary-700 dark:text-primary-300">Prod.</span><span>Listas</span>
               </div>
             </article>
           </section>
@@ -597,13 +607,13 @@ export default function DashboardPage() {
           <section className="stat-card eti-in" style={delay(3)}>
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div className="flex items-center gap-3">
-                <span className="grid size-9 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary-300"><Activity className="size-[17px]" /></span>
+                <span className="grid size-9 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary-700 dark:text-primary-300"><Activity className="size-[17px]" /></span>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-300">Actividad operativa</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-700 dark:text-primary-300">Actividad operativa</p>
                   <h2 className="mt-1 text-base font-display">Órdenes recientes</h2>
                 </div>
               </div>
-              <Link href="/ordenes" className="flex items-center gap-1 border-b border-primary/40 pb-0.5 text-[13px] font-semibold text-primary-300 hover:text-foreground">Ver todas <ArrowRight className="size-3.5" /></Link>
+              <Link href="/ordenes" className="flex items-center gap-1 border-b border-primary/40 pb-0.5 text-[13px] font-semibold text-primary-700 dark:text-primary-300 hover:text-foreground">Ver todas <ArrowRight className="size-3.5" /></Link>
             </div>
             <div className="px-3 py-2">
               {orders.length === 0 ? (
@@ -643,10 +653,10 @@ export default function DashboardPage() {
             <article className="stat-card eti-in flex min-h-[188px] flex-col p-6" style={delay(1)}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
-                  <span className={`${iconChip} bg-primary/15 text-primary-300`}><PackageCheck className="size-4" /></span>
+                  <span className={`${iconChip} bg-primary/15 text-primary-700 dark:text-primary-300`}><PackageCheck className="size-4" /></span>
                   <p className={kpiLabel}>Productos</p>
                 </div>
-                <span className="rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-semibold tabular-nums text-primary-300">{pctConProd}%</span>
+                <span className="rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-semibold tabular-nums text-primary-700 dark:text-primary-300">{pctConProd}%</span>
               </div>
               <p className={kpiVal}>{nf.format(stats?.total_productos ?? 0)}</p>
               <p className={kpiCap}>Productos configurados en catálogo</p>
@@ -656,7 +666,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>{nf.format(stats?.marcas_con_productos ?? 0)} marcas con producto</span>
-                  <span className="font-semibold text-primary-300">Cobertura</span>
+                  <span className="font-semibold text-primary-700 dark:text-primary-300">Cobertura</span>
                 </div>
               </div>
             </article>
@@ -677,9 +687,9 @@ export default function DashboardPage() {
           {/* Marcas por rubro */}
           <section className="stat-card eti-in p-6" style={delay(3)}>
             <div className="flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary-300"><Tags className="size-[17px]" /></span>
+              <span className="grid size-9 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary-700 dark:text-primary-300"><Tags className="size-[17px]" /></span>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-300">Cartera comercial</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-700 dark:text-primary-300">Cartera comercial</p>
                 <h2 className="mt-1 text-base font-display">Marcas por rubro</h2>
               </div>
             </div>

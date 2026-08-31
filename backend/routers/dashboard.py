@@ -11,8 +11,8 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
-from dependencies import verify_token
-from models import Cliente, ClienteProducto, ClienteUbicacion, OrdenTrabajo, Presupuesto, Provincia, RazonSocial, Rubro
+from dependencies import require_permiso, tiene_permiso, verify_token
+from models import Cliente, ClienteProducto, ClienteUbicacion, Factura, OrdenTrabajo, Presupuesto, Provincia, RazonSocial, Rubro
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -20,41 +20,43 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 def _metricas_financieras(db: Session, year: Optional[int] = None, month: Optional[int] = None) -> dict:
     """Agregados de $ para el tab Administrativo, filtrables por período.
 
-    "Facturación" = valor de las órdenes (total_final); NO representa dinero
-    efectivamente cobrado (el sistema no registra pagos/cobros). Se excluyen
-    las órdenes en borrador y canceladas.
+    "Facturación" = suma de las FACTURAS emitidas (tabla `facturas`), excluyendo
+    las anuladas. "Cobrado" = las facturas en estado 'cobrada'. La fecha que
+    manda es `facturas.fecha` (fecha de emisión), no la de creación del registro.
 
-    Período: sin params = histórico completo (comportamiento original).
+    Período: sin params = histórico completo.
     `year` acota todos los agregados a ese año; `month` (requiere year) acota
     los agregados a ese mes, pero la serie mensual sigue siendo del año entero
     (así el gráfico muestra el año con el mes elegido en contexto).
     """
     from datetime import date
 
-    vivas = OrdenTrabajo.estado.notin_(["cancelada", "borrador"])
+    # Facturas que "cuentan" como facturación (las anuladas no).
+    validas = Factura.estado != "anulada"
 
-    # Filtros de período sobre la fecha de creación (agregados).
-    periodo_ot, periodo_pres = [], []
+    # Filtros de período: facturas por fecha de emisión, presupuestos por creación.
+    periodo_fac, periodo_pres = [], []
     if year:
-        periodo_ot.append(extract("year", OrdenTrabajo.created_at) == year)
+        periodo_fac.append(extract("year", Factura.fecha) == year)
         periodo_pres.append(extract("year", Presupuesto.created_at) == year)
         if month:
-            periodo_ot.append(extract("month", OrdenTrabajo.created_at) == month)
+            periodo_fac.append(extract("month", Factura.fecha) == month)
             periodo_pres.append(extract("month", Presupuesto.created_at) == month)
 
     facturacion_total = (
-        db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0))
-        .filter(vivas, *periodo_ot)
+        db.query(func.coalesce(func.sum(Factura.total), 0))
+        .filter(validas, *periodo_fac)
         .scalar()
     )
+    # "Completadas" pasa a significar COBRADAS (dinero efectivamente ingresado).
     facturacion_completadas = (
-        db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0))
-        .filter(OrdenTrabajo.estado == "completada", *periodo_ot)
+        db.query(func.coalesce(func.sum(Factura.total), 0))
+        .filter(Factura.estado == "cobrada", *periodo_fac)
         .scalar()
     )
     ticket_promedio = (
-        db.query(func.coalesce(func.avg(OrdenTrabajo.total_final), 0))
-        .filter(vivas, OrdenTrabajo.total_final.isnot(None), *periodo_ot)
+        db.query(func.coalesce(func.avg(Factura.total), 0))
+        .filter(validas, Factura.total.isnot(None), *periodo_fac)
         .scalar()
     )
 
@@ -84,13 +86,13 @@ def _metricas_financieras(db: Session, year: Optional[int] = None, month: Option
 
     # Serie mensual para el gráfico: del año elegido (completa, con ceros) o
     # histórica (últimos 8 meses con datos) si no hay filtro.
-    mes_col = func.to_char(func.date_trunc("month", OrdenTrabajo.created_at), "YYYY-MM")
+    mes_col = func.to_char(func.date_trunc("month", Factura.fecha), "YYYY-MM")
     q_serie = db.query(
         mes_col.label("mes"),
-        func.coalesce(func.sum(OrdenTrabajo.total_final), 0).label("monto"),
-    ).filter(vivas)
+        func.coalesce(func.sum(Factura.total), 0).label("monto"),
+    ).filter(validas, Factura.fecha.isnot(None))
     if year:
-        q_serie = q_serie.filter(extract("year", OrdenTrabajo.created_at) == year)
+        q_serie = q_serie.filter(extract("year", Factura.fecha) == year)
     filas = q_serie.group_by(mes_col).order_by(mes_col).all()
     por_mes = {f.mes: float(f.monto or 0) for f in filas}
 
@@ -100,15 +102,22 @@ def _metricas_financieras(db: Session, year: Optional[int] = None, month: Option
         ultimo = hoy.month if year == hoy.year else 12
         serie = [{"mes": f"{year}-{m:02d}", "monto": por_mes.get(f"{year}-{m:02d}", 0.0)} for m in range(1, ultimo + 1)]
     else:
-        serie = [{"mes": m, "monto": v} for m, v in sorted(por_mes.items())][-8:]
+        # Últimos 8 meses CONSECUTIVOS hasta hoy (con ceros). Antes se tomaban los
+        # 8 meses "con datos", así que un mes sin facturar desaparecía del gráfico
+        # y el "vs mes anterior" comparaba meses no consecutivos.
+        serie = []
+        for k in range(7, -1, -1):
+            y, m = divmod((hoy.year * 12 + hoy.month - 1) - k, 12)
+            clave = f"{y}-{m + 1:02d}"
+            serie.append({"mes": clave, "monto": por_mes.get(clave, 0.0)})
 
     def _monto_mes(a: int, m: int) -> float:
         return float(
-            db.query(func.coalesce(func.sum(OrdenTrabajo.total_final), 0))
+            db.query(func.coalesce(func.sum(Factura.total), 0))
             .filter(
-                vivas,
-                extract("year", OrdenTrabajo.created_at) == a,
-                extract("month", OrdenTrabajo.created_at) == m,
+                validas,
+                extract("year", Factura.fecha) == a,
+                extract("month", Factura.fecha) == m,
             )
             .scalar() or 0
         )
@@ -130,10 +139,10 @@ def _metricas_financieras(db: Session, year: Optional[int] = None, month: Option
         elif actual:
             facturacion_mom = 100
 
-    # Años con órdenes (para armar el filtro en el frontend).
+    # Años con facturas emitidas (para armar el filtro en el frontend).
     anios = [
         int(r[0]) for r in
-        db.query(extract("year", OrdenTrabajo.created_at)).distinct().order_by(extract("year", OrdenTrabajo.created_at).desc()).all()
+        db.query(extract("year", Factura.fecha)).distinct().order_by(extract("year", Factura.fecha).desc()).all()
         if r[0] is not None
     ]
     if hoy.year not in anios:
@@ -165,7 +174,7 @@ def _metricas_financieras(db: Session, year: Optional[int] = None, month: Option
 async def dashboard_finanzas(
     year: Optional[int] = Query(None, ge=2000, le=2100, description="Año a filtrar"),
     month: Optional[int] = Query(None, ge=1, le=12, description="Mes a filtrar (requiere year)"),
-    _user: dict = Depends(verify_token),
+    _user: dict = Depends(require_permiso("facturas:ver")),
     db: Session = Depends(get_db),
 ):
     return _metricas_financieras(db, year=year, month=month)
@@ -292,7 +301,8 @@ async def dashboard_stats(
         "ordenes_por_estado":   ordenes_por_estado,
         "ordenes_recientes":    ordenes_recientes,
         # Finanzas (facturación = valor de órdenes; no es dinero cobrado)
-        "finanzas":             _metricas_financieras(db),
+        # Sólo para roles con permiso de facturas (la plata es admin-only).
+        "finanzas":             _metricas_financieras(db) if tiene_permiso(_user, "facturas:ver", db) else None,
     }
 
 

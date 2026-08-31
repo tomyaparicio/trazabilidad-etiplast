@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
-import type { UserAdmin } from "@/lib/api/types"
+import type { UserAdmin, RolePermisos } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -30,8 +30,17 @@ const ROLE_SELECT_CLASS: Record<string, string> = {
   user: "bg-blue-500/10 text-blue-400 border-blue-500/20 dark:bg-blue-500/10",
 }
 
+/** Roles de fallback: si el catálogo no carga, al menos se ven los de siempre. */
+const ROLES_FALLBACK: { clave: string; nombre: string }[] = [
+  { clave: "admin", nombre: "Admin" },
+  { clave: "user", nombre: "Usuario" },
+  { clave: "operario", nombre: "Operario" },
+]
+
 export default function AdminUsuariosPage() {
   const [users, setUsers] = useState<UserAdmin[]>([])
+  // Roles reales de la tabla `roles`: incluye los que crea el admin en /admin/roles.
+  const [roles, setRoles] = useState<{ clave: string; nombre: string }[]>(ROLES_FALLBACK)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [nuevoOpen, setNuevoOpen] = useState(false)
@@ -51,6 +60,16 @@ export default function AdminUsuariosPage() {
   }, [])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
+
+  // Catálogo de roles: los del sistema + los que el admin haya creado en /admin/roles.
+  useEffect(() => {
+    api.admin.roles.list()
+      .then((r) => {
+        const lista = (r.data ?? []).map((x: RolePermisos) => ({ clave: x.clave, nombre: x.nombre }))
+        if (lista.length) setRoles(lista)
+      })
+      .catch(() => { /* se mantiene el fallback */ })
+  }, [])
 
   const handleToggleActive = async (user: UserAdmin) => {
     try {
@@ -116,9 +135,10 @@ export default function AdminUsuariosPage() {
           onChange={(e) => handleRoleChange(u, e.target.value)}
           className={`h-8 text-xs md:text-xs font-medium ${ROLE_SELECT_CLASS[u.role] ?? ""}`}
         >
-          <option value="admin">Admin</option>
-          <option value="user">Usuario</option>
-          <option value="operario">Operario</option>
+          {roles.map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
+          {/* Si el usuario tiene un rol que ya no existe en el catálogo, se
+              muestra igual para no perder el valor actual del select. */}
+          {!roles.some((r) => r.clave === u.role) && <option value={u.role}>{u.role}</option>}
         </Select>
       ),
     },
@@ -214,7 +234,7 @@ export default function AdminUsuariosPage() {
       )}
 
       {/* Dialog crear */}
-      <CrearUsuarioDialog open={nuevoOpen} onClose={() => setNuevoOpen(false)} onCreated={handleUserCreated} />
+      <CrearUsuarioDialog open={nuevoOpen} onClose={() => setNuevoOpen(false)} onCreated={handleUserCreated} roles={roles} />
 
       {/* Dialog editar */}
       {editUser && (
@@ -228,10 +248,11 @@ export default function AdminUsuariosPage() {
 // Dialog crear usuario
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CrearUsuarioDialog({ open, onClose, onCreated }: {
+function CrearUsuarioDialog({ open, onClose, onCreated, roles }: {
   open: boolean
   onClose: () => void
   onCreated: (user: UserAdmin) => void
+  roles: { clave: string; nombre: string }[]
 }) {
   const [form, setForm] = useState({ email: "", password: "", nombre: "", apellido: "", role: "user" })
   const [saving, setSaving] = useState(false)
@@ -308,9 +329,7 @@ function CrearUsuarioDialog({ open, onClose, onCreated }: {
           <div className="space-y-1.5">
             <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Rol</label>
             <Select value={form.role} onChange={(e) => set("role", e.target.value)} className="h-10 text-sm">
-              <option value="user">Usuario</option>
-              <option value="operario">Operario</option>
-              <option value="admin">Administrador</option>
+              {roles.map((r) => <option key={r.clave} value={r.clave}>{r.nombre}</option>)}
             </Select>
           </div>
 

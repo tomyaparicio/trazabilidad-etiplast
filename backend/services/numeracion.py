@@ -25,12 +25,17 @@ def generar_numero(db: Session, modelo, prefijo: str, ancho: int = 4) -> str:
     # hashtext(text) -> int4; pg_advisory_xact_lock acepta un bigint (cast implícito).
     db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:prefijo))"), {"prefijo": prefijo})
 
+    # Sólo se consideran los números con el formato propio ({prefijo}-NNNN). Si no,
+    # un número cargado a mano con otro formato (ej. "0001-00000123" de una factura
+    # real) contaminaba la serie y disparaba el correlativo a un valor absurdo.
+    import re
+    patron = re.compile(rf"^{re.escape(prefijo)}-(\d+)$")
+
     rows = db.query(modelo.numero).all()
     nums = []
     for (n,) in rows:
-        try:
-            nums.append(int(n.split("-")[1]))
-        except Exception:
-            pass
+        m = patron.match((n or "").strip())
+        if m:
+            nums.append(int(m.group(1)))
     siguiente = (max(nums) + 1) if nums else 1
     return f"{prefijo}-{siguiente:0{ancho}d}"

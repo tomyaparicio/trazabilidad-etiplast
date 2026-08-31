@@ -11,13 +11,36 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import get_db
-from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina, AuditLog
+from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina, AuditLog, Role
 from dependencies import verify_admin
 from schemas import MaquinaCreateSchema, MaquinaUpdateSchema
 from services import auditoria
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+# Roles base del sistema: se aceptan siempre, aunque la tabla `roles` esté vacía
+# (instalación nueva o seed que aún no corrió).
+ROLES_BASE = ("admin", "user", "operario")
+
+
+def _validar_rol(db: Session, role: Optional[str]) -> None:
+    """
+    Valida contra los roles REALES de la tabla `roles` (los que el admin crea en
+    /admin/roles), no contra una lista fija: si no, un rol nuevo se podía crear
+    en la pantalla de Roles pero no se le podía asignar a nadie.
+    """
+    if not role:
+        raise HTTPException(status_code=400, detail="El rol es requerido")
+    if role in ROLES_BASE:
+        return
+    if db.query(Role.id).filter(Role.clave == role).first():
+        return
+    disponibles = [r[0] for r in db.query(Role.clave).order_by(Role.clave).all()] or list(ROLES_BASE)
+    raise HTTPException(
+        status_code=400,
+        detail=f"Rol inexistente: '{role}'. Roles disponibles: {', '.join(disponibles)}",
+    )
 
 
 class CreateUserRequest(BaseModel):
@@ -59,8 +82,7 @@ def crear_usuario(
         raise HTTPException(status_code=400, detail="El email es requerido")
     if not data.password or len(data.password) < 6:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
-    if data.role not in ("admin", "user", "operario"):
-        raise HTTPException(status_code=400, detail="El rol debe ser 'admin', 'user' u 'operario'")
+    _validar_rol(db, data.role)
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="El usuario ya existe")
 
@@ -95,8 +117,8 @@ def actualizar_usuario(
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    if data.role is not None and data.role not in ("admin", "user", "operario"):
-        raise HTTPException(status_code=400, detail="El rol debe ser 'admin', 'user' u 'operario'")
+    if data.role is not None:
+        _validar_rol(db, data.role)
 
     # Protección anti-lockout: no dejar el sistema sin ningún administrador activo.
     # Si este usuario es admin activo y el cambio lo desactiva o le quita el rol,

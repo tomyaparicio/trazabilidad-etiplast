@@ -48,6 +48,14 @@ async def mis_permisos(user: dict = Depends(verify_token), db: Session = Depends
                     "vistas": rbac.VISTAS_CLAVES, "acciones": rbac.ACCIONES_CLAVES, "protegido": True}
         return {"clave": user.get("role"), "nombre": user.get("role"),
                 "vistas": [], "acciones": [], "protegido": False}
+    # Un rol protegido (admin) puede TODO, igual que en require_permiso: se le
+    # devuelve el catálogo completo para que el frontend no quede desfasado
+    # cuando se agrega un módulo nuevo (su fila guardada puede estar vieja).
+    if rol.protegido:
+        d = rol.to_dict()
+        d["vistas"] = rbac.VISTAS_CLAVES
+        d["acciones"] = rbac.ACCIONES_CLAVES
+        return d
     return rol.to_dict()
 
 

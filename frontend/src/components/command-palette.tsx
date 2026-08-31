@@ -15,7 +15,7 @@ import { Command } from "cmdk"
 import {
   LayoutDashboard, Users, ClipboardList, FileText, Boxes, Truck,
   BarChart3, GitBranch, Shield, Search,
-  Plus, ScanLine, Loader2, UserRound,
+  Plus, ScanLine, Loader2, UserRound, Receipt,
 } from "lucide-react"
 import { api } from "@/lib/api"
 import type { Cliente } from "@/types/database"
@@ -104,6 +104,7 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
     { label: "Clientes", icon: Users, run: () => go("/clientes") },
     { label: "Órdenes de Trabajo", icon: ClipboardList, keywords: "ot ordenes trabajo", run: () => go("/ordenes") },
     { label: "Presupuestos", icon: FileText, run: () => go("/presupuestos") },
+    { label: "Facturas", icon: Receipt, keywords: "facturacion cobros administrativo", run: () => go("/facturas") },
     { label: "Stock", icon: Boxes, keywords: "inventario materiales", run: () => go("/stock") },
     { label: "Remitos", icon: Truck, keywords: "entregas despacho", run: () => go("/remitos") },
     { label: "Reportes", icon: BarChart3, keywords: "kpis estadisticas graficos", run: () => go("/reportes") },

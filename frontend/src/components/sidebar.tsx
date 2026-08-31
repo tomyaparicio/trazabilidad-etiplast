@@ -6,7 +6,7 @@ import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard, Users, LogOut, Shield, ShieldCheck, ClipboardList, Building2, Tag, Package, Cog,
-  FileText, Boxes, Truck, BarChart3, ClipboardCheck, ScrollText,
+  FileText, Boxes, Truck, BarChart3, ClipboardCheck, ScrollText, Receipt,
   Briefcase, Factory, Warehouse, Library, ChevronRight,
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -26,6 +26,7 @@ const menu: NavEntry[] = [
   { group: "Comercial", icon: Briefcase, items: [
     { name: "Clientes", href: "/clientes", icon: Users, vista: "clientes" },
     { name: "Presupuestos", href: "/presupuestos", icon: FileText, vista: "presupuestos" },
+    { name: "Facturas", href: "/facturas", icon: Receipt, vista: "facturas" },
   ] },
   { group: "Producción", icon: Factory, items: [
     { name: "Órdenes de Trabajo", href: "/ordenes", icon: ClipboardList, vista: "ordenes" },

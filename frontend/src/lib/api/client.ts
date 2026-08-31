@@ -12,7 +12,7 @@ import type {
   UserAdmin, CreateUserRequest, UpdateUserRequest,
   OrdenTrabajo, OrdenesListResponse, OrdenesListParams, CreateOrdenRequest,
   Paginated, Maquina,
-  Presupuesto, StockItem, StockMovimiento, Remito,
+  Presupuesto, StockItem, StockMovimiento, Remito, Factura, FacturasListResponse,
   QcPlantilla, QcRegistro, Notificacion, AuditEntry,
   RoleCatalogo, RolePermisos, MisPermisos, RoleInput,
   ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
@@ -284,6 +284,17 @@ export const api = {
   /** Trazabilidad por lote (bobinas → OT → remito → cliente) */
   trazabilidad: {
     porLote: (lote: string) => get<Trazabilidad>("/api/trazabilidad", { lote }),
+  },
+  /** Facturas emitidas — alimentan el tab Administrativo del dashboard */
+  facturas: {
+    list: (params?: { page?: number; per_page?: number; estado?: string; cliente_id?: number; year?: number; month?: number; search?: string }) => {
+      const p = params as Record<string, string | number | undefined> | undefined
+      return get<FacturasListResponse>("/api/facturas", p)
+    },
+    get: (id: number) => get<Factura>(`/api/facturas/${id}`),
+    create: (data: object) => post<Factura>("/api/facturas", data),
+    update: (id: number, data: object) => put<Factura>(`/api/facturas/${id}`, data),
+    delete: (id: number) => del<void>(`/api/facturas/${id}`),
   },
   /** Control de calidad */
   calidad: {

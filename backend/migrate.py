@@ -1151,6 +1151,55 @@ MIGRATIONS_PRODUCTO_UBICACION = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Facturas — lo realmente facturado (alimenta el dashboard Administrativo)
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_FACTURAS = [
+    ("Crear tabla facturas",
+     """
+     CREATE TABLE IF NOT EXISTS facturas (
+         id                SERIAL PRIMARY KEY,
+         numero            VARCHAR(30) UNIQUE,
+         tipo              VARCHAR(5)  DEFAULT 'B',
+         cliente_id        INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+         orden_trabajo_id  INTEGER REFERENCES ordenes_trabajo(id) ON DELETE SET NULL,
+         fecha             DATE,
+         fecha_vencimiento DATE,
+         estado            VARCHAR(20) DEFAULT 'pendiente',
+         fecha_cobro       DATE,
+         subtotal          NUMERIC(14, 2),
+         iva_porcentaje    NUMERIC(5, 2) DEFAULT 21,
+         total             NUMERIC(14, 2),
+         observaciones     TEXT,
+         created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+         created_at        TIMESTAMPTZ DEFAULT NOW(),
+         updated_at        TIMESTAMPTZ DEFAULT NOW()
+     );
+     CREATE INDEX IF NOT EXISTS ix_facturas_numero     ON facturas (numero);
+     CREATE INDEX IF NOT EXISTS ix_facturas_cliente_id ON facturas (cliente_id);
+     CREATE INDEX IF NOT EXISTS ix_facturas_orden_id   ON facturas (orden_trabajo_id);
+     CREATE INDEX IF NOT EXISTS ix_facturas_fecha      ON facturas (fecha);
+     CREATE INDEX IF NOT EXISTS ix_facturas_estado     ON facturas (estado);
+     """),
+
+    ("Facturas: fecha de emisión obligatoria (eje temporal de los agregados)",
+     """
+     UPDATE facturas SET fecha = COALESCE(fecha, created_at::date, NOW()::date) WHERE fecha IS NULL;
+     ALTER TABLE facturas ALTER COLUMN fecha SET NOT NULL;
+     """),
+
+    ("RBAC: sumar permisos de facturas al rol admin",
+     """
+     UPDATE roles
+     SET vistas   = (SELECT jsonb_agg(DISTINCT v) FROM jsonb_array_elements(vistas   || '["facturas"]'::jsonb) v),
+         acciones = (SELECT jsonb_agg(DISTINCT a) FROM jsonb_array_elements(acciones ||
+                     '["facturas:ver","facturas:crear","facturas:editar","facturas:borrar"]'::jsonb) a)
+     WHERE clave = 'admin';
+     """),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -1183,7 +1232,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS
 
     aplicadas = 0
     salteadas = 0

@@ -85,6 +85,39 @@ class PresupuestoUpdateSchema(_Schema):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Facturas
+# ──────────────────────────────────────────────────────────────────────────────
+
+class FacturaCreateSchema(_Schema):
+    numero:            Optional[str] = Field(None, max_length=30)   # vacío = correlativo FC-NNNN
+    tipo:              str = Field("B", max_length=5)               # A | B | C | X
+    cliente_id:        OptId = None
+    orden_trabajo_id:  OptId = None
+    fecha:             Optional[date] = None                        # vacío = hoy
+    fecha_vencimiento: Optional[date] = None
+    estado:            str = "pendiente"                            # pendiente | cobrada | anulada
+    fecha_cobro:       Optional[date] = None
+    subtotal:          Decimal = Field(Decimal("0"), ge=0)      # sin importes negativos
+    iva_porcentaje:    Decimal = Field(Decimal("21"), ge=0, le=100)
+    observaciones:     Optional[str] = None
+    # `total` NO se acepta del cliente: se calcula server-side (subtotal + IVA).
+
+
+class FacturaUpdateSchema(_Schema):
+    numero:            Optional[str] = Field(None, max_length=30)
+    tipo:              Optional[str] = Field(None, max_length=5)
+    cliente_id:        OptId = None
+    orden_trabajo_id:  OptId = None
+    fecha:             Optional[date] = None
+    fecha_vencimiento: Optional[date] = None
+    estado:            Optional[str] = None
+    fecha_cobro:       Optional[date] = None
+    subtotal:          Optional[Decimal] = Field(None, ge=0)
+    iva_porcentaje:    Optional[Decimal] = Field(None, ge=0, le=100)
+    observaciones:     Optional[str] = None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Stock
 # ──────────────────────────────────────────────────────────────────────────────
 

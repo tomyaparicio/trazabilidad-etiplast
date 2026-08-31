@@ -44,9 +44,10 @@ def verify_token(
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Usuario inactivo")
 
-    # `id` autoritativo desde la DB; `role` se mantiene del token para no cambiar
-    # el comportamiento de autorización existente.
-    return {"email": email, "role": role, "id": user.id if user_id is None else user_id}
+    # `id` y `role` autoritativos desde la DB: si a un usuario le cambian el rol,
+    # el cambio aplica en la request siguiente y no recién cuando expira el token
+    # (antes se leía del JWT y un admin degradado conservaba permisos hasta 7 días).
+    return {"email": email, "role": getattr(user, "role", None) or role, "id": user.id if user_id is None else user_id}
 
 
 def verify_admin(user: dict = Depends(verify_token)) -> dict:
@@ -59,6 +60,20 @@ def verify_admin(user: dict = Depends(verify_token)) -> dict:
 def rol_permisos(clave: str, db: Session) -> Optional[Role]:
     """Rol (fila) por clave, o None."""
     return db.query(Role).filter(Role.clave == clave).first()
+
+
+def tiene_permiso(user: dict, accion: str, db: Session) -> bool:
+    """Versión no-bloqueante de `require_permiso`: devuelve True/False.
+
+    Sirve para respuestas parciales (ej. el dashboard omite el bloque de
+    finanzas si el rol no tiene 'facturas:ver' en vez de fallar con 403).
+    """
+    rol = rol_permisos(user.get("role"), db)
+    if rol is None:
+        return user.get("role") == "admin"
+    if rol.protegido:
+        return True
+    return accion in (rol.acciones or [])
 
 
 def require_permiso(accion: str):

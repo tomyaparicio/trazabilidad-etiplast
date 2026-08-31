@@ -17,6 +17,7 @@ VISTAS = [
     ("clientes", "Clientes"),
     ("ordenes", "Órdenes de trabajo"),
     ("presupuestos", "Presupuestos"),
+    ("facturas", "Facturas"),
     ("stock", "Stock"),
     ("remitos", "Remitos"),
     ("reportes", "Reportes"),
@@ -35,6 +36,8 @@ MODULOS = [
     ("clientes", "Clientes", ["ver", "crear", "editar", "borrar"]),
     ("ordenes", "Órdenes de trabajo", ["ver", "crear", "editar", "borrar"]),
     ("presupuestos", "Presupuestos", ["ver", "crear", "editar", "borrar", "aprobar"]),
+    # Facturas: sólo admin por defecto (no se suma a los roles user/operario).
+    ("facturas", "Facturas", ["ver", "crear", "editar", "borrar"]),
     ("stock", "Stock", ["ver", "crear", "editar", "borrar"]),
     ("remitos", "Remitos", ["ver", "crear", "editar", "borrar"]),
     ("calidad", "Calidad", ["ver", "crear", "editar", "borrar"]),
