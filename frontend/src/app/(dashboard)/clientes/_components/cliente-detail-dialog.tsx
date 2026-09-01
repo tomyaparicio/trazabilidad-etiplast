@@ -6,6 +6,7 @@ import { api } from "@/lib/api"
 import type { Cliente, ClienteProducto, Maquina, RazonSocial } from "@/types/database"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Pencil, Check, Loader2, AlertCircle, CheckCircle2, Plus, Trash2,
   Building2, MapPin, Phone, FileText, Hash, Boxes, Truck, TriangleAlert,
@@ -170,6 +171,12 @@ const toBody = (f: ProdForm) => ({
   cierre: f.cierre ? Number(f.cierre) : null,
   maquina_impresora_id: f.maquina_impresora_id ? Number(f.maquina_impresora_id) : null,
 })
+
+/** El código "P-01" que muestra la card, para nombrar la presentación en los diálogos. */
+function codigoDe(productos: ClienteProducto[], producto: ClienteProducto) {
+  const idx = productos.findIndex((p) => p.id === producto.id)
+  return `P-${String((idx < 0 ? 0 : idx) + 1).padStart(2, "0")}`
+}
 
 function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   producto: ClienteProducto; idx: number
@@ -336,6 +343,8 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
   const [form, setForm] = useState<ProdForm>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
+  // Presentación pendiente de confirmar el borrado (null = no hay diálogo abierto).
+  const [aEliminar, setAEliminar] = useState<ClienteProducto | null>(null)
   const [error, setError] = useState("")
   const [envases, setEnvases] = useState<string[]>([])
   const [impresoras, setImpresoras] = useState<Maquina[]>([])
@@ -383,7 +392,8 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
       toast.success("Producto eliminado")
     } catch (e) {
       setError("Error al eliminar")
-      toast.error(e instanceof Error && e.message ? e.message : "No se pudo eliminar el producto")
+      // Se relanza: el ConfirmDialog muestra el error y se queda abierto.
+      throw e
     }
     finally { setDeleting(null) }
   }
@@ -416,7 +426,7 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
         {productos.map((p, i) =>
           editingId === p.id
             ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} envases={envases} impresoras={impresoras} />
-            : <ProductCard key={p.id} producto={p} idx={i} onEdit={() => startEdit(p)} onDelete={() => remove(p.id)} deleting={deleting === p.id} disabled={editingId !== null} />
+            : <ProductCard key={p.id} producto={p} idx={i} onEdit={() => startEdit(p)} onDelete={() => setAEliminar(p)} deleting={deleting === p.id} disabled={editingId !== null} />
         )}
 
         {editingId === "new"
@@ -428,6 +438,29 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
             </button>
           )}
       </div>
+
+      {/* Borrar una presentación es irreversible: se confirma antes. */}
+      {aEliminar && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => { if (!o) setAEliminar(null) }}
+          title="¿Eliminar esta presentación?"
+          description={
+            <>
+              Vas a eliminar{" "}
+              <span className="font-semibold text-foreground">
+                {codigoDe(productos, aEliminar)}
+                {aEliminar.nombre ? ` · ${aEliminar.nombre}` : ""}
+              </span>{" "}
+              de este cliente. Se pierden sus medidas (lámina, alto, cilindro, cierre) y
+              <span className="font-semibold text-foreground"> no se puede deshacer</span>.
+            </>
+          }
+          confirmLabel="Sí, eliminar"
+          cancelLabel="No, volver"
+          onConfirm={() => remove(aEliminar.id)}
+        />
+      )}
     </div>
   )
 }
