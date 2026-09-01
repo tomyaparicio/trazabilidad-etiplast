@@ -51,6 +51,39 @@ def razon_social_efectiva():
     return func.coalesce(RazonSocial.razon_social, Cliente.razon_social)
 
 
+def _resolver_id_cliente(db: Session, id_cliente, rs_id):
+    """Decide el id_cliente del alta y protege el N° que se ve en pantalla.
+
+    Si la razón social aporta el número, el id_cliente es INTERNO y puede
+    repetirse: sumarle una marca a una empresa que ya existe es el caso normal
+    de Etiplast, no un error. Sin razón social que lo aporte, el id_cliente ES
+    el número visible, así que no puede pisar el de otra entidad.
+    """
+    if id_cliente is None:
+        return (db.query(func.max(Cliente.id_cliente)).scalar() or 0) + 1
+
+    rs = db.query(RazonSocial).filter(RazonSocial.id == rs_id).first() if rs_id else None
+    if rs is not None and rs.numero is not None:
+        return id_cliente
+
+    choca = (
+        db.query(Cliente)
+        .outerjoin(RazonSocial, RazonSocial.id == Cliente.razon_social_id)
+        .filter(func.coalesce(RazonSocial.numero, Cliente.id_cliente) == id_cliente)
+        .first()
+    )
+    if choca:
+        de_quien = (
+            choca.razon_social_obj.razon_social if choca.razon_social_obj
+            else (choca.marca or f"el cliente #{choca.id}")
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"El N° {id_cliente} ya es de «{de_quien}». Cada razón social lleva el suyo.",
+        )
+    return id_cliente
+
+
 def _eager_options():
     """Opciones de carga eager para traer todas las relaciones en 1 query."""
     return [
@@ -394,24 +427,18 @@ async def crear_cliente(
     # exclude_none: las claves ausentes/None se omiten, igual que antes con Body dict.
     datos = payload.model_dump(exclude_none=True)
 
-    # Determinar id_cliente
-    id_cliente = datos.get("id_cliente")
-    if id_cliente is None:
-        max_id = db.query(func.max(Cliente.id_cliente)).scalar()
-        id_cliente = (max_id or 0) + 1
-    elif db.query(Cliente).filter(Cliente.id_cliente == id_cliente).first():
-        raise HTTPException(status_code=400, detail=f"Ya existe un cliente con id_cliente={id_cliente}")
-
     # Resolver rubro_id
     rubro_id = None
     if datos.get("rubro"):
         rubro_id = _get_or_create_rubro(db, datos["rubro"]).id
 
-    # Resolver razon_social_id
+    # La razón social se resuelve ANTES del número, porque es la que lo aporta.
     rs_id = datos.get("razon_social_id")
     rs_text = datos.get("razon_social", "")
     if not rs_id and rs_text and rs_text.strip():
         rs_id = _get_or_create_razon_social(db, rs_text, datos.get("cuit")).id
+
+    id_cliente = _resolver_id_cliente(db, datos.get("id_cliente"), rs_id)
 
     # Crear registro principal
     cliente = Cliente(
