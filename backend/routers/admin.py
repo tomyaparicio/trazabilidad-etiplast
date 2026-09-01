@@ -204,6 +204,8 @@ def crear_rubro(
         raise HTTPException(status_code=400, detail="Ya existe un rubro con ese nombre")
     rubro = Rubro(nombre=nombre)
     db.add(rubro)
+    db.flush()   # asigna el id sin cerrar la transacción (la auditoría va adentro)
+    auditoria.registrar(db, admin, "crear", "rubro", rubro.id, f"Creó rubro {rubro.nombre}")
     db.commit()
     db.refresh(rubro)
     return {"id": rubro.id, "nombre": rubro.nombre, "cantidad_clientes": 0}
@@ -225,7 +227,10 @@ def renombrar_rubro(
     existente = db.query(Rubro).filter(func.lower(Rubro.nombre) == nombre.lower(), Rubro.id != rubro_id).first()
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe un rubro con ese nombre")
+    antes = rubro.nombre
     rubro.nombre = nombre
+    auditoria.registrar(db, admin, "actualizar", "rubro", rubro.id,
+                        f"Renombró rubro {antes} → {nombre}", datos={"antes": antes, "despues": nombre})
     db.commit()
     db.refresh(rubro)
     return {"id": rubro.id, "nombre": rubro.nombre}
@@ -255,6 +260,9 @@ def eliminar_rubro(
             raise HTTPException(status_code=404, detail="Rubro destino no encontrado")
         db.query(Cliente).filter(Cliente.rubro_id == rubro_id).update({"rubro_id": mover_a})
 
+    auditoria.registrar(db, admin, "eliminar", "rubro", rubro.id,
+                        f"Eliminó rubro {rubro.nombre}",
+                        datos={"nombre": rubro.nombre, "clientes": clientes_count, "movidos_a": mover_a})
     db.delete(rubro)
     db.commit()
     logger.info("Admin %s eliminó rubro '%s' (id=%s)", admin["email"], rubro.nombre, rubro_id)
@@ -301,6 +309,8 @@ def crear_envase(
         raise HTTPException(status_code=400, detail="Ya existe un envase con ese nombre")
     envase = Envase(nombre=nombre)
     db.add(envase)
+    db.flush()
+    auditoria.registrar(db, admin, "crear", "envase", envase.id, f"Creó envase {envase.nombre}")
     db.commit()
     db.refresh(envase)
     return {"id": envase.id, "nombre": envase.nombre, "cantidad_productos": 0}
@@ -322,7 +332,10 @@ def renombrar_envase(
     existente = db.query(Envase).filter(func.lower(Envase.nombre) == nombre.lower(), Envase.id != envase_id).first()
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe un envase con ese nombre")
+    antes = envase.nombre
     envase.nombre = nombre
+    auditoria.registrar(db, admin, "actualizar", "envase", envase.id,
+                        f"Renombró envase {antes} → {nombre}", datos={"antes": antes, "despues": nombre})
     db.commit()
     db.refresh(envase)
     return {"id": envase.id, "nombre": envase.nombre}
@@ -337,6 +350,8 @@ def eliminar_envase(
     envase = db.query(Envase).filter(Envase.id == envase_id).first()
     if not envase:
         raise HTTPException(status_code=404, detail="Envase no encontrado")
+    auditoria.registrar(db, admin, "eliminar", "envase", envase.id,
+                        f"Eliminó envase {envase.nombre}", datos={"nombre": envase.nombre})
     db.delete(envase)
     db.commit()
     logger.info("Admin %s eliminó envase '%s' (id=%s)", admin["email"], envase.nombre, envase_id)
@@ -385,6 +400,9 @@ def crear_maquina(
     codigo = _siguiente_codigo_maquina(db, nombre)
     m = Maquina(codigo=codigo, nombre=nombre, tipo=tipo, activa=True)
     db.add(m)
+    db.flush()
+    auditoria.registrar(db, admin, "crear", "maquina", m.id, f"Creó máquina {m.codigo} ({m.nombre})",
+                        datos={"codigo": m.codigo, "nombre": m.nombre, "tipo": m.tipo})
     db.commit()
     db.refresh(m)
     logger.info("Admin %s creó máquina '%s' (id=%s)", admin["email"], m.nombre, m.id)
@@ -401,12 +419,18 @@ def actualizar_maquina(
     m = db.query(Maquina).filter(Maquina.id == maquina_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Máquina no encontrada")
+    antes = {"nombre": m.nombre, "tipo": m.tipo, "activa": m.activa}
+
     datos = payload.model_dump(exclude_unset=True)
     for campo in ("nombre", "tipo"):
         if campo in datos and datos[campo]:
             setattr(m, campo, datos[campo].strip())
     if "activa" in datos:
         m.activa = bool(datos["activa"])
+
+    auditoria.registrar(db, admin, "actualizar", "maquina", m.id, f"Actualizó máquina {m.codigo}",
+                        datos={"antes": antes,
+                               "despues": {"nombre": m.nombre, "tipo": m.tipo, "activa": m.activa}})
     db.commit()
     db.refresh(m)
     return m.to_dict()
@@ -421,6 +445,8 @@ def eliminar_maquina(
     m = db.query(Maquina).filter(Maquina.id == maquina_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Máquina no encontrada")
+    auditoria.registrar(db, admin, "eliminar", "maquina", m.id, f"Eliminó máquina {m.codigo} ({m.nombre})",
+                        datos={"codigo": m.codigo, "nombre": m.nombre, "tipo": m.tipo})
     db.delete(m)
     db.commit()
     logger.info("Admin %s eliminó máquina '%s' (id=%s)", admin["email"], m.nombre, maquina_id)
@@ -457,8 +483,16 @@ def listar_auditoria(
         .all()
     )
 
+    # Las entidades del <select> salen de la propia tabla: una lista hardcodeada
+    # se desfasa apenas se audita algo nuevo (ya había pasado: ofrecía "user"
+    # cuando el backend escribe "usuario", y ese filtro no devolvía nada).
+    entidades = [
+        e for (e,) in db.query(AuditLog.entidad).distinct().order_by(AuditLog.entidad).all() if e
+    ]
+
     return {
         "data":        [r.to_dict() for r in registros],
+        "entidades":   entidades,
         "total":       total,
         "page":        page,
         "per_page":    per_page,

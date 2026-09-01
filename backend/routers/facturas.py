@@ -257,7 +257,7 @@ async def actualizar_factura(
     if "subtotal" in d or "iva_porcentaje" in d:
         factura.total = _calcular_total(factura.subtotal, factura.iva_porcentaje)
 
-    auditoria.registrar(db, user, "editar", "factura", factura.id, f"Factura {factura.numero} actualizada",
+    auditoria.registrar(db, user, "actualizar", "factura", factura.id, f"Factura {factura.numero} actualizada",
                         datos={"antes": antes, "despues": {"numero": factura.numero, "estado": factura.estado,
                                "total": float(factura.total or 0),
                                "fecha": factura.fecha.isoformat() if factura.fecha else None}})
@@ -280,7 +280,7 @@ async def eliminar_factura(
     if not factura:
         raise HTTPException(status_code=404, detail="Factura no encontrada")
     numero = factura.numero
-    auditoria.registrar(db, user, "borrar", "factura", factura_id, f"Factura {numero} eliminada",
+    auditoria.registrar(db, user, "eliminar", "factura", factura_id, f"Factura {numero} eliminada",
                         datos={"numero": numero, "cliente_id": factura.cliente_id,
                                "total": float(factura.total or 0), "estado": factura.estado,
                                "fecha": factura.fecha.isoformat() if factura.fecha else None})

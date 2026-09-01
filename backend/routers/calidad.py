@@ -157,7 +157,7 @@ async def actualizar_plantilla(
         _sync_items(db, plantilla, datos.items)
 
     auditoria.registrar(
-        db, user, "editar", "qc_plantilla", plantilla.id,
+        db, user, "actualizar", "qc_plantilla", plantilla.id,
         f"Editó la plantilla QC '{plantilla.nombre}' (etapa {plantilla.etapa})",
     )
     db.commit()

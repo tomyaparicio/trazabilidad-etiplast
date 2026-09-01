@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from dependencies import verify_token
 from models import RazonSocial, Cliente
+from services import auditoria
 from schemas import RazonSocialCreateSchema, RazonSocialUpdateSchema
 
 router = APIRouter(prefix="/api", tags=["razones_sociales"])
@@ -97,7 +98,7 @@ async def listar_razones_sociales(
 @router.post("/razones-sociales", status_code=201, summary="Crear razón social")
 async def crear_razon_social(
     payload: RazonSocialCreateSchema,
-    _user: dict = Depends(verify_token),
+    user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
     rs = (payload.razon_social or "").strip()
@@ -108,6 +109,11 @@ async def crear_razon_social(
 
     obj = RazonSocial(razon_social=rs, cuit=payload.cuit, numero=payload.numero)
     db.add(obj)
+    db.flush()   # asigna el id sin cerrar la transacción (la auditoría va adentro)
+
+    auditoria.registrar(db, user, "crear", "razon_social", obj.id,
+                        f"Creó razón social {obj.razon_social}",
+                        datos={"razon_social": obj.razon_social, "cuit": obj.cuit, "numero": obj.numero})
     db.commit()
     db.refresh(obj)
     return {**obj.to_dict(), "cantidad_marcas": 0}
@@ -121,12 +127,16 @@ async def crear_razon_social(
 async def actualizar_razon_social(
     rs_id: int,
     payload: RazonSocialUpdateSchema,
-    _user: dict = Depends(verify_token),
+    user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
     obj = db.query(RazonSocial).filter(RazonSocial.id == rs_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="Razón social no encontrada")
+
+    # El N° repercute en TODAS las marcas de la empresa y en cómo se las busca:
+    # sin el "antes" no hay forma de reconstruir qué pasó.
+    antes = {"razon_social": obj.razon_social, "cuit": obj.cuit, "numero": obj.numero}
 
     datos = payload.model_dump(exclude_unset=True)
     if "razon_social" in datos and datos["razon_social"]:
@@ -137,6 +147,11 @@ async def actualizar_razon_social(
         _validar_numero_libre(db, datos["numero"], excluir_id=rs_id)
         obj.numero = datos["numero"]
 
+    auditoria.registrar(db, user, "actualizar", "razon_social", obj.id,
+                        f"Actualizó razón social {obj.razon_social}",
+                        datos={"antes": antes,
+                               "despues": {"razon_social": obj.razon_social, "cuit": obj.cuit,
+                                           "numero": obj.numero}})
     db.commit()
     db.refresh(obj)
 

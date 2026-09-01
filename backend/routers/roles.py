@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from dependencies import verify_token, verify_admin, rol_permisos
 from models import Role, User
+from services import auditoria
 import rbac
 
 router = APIRouter(prefix="/api", tags=["roles"])
@@ -65,7 +66,7 @@ async def listar_roles(_admin: dict = Depends(verify_admin), db: Session = Depen
 
 
 @router.post("/admin/roles", status_code=201, summary="Crear rol")
-async def crear_rol(data: RoleIn, _admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
+async def crear_rol(data: RoleIn, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
     clave = re.sub(r"[^a-z0-9]+", "_", (data.clave or data.nombre or "").strip().lower()).strip("_")
     if not clave:
         raise HTTPException(status_code=400, detail="Nombre inválido")
@@ -74,28 +75,42 @@ async def crear_rol(data: RoleIn, _admin: dict = Depends(verify_admin), db: Sess
     vs, ac = _validar(data.vistas, data.acciones)
     rol = Role(clave=clave, nombre=data.nombre.strip(), vistas=vs, acciones=ac, protegido=False)
     db.add(rol)
+    db.flush()   # asigna el id sin cerrar la transacción (la auditoría va adentro)
+
+    # Los permisos definen quién ve la facturación: cambiarlos siempre deja rastro.
+    auditoria.registrar(db, admin, "crear", "rol", rol.id,
+                        f"Creó rol {rol.nombre}",
+                        datos={"clave": rol.clave, "vistas": vs, "acciones": ac})
     db.commit()
     db.refresh(rol)
     return rol.to_dict()
 
 
 @router.put("/admin/roles/{role_id}", summary="Editar rol (nombre/vistas/acciones)")
-async def actualizar_rol(role_id: int, data: RoleIn, _admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
+async def actualizar_rol(role_id: int, data: RoleIn, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
     rol = db.query(Role).filter(Role.id == role_id).first()
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
+    antes = {"nombre": rol.nombre, "vistas": rol.vistas, "acciones": rol.acciones}
+
     nombre = (data.nombre or "").strip()
     if nombre:
         rol.nombre = nombre
     if not rol.protegido:  # el rol protegido (admin) conserva todos sus permisos
         rol.vistas, rol.acciones = _validar(data.vistas, data.acciones)
+
+    auditoria.registrar(db, admin, "actualizar", "rol", rol.id,
+                        f"Actualizó rol {rol.nombre}",
+                        datos={"antes": antes,
+                               "despues": {"nombre": rol.nombre, "vistas": rol.vistas,
+                                           "acciones": rol.acciones}})
     db.commit()
     db.refresh(rol)
     return rol.to_dict()
 
 
 @router.delete("/admin/roles/{role_id}", status_code=204, summary="Borrar rol")
-async def borrar_rol(role_id: int, _admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
+async def borrar_rol(role_id: int, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
     rol = db.query(Role).filter(Role.id == role_id).first()
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
@@ -104,6 +119,9 @@ async def borrar_rol(role_id: int, _admin: dict = Depends(verify_admin), db: Ses
     en_uso = db.query(User).filter(User.role == rol.clave).count()
     if en_uso:
         raise HTTPException(status_code=409, detail=f"El rol está asignado a {en_uso} usuario(s); reasignalos primero")
+    auditoria.registrar(db, admin, "eliminar", "rol", rol.id,
+                        f"Eliminó rol {rol.nombre}",
+                        datos={"clave": rol.clave, "vistas": rol.vistas, "acciones": rol.acciones})
     db.delete(rol)
     db.commit()
     return None

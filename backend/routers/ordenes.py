@@ -171,7 +171,7 @@ async def obtener_orden(
 @router.post("/ordenes", status_code=201, summary="Crear nueva orden de trabajo")
 async def crear_orden(
     payload: OrdenCreateSchema,
-    _user: dict = Depends(require_permiso("ordenes:crear")),
+    user: dict = Depends(require_permiso("ordenes:crear")),
     db: Session = Depends(get_db),
 ):
     # exclude_none: las claves ausentes/None se omiten (los `.get(k, default)` siguen
@@ -263,6 +263,10 @@ async def crear_orden(
             numero_lote=(row.get("numero_lote") or None),
         ))
 
+    auditoria.registrar(
+        db, user, "crear", "orden_trabajo", orden.id, f"Creó orden {orden.numero}",
+        datos={"numero": orden.numero, "cliente_id": orden.cliente_id, "estado": orden.estado},
+    )
     db.commit()
 
     orden = (
@@ -282,7 +286,7 @@ async def crear_orden(
 async def actualizar_orden(
     orden_id: int,
     payload: OrdenUpdateSchema,
-    _user: dict = Depends(require_permiso("ordenes:editar")),
+    user: dict = Depends(require_permiso("ordenes:editar")),
     db: Session = Depends(get_db),
 ):
     # exclude_unset: solo los campos enviados → actualización parcial (`if k in datos`).
@@ -296,6 +300,9 @@ async def actualizar_orden(
     )
     if not orden:
         raise HTTPException(status_code=404, detail="Orden de trabajo no encontrada")
+
+    antes = {"estado": orden.estado, "cliente_id": orden.cliente_id,
+             "fecha": orden.fecha.isoformat() if orden.fecha else None}
 
     # Campos simples
     if "estado" in datos:
@@ -374,6 +381,11 @@ async def actualizar_orden(
     if "bobinas" in datos:
         _sync_bobinas(db, orden, datos["bobinas"] or [])
 
+    auditoria.registrar(
+        db, user, "actualizar", "orden_trabajo", orden.id, f"Actualizó orden {orden.numero}",
+        datos={"antes": antes, "campos": sorted(datos.keys()),
+               "despues": {"estado": orden.estado}},
+    )
     db.commit()
 
     orden = (

@@ -51,6 +51,16 @@ def razon_social_efectiva():
     return func.coalesce(RazonSocial.razon_social, Cliente.razon_social)
 
 
+def _nombre_cliente(c) -> str:
+    """Cómo se nombra un cliente en la auditoría: lo que el usuario reconoce."""
+    return c.marca or c.razon_social or f"#{c.id}"
+
+
+def _nombre_producto(p) -> str:
+    """Cómo se nombra una presentación en la auditoría."""
+    return p.nombre or p.envase or f"presentación #{p.id}"
+
+
 def _resolver_id_cliente(db: Session, id_cliente, rs_id):
     """Decide el id_cliente del alta y protege el N° que se ve en pantalla.
 
@@ -420,7 +430,7 @@ async def obtener_cliente(
 @router.post("/clientes", status_code=201, summary="Crear nuevo cliente")
 async def crear_cliente(
     payload: ClienteCreateSchema,
-    _user: dict = Depends(require_permiso("clientes:crear")),
+    user: dict = Depends(require_permiso("clientes:crear")),
     db: Session = Depends(get_db),
 ):
     # Validación vía Pydantic; se opera sobre un dict para no cambiar la lógica.
@@ -496,6 +506,12 @@ async def crear_cliente(
             cierre=_to_float(datos.get("cierre")),
         ))
 
+    auditoria.registrar(
+        db, user, "crear", "cliente", cliente.id,
+        f"Creó cliente {_nombre_cliente(cliente)}",
+        datos={"marca": cliente.marca, "razon_social_id": cliente.razon_social_id,
+               "id_cliente": cliente.id_cliente},
+    )
     db.commit()
 
     # Recargar con relaciones para devolver dict completo
@@ -517,7 +533,7 @@ async def crear_cliente(
 async def actualizar_cliente(
     cliente_id: int,
     payload: ClienteUpdateSchema,
-    _user: dict = Depends(require_permiso("clientes:editar")),
+    user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
     # exclude_unset: solo los campos realmente enviados → se preserva la semántica
@@ -532,6 +548,14 @@ async def actualizar_cliente(
     )
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    # Foto previa: sin el "antes" la auditoría dice que algo cambió pero no de qué a qué.
+    antes = {
+        "marca": cliente.marca,
+        "razon_social_id": cliente.razon_social_id,
+        "id_cliente": cliente.id_cliente,
+        "rubro_id": cliente.rubro_id,
+    }
 
     # — Identidad —
     for campo in ("marca", "razon_social", "cuit"):
@@ -606,6 +630,11 @@ async def actualizar_cliente(
             if campo in datos:
                 setattr(pr, campo, _to_float(datos[campo]))
 
+    auditoria.registrar(
+        db, user, "actualizar", "cliente", cliente.id,
+        f"Actualizó cliente {_nombre_cliente(cliente)}",
+        datos={"antes": antes, "campos": sorted(datos.keys())},
+    )
     db.commit()
 
     cliente = (
@@ -625,10 +654,11 @@ async def actualizar_cliente(
 async def crear_producto_cliente(
     cliente_id: int,
     datos: Dict[str, Any] = Body(...),
-    _user: dict = Depends(require_permiso("clientes:editar")),
+    user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
-    if not db.query(Cliente).filter(Cliente.id == cliente_id).first():
+    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     producto = ClienteProducto(
@@ -647,6 +677,13 @@ async def crear_producto_cliente(
         maquina_impresora_id=datos.get("maquina_impresora_id"),
     )
     db.add(producto)
+    db.flush()   # asigna el id sin cerrar la transacción (la auditoría va adentro)
+
+    auditoria.registrar(
+        db, user, "crear", "cliente_producto", producto.id,
+        f"Agregó {_nombre_producto(producto)} a {_nombre_cliente(cliente)}",
+        datos={"cliente_id": cliente_id, "nombre": producto.nombre, "envase": producto.envase},
+    )
     db.commit()
     db.refresh(producto)
     return producto.to_dict()
@@ -657,7 +694,7 @@ async def actualizar_producto_cliente(
     cliente_id: int,
     producto_id: int,
     datos: Dict[str, Any] = Body(...),
-    _user: dict = Depends(require_permiso("clientes:editar")),
+    user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
     producto = db.query(ClienteProducto).filter(
@@ -666,6 +703,10 @@ async def actualizar_producto_cliente(
     ).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    antes = {"nombre": producto.nombre, "envase": producto.envase, "lamina": producto.lamina,
+             "alto": _to_float(producto.alto), "cilindro": _to_float(producto.cilindro),
+             "cierre": _to_float(producto.cierre)}
 
     for campo in ("nombre", "envase", "envase_codificado", "ubicacion", "volumen_unidad", "lamina", "muestra"):
         if campo in datos:
@@ -676,6 +717,11 @@ async def actualizar_producto_cliente(
     if "maquina_impresora_id" in datos:
         producto.maquina_impresora_id = datos["maquina_impresora_id"]
 
+    auditoria.registrar(
+        db, user, "actualizar", "cliente_producto", producto.id,
+        f"Actualizó {_nombre_producto(producto)} de {_nombre_cliente(producto.cliente)}",
+        datos={"antes": antes, "campos": sorted(datos.keys())},
+    )
     db.commit()
     db.refresh(producto)
     return producto.to_dict()
@@ -685,7 +731,7 @@ async def actualizar_producto_cliente(
 async def eliminar_producto_cliente(
     cliente_id: int,
     producto_id: int,
-    _user: dict = Depends(require_permiso("clientes:editar")),
+    user: dict = Depends(require_permiso("clientes:editar")),
     db: Session = Depends(get_db),
 ):
     producto = db.query(ClienteProducto).filter(
@@ -694,6 +740,15 @@ async def eliminar_producto_cliente(
     ).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    # Se registra ANTES del delete: después el objeto ya no tiene datos que contar.
+    auditoria.registrar(
+        db, user, "eliminar", "cliente_producto", producto.id,
+        f"Eliminó {_nombre_producto(producto)} de {_nombre_cliente(producto.cliente)}",
+        datos={"cliente_id": cliente_id, "nombre": producto.nombre, "envase": producto.envase,
+               "lamina": producto.lamina, "alto": _to_float(producto.alto),
+               "cilindro": _to_float(producto.cilindro), "cierre": _to_float(producto.cierre)},
+    )
     db.delete(producto)
     db.commit()
 

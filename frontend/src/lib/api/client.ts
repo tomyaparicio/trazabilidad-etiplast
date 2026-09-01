@@ -186,7 +186,7 @@ export const api = {
     auditoria: {
       list: (params?: { entidad?: string; entidad_id?: number; user_id?: number; page?: number; per_page?: number }) => {
         const p = params as Record<string, string | number | undefined> | undefined
-        return get<Paginated<AuditEntry>>("/api/admin/auditoria", p)
+        return get<Paginated<AuditEntry> & { entidades?: string[] }>("/api/admin/auditoria", p)
       },
     },
     /** ABM de roles configurables (RBAC) — solo admin */

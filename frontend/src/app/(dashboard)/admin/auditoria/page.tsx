@@ -17,17 +17,30 @@ import {
 
 const PER_PAGE = 20
 
-/** Entidades conocidas para el filtro (alineadas con AuditLog.entidad del backend). */
-const ENTIDADES: { value: string; label: string }[] = [
-  { value: "", label: "Todas las entidades" },
-  { value: "orden_trabajo", label: "Órdenes de trabajo" },
-  { value: "presupuesto", label: "Presupuestos" },
-  { value: "remito", label: "Remitos" },
-  { value: "stock_item", label: "Stock" },
-  { value: "movimiento_stock", label: "Movimientos de stock" },
-  { value: "cliente", label: "Clientes" },
-  { value: "user", label: "Usuarios" },
-]
+/** Nombre lindo por entidad. La LISTA la manda el backend (`entidades` en la
+ *  respuesta): hardcodearla ya nos jugó una mala pasada — ofrecía "user"
+ *  cuando el backend escribe "usuario" y ese filtro no devolvía nada. Si
+ *  aparece una entidad sin etiqueta acá, se muestra su clave tal cual. */
+const ETIQUETAS: Record<string, string> = {
+  orden_trabajo:    "Órdenes de trabajo",
+  presupuesto:      "Presupuestos",
+  remito:           "Remitos",
+  factura:          "Facturas",
+  stock_item:       "Stock",
+  movimiento_stock: "Movimientos de stock",
+  cliente:          "Clientes",
+  cliente_producto: "Presentaciones",
+  razon_social:     "Razones sociales",
+  usuario:          "Usuarios",
+  rol:              "Roles",
+  rubro:            "Rubros",
+  envase:           "Envases",
+  maquina:          "Máquinas",
+  qc_plantilla:     "Plantillas de calidad",
+  qc_registro:      "Controles de calidad",
+}
+
+const etiquetaEntidad = (e: string) => ETIQUETAS[e] ?? e
 
 /** Colores por acción para el badge. */
 const ACCION_STYLES: Record<string, string> = {
@@ -59,6 +72,7 @@ export default function AuditoriaPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
   const [entidad, setEntidad] = useState("")
+  const [entidades, setEntidades] = useState<string[]>([])
   const [search, setSearch] = useState("")
 
   const fetchData = useCallback(async () => {
@@ -73,6 +87,8 @@ export default function AuditoriaPage() {
       setItems(res.data ?? [])
       setTotalPages(res.total_pages || 1)
       setTotal(res.total ?? 0)
+      // Sólo cuando no hay filtro: filtrando, la lista vendría recortada a una.
+      if (!entidad && res.entidades) setEntidades(res.entidades)
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudieron cargar los datos"
       setError(msg)
@@ -132,7 +148,7 @@ export default function AuditoriaPage() {
       header: "Entidad",
       cell: (r) => (
         <span className="text-xs font-medium text-foreground">
-          {r.entidad}
+          {etiquetaEntidad(r.entidad)}
           {r.entidad_id != null && (
             <span className="ml-1 font-mono text-muted-foreground">#{r.entidad_id}</span>
           )}
@@ -178,8 +194,9 @@ export default function AuditoriaPage() {
             aria-label="Filtrar por entidad"
             className="h-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/15 cursor-pointer"
           >
-            {ENTIDADES.map((e) => (
-              <option key={e.value || "all"} value={e.value}>{e.label}</option>
+            <option value="">Todas las entidades</option>
+            {entidades.map((e) => (
+              <option key={e} value={e}>{etiquetaEntidad(e)}</option>
             ))}
           </Select>
         </div>
