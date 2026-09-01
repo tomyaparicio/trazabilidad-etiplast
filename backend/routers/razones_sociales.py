@@ -17,6 +17,25 @@ from schemas import RazonSocialCreateSchema, RazonSocialUpdateSchema
 router = APIRouter(prefix="/api", tags=["razones_sociales"])
 
 
+def _validar_numero_libre(db: Session, numero, excluir_id=None):
+    """El N° identifica al cliente en toda la planta: no puede repetirse.
+
+    Si dos entidades legales comparten número, buscarlo devuelve clientes de
+    ambas y nadie sabe cuál es cuál. Se corta acá, nombrando con quién choca.
+    """
+    if numero is None:
+        return
+    q = db.query(RazonSocial).filter(RazonSocial.numero == numero)
+    if excluir_id is not None:
+        q = q.filter(RazonSocial.id != excluir_id)
+    otra = q.first()
+    if otra:
+        raise HTTPException(
+            status_code=409,
+            detail=f"El N° {numero} ya es de «{otra.razon_social}». Cada razón social lleva el suyo.",
+        )
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # GET /api/razones-sociales
 # ──────────────────────────────────────────────────────────────────────────────
@@ -85,7 +104,9 @@ async def crear_razon_social(
     if not rs:
         raise HTTPException(status_code=400, detail="razon_social es requerido")
 
-    obj = RazonSocial(razon_social=rs, cuit=payload.cuit)
+    _validar_numero_libre(db, payload.numero)
+
+    obj = RazonSocial(razon_social=rs, cuit=payload.cuit, numero=payload.numero)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -112,6 +133,9 @@ async def actualizar_razon_social(
         obj.razon_social = datos["razon_social"].strip()
     if "cuit" in datos:
         obj.cuit = datos["cuit"]
+    if "numero" in datos:
+        _validar_numero_libre(db, datos["numero"], excluir_id=rs_id)
+        obj.numero = datos["numero"]
 
     db.commit()
     db.refresh(obj)
@@ -155,7 +179,10 @@ async def obtener_razon_social(
         "marcas": [
             {
                 "id":         c.id,
-                "id_cliente": c.id_cliente,
+                # El N° de cliente es de la ENTIDAD LEGAL y lo comparten todas
+                # sus marcas — misma regla que Cliente.to_dict() y el export.
+                # Se cae al de la marca sólo si la razón social no tiene número.
+                "id_cliente": c.numero_visible,
                 "marca":      c.marca,
                 "rubro":      c.rubro_obj.nombre if c.rubro_obj else None,
                 "productos": [

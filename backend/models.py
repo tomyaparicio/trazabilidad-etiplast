@@ -142,6 +142,19 @@ class Cliente(Base):
     def __repr__(self):
         return f"<Cliente id={self.id} marca={self.marca!r}>"
 
+    @property
+    def numero_visible(self):
+        """El N° de cliente que ve y tipea el usuario.
+
+        Etiplast numera por ENTIDAD LEGAL: todas las marcas de una razón social
+        comparten su número (Jubahi, Winsey y Cooperativa son 226 = Bahia Jugos).
+        Sin razón social detrás, el número propio de la marca es el que se ve.
+        Fuente única de esta regla — la usan la ficha, el listado, la búsqueda,
+        el detalle de razón social, las órdenes y el export.
+        """
+        rs = self.razon_social_obj
+        return rs.numero if rs and rs.numero is not None else self.id_cliente
+
     def to_dict(self) -> dict:
         """
         Devuelve estructura plana para compatibilidad con la API.
@@ -155,7 +168,7 @@ class Cliente(Base):
         return {
             # — Identidad —
             "id":               self.id,
-            "id_cliente":       rs.numero if rs and rs.numero is not None else self.id_cliente,
+            "id_cliente":       self.numero_visible,
             "marca":            self.marca,
             "razon_social_id":  self.razon_social_id,
             "razon_social":     rs.razon_social if rs else self.razon_social,
@@ -488,7 +501,7 @@ class OrdenTrabajo(Base):
             "numero":           self.numero,
             "cliente_id":       self.cliente_id,
             "cliente_nombre":   cliente.marca     if cliente else None,
-            "cliente_numero":   cliente.id_cliente if cliente else None,
+            "cliente_numero":   cliente.numero_visible if cliente else None,
             "cliente_producto_id": self.cliente_producto_id,
             "fecha":            self.fecha.isoformat() if self.fecha else None,
             "estado":           self.estado,

@@ -210,9 +210,9 @@ export const api = {
     },
     get: (id: number) =>
       get<RazonSocial & { marcas: { id: number; id_cliente: number | null; marca: string | null }[] }>(`/api/razones-sociales/${id}`),
-    create: (data: { razon_social: string; cuit?: string }) =>
+    create: (data: { razon_social: string; cuit?: string; numero?: number | null }) =>
       post<RazonSocial>("/api/razones-sociales", data),
-    update: (id: number, data: { razon_social?: string; cuit?: string }) =>
+    update: (id: number, data: { razon_social?: string; cuit?: string; numero?: number | null }) =>
       put<RazonSocial>(`/api/razones-sociales/${id}`, data),
   },
   /** Productos de clientes (1:N) */

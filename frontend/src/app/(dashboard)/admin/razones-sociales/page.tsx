@@ -494,12 +494,12 @@ function RSDialog({
   onSaved: (rs: RazonSocialRow) => void
 }) {
   const isEdit = !!rs
-  const [form, setForm] = useState({ razon_social: rs?.razon_social ?? "", cuit: rs?.cuit ?? "" })
+  const [form, setForm] = useState({ razon_social: rs?.razon_social ?? "", cuit: rs?.cuit ?? "", numero: rs?.numero != null ? String(rs.numero) : "" })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
-    setForm({ razon_social: rs?.razon_social ?? "", cuit: rs?.cuit ?? "" })
+    setForm({ razon_social: rs?.razon_social ?? "", cuit: rs?.cuit ?? "", numero: rs?.numero != null ? String(rs.numero) : "" })
     setError("")
   }, [rs?.id, open])
 
@@ -511,7 +511,10 @@ function RSDialog({
     if (!form.razon_social.trim()) { setError("La razón social es requerida"); return }
     setSaving(true); setError("")
     try {
-      const body = { razon_social: form.razon_social.trim(), cuit: form.cuit.trim() || undefined }
+      // numero vacío = "sin número" (null), no "no lo toques": la pantalla
+      // muestra el valor actual, así que lo que se ve es lo que se guarda.
+      const numero = form.numero.trim() ? Number(form.numero) : null
+      const body = { razon_social: form.razon_social.trim(), cuit: form.cuit.trim() || undefined, numero }
       const saved = isEdit
         ? await api.razonessociales.update(rs!.id, body)
         : await api.razonessociales.create(body)
@@ -550,6 +553,15 @@ function RSDialog({
             </label>
             <Input autoFocus value={form.razon_social} onChange={set("razon_social")} placeholder="Aguas del Sur SA"
               className="h-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/15" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider">N° de Cliente</label>
+            <Input value={form.numero} onChange={set("numero")} inputMode="numeric" placeholder="226"
+              className="h-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/15 font-mono tabular-nums" />
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              Lo comparten todas las marcas de esta razón social y es el número con el que se las busca.
+            </p>
           </div>
 
           <div className="space-y-1.5">

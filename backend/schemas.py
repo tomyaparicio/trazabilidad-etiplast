@@ -362,6 +362,9 @@ class OrdenCreateSchema(OrdenUpdateSchema):
 class RazonSocialUpdateSchema(_Schema):
     razon_social: Optional[str] = Field(None, max_length=300)
     cuit:         Optional[str] = Field(None, max_length=20)
+    # N° de cliente de la entidad legal, compartido por todas sus marcas.
+    # gt=0 porque es un número de cliente, no un contador desde cero.
+    numero:       Optional[int] = Field(None, gt=0)
 
 
 class RazonSocialCreateSchema(RazonSocialUpdateSchema):

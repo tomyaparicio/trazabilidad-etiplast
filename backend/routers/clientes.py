@@ -30,6 +30,16 @@ SIN_RAZON_SOCIAL = "__sin__"
 # Helpers internos
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _sin_puntos(col):
+    """La misma cadena sin puntos, para comparar sin que la puntuación estorbe.
+
+    En la base conviven "S.R.L" y "SRL" (y "S.A." y "SA"). Normalizando los dos
+    lados de la comparación, el que escribe cualquiera de las dos formas
+    encuentra a las dos.
+    """
+    return func.replace(col, ".", "")
+
+
 def razon_social_efectiva():
     """La razón social que realmente ve el usuario.
 
@@ -140,20 +150,28 @@ async def listar_clientes(
                 ).desc()
             )
         else:
-            f = f"%{search}%"
+            # Ambos lados sin puntos: buscar "Bahia Jugos SRL" tiene que encontrar
+            # a "Bahia Jugos S.R.L", y al reves.
+            f = f"%{search.replace('.', '')}%"
             try:
                 num = int(search.strip())
-                id_filter = Cliente.id_cliente == num
+                # Se busca por el N° que se ve en pantalla y nada más: el de la
+                # razón social, compartido por todas sus marcas. El id_cliente
+                # interno NO es buscable — si lo fuera, un mismo cliente se
+                # encontraría con dos números y ninguno sabría cuál es el bueno.
+                # El coalesce cubre a los clientes sin razón social, donde el
+                # número de la marca ES el que se muestra.
+                id_filter = func.coalesce(RazonSocial.numero, Cliente.id_cliente) == num
             except ValueError:
                 id_filter = None
             conditions = [
-                Cliente.marca.ilike(f),
-                Cliente.razon_social.ilike(f),
-                RazonSocial.razon_social.ilike(f),
-                ClienteUbicacion.localidad.ilike(f),
+                _sin_puntos(Cliente.marca).ilike(f),
+                _sin_puntos(Cliente.razon_social).ilike(f),
+                _sin_puntos(RazonSocial.razon_social).ilike(f),
+                _sin_puntos(ClienteUbicacion.localidad).ilike(f),
                 # EXISTS en vez de join: encuentra al cliente por el nombre de
                 # cualquiera de sus presentaciones, sin repetirlo por cada una.
-                Cliente.productos.any(ClienteProducto.nombre.ilike(f)),
+                Cliente.productos.any(_sin_puntos(ClienteProducto.nombre).ilike(f)),
             ]
             if id_filter is not None:
                 conditions.insert(0, id_filter)
@@ -267,8 +285,7 @@ async def exportar_clientes_excel(
     # N° Cliente con la MISMA regla que el UI (Cliente.to_dict): prioriza el
     # numero de la razón social (compartido entre marcas) y cae al id_cliente.
     def _numero(c):
-        rs = c.razon_social_obj
-        return rs.numero if rs and rs.numero is not None else c.id_cliente
+        return c.numero_visible
 
     # Orden estable: por número de cliente (nulos al final) y marca.
     clientes.sort(key=lambda c: (_numero(c) is None, _numero(c) or 0, (c.marca or "").upper()))
