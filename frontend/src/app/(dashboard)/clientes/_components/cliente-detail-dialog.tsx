@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, ClienteProducto, Maquina, RazonSocial } from "@/types/database"
 import { Button } from "@/components/ui/button"
+import { PresentacionCard } from "@/components/presentacion-card"
 import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -24,13 +25,6 @@ const TABS = [
   { key: "notas",      label: "Notas",        icon: FileText  },
 ] as const
 type TabKey = typeof TABS[number]["key"]
-
-// Extrae el tamaño/presentación del nombre: "Agua x 500 ml" → "500 ml"; sin " x " → null.
-const sizeFrom = (n?: string | null) => {
-  if (!n) return null
-  const p = n.split(/\s+x\s+/i)
-  return p.length > 1 ? p[p.length - 1].trim() : null
-}
 
 // ─── Field card ───────────────────────────────────────────────────────────────
 function FieldCard({
@@ -182,96 +176,57 @@ function ProductCard({ producto, idx, onEdit, onDelete, deleting, disabled }: {
   producto: ClienteProducto; idx: number
   onEdit: () => void; onDelete: () => void; deleting: boolean; disabled: boolean
 }) {
-  // El tamaño sale del nombre ("Agua x 500 cc" → "500 cc"); si no, del volumen cargado.
-  const nameSize = sizeFrom(producto.nombre)
-  const volSize = producto.volumen_cantidad != null
-    ? `${producto.volumen_cantidad}${producto.volumen_unidad ? ` ${producto.volumen_unidad}` : ""}`
-    : null
-  const size = nameSize ?? volSize
-  const tipo = (producto.nombre || "").split(/\s+x\s+/i)[0].trim()
-  const code = `P-${String(idx + 1).padStart(2, "0")}`
-  // La celda Envase va SIEMPRE y concentra sus datos: nombre + código + ubicación.
-  const envaseSub = [
-    { label: "Código",    value: producto.envase_codificado || null },
-    { label: "Ubicación", value: producto.ubicacion || null },
-  ]
-  const specs = [
-    { k: "Envase", v: producto.envase || "—", sub: envaseSub },
-    producto.lamina                   && { k: "Lámina",    v: producto.lamina },
-    producto.alto                     && { k: "Alto",      v: String(producto.alto) },
-    // El cilindro se expresa por DIÁMETRO → se muestra con "ø".
-    producto.cilindro                 && { k: "Cilindro",  v: `ø ${producto.cilindro}` },
-    // El cierre siempre es medida INTERIOR → se muestra con "(int)".
-    producto.cierre                   && { k: "Cierre",    v: `${producto.cierre} (int)` },
-    producto.muestra                  && { k: "Muestra",   v: producto.muestra },
-    producto.maquina_impresora_nombre && { k: "Impresora", v: producto.maquina_impresora_nombre },
-  ].filter(Boolean) as { k: string; v: string; sub?: { label: string; value: string | null }[] }[]
-
+  // Adaptador: la card vive en components/presentacion-card.tsx (fuente única,
+  // compartida con el detalle de razón social). Acá sólo se mapea el modelo.
   return (
-    <div className="group relative grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-white/15 md:grid-cols-[220px_1fr]">
-      <div className="absolute right-3 top-3 z-10 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <button type="button" onClick={onEdit} disabled={disabled}
-          className="grid h-8 w-8 place-items-center rounded-lg bg-card/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-30">
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button type="button" onClick={onDelete} disabled={deleting || disabled}
-          className="grid h-8 w-8 place-items-center rounded-lg bg-card/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-30">
-          {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-        </button>
-      </div>
+    <PresentacionCard
+      idx={idx}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      deleting={deleting}
+      disabled={disabled}
+      presentacion={{
+        nombre:            producto.nombre,
+        volumen_cantidad:  producto.volumen_cantidad,
+        volumen_unidad:    producto.volumen_unidad,
+        envase:            producto.envase,
+        envase_codificado: producto.envase_codificado,
+        ubicacion:         producto.ubicacion,
+        lamina:            producto.lamina,
+        alto:              producto.alto,
+        cilindro:          producto.cilindro,
+        cierre:            producto.cierre,
+        muestra:           producto.muestra,
+        impresora:         producto.maquina_impresora_nombre,
+      }}
+    />
+  )
+}
 
-      {/* Lead: identidad de la presentación */}
-      <div
-        className="relative border-b border-white/10 p-5 md:border-b-0 md:border-r"
-        style={{ background: "var(--color-brand)" }}
-      >
-        <div className="font-mono text-[12px] font-bold tracking-[0.12em] text-white/55">{code}</div>
-        {size ? (
-          <>
-            <div className="mt-3 text-[13.5px] font-extrabold uppercase tracking-[0.2em] text-white/85">{tipo || "Producto"}</div>
-            <div className="mt-0.5 text-[40px] font-extrabold leading-[0.95] tracking-tight text-white">{size}</div>
-          </>
-        ) : (
-          <div className="mt-3 text-2xl font-extrabold leading-tight text-white">
-            {producto.nombre || <span className="text-base font-normal italic text-white/40">Sin nombre</span>}
-          </div>
-        )}
-      </div>
+/** Unidades aceptadas de acá en adelante. La base tiene 11 variantes para 4
+ *  conceptos ("lts", "lt", " lts", "cc", "ml"…) justamente por haber sido texto
+ *  libre; se cierra a dos y se normaliza el volumen a ml o lt. */
+const UNIDADES = ["ml", "lt"]
 
-      {/* Specs: grilla técnica de producción */}
-      {specs.length > 0 ? (
-        <dl className="flex h-full flex-wrap">
-          {specs.map(({ k, v, sub }, i) => (
-            <div key={k} className={`flex min-w-[112px] flex-1 flex-col justify-center px-5 py-3.5 ${i > 0 ? "border-l border-border" : ""}`}>
-              <dt className="font-mono text-[11.5px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{k}</dt>
-              <dd className={`mt-1.5 text-[21px] font-extrabold tabular-nums ${v === "—" ? "text-muted-foreground/40" : "text-foreground"}`}>{v}</dd>
-              {sub && (
-                <div className="mt-1.5 flex flex-col gap-0.5">
-                  {sub.map((s) => (
-                    <div key={s.label} className="flex items-baseline gap-2">
-                      <span className="font-mono text-[10.5px] font-bold uppercase tracking-[0.14em] text-muted-foreground">{s.label}</span>
-                      <span className={`font-mono text-[14px] font-bold tracking-wide ${s.value ? "text-gold" : "text-muted-foreground/40"}`}>{s.value || "—"}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <div className="flex items-center px-6 py-6 text-[15px] italic text-muted-foreground/40">Sin especificaciones cargadas</div>
-      )}
+/** Etiqueta + control. La misma línea estaba repetida en cada campo. */
+function Campo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{label}</label>
+      {children}
     </div>
   )
 }
 
-function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, envases, impresoras }: {
+function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, envases, impresoras, sugerencias }: {
   data: ProdForm; onChange: (d: ProdForm) => void
   onSave: () => void; onCancel: () => void; saving: boolean; isNew?: boolean
   envases: string[]
   impresoras: Maquina[]
+  sugerencias: { laminas: string[]; ubicaciones: string[]; altos: number[]; cilindros: number[] }
 }) {
   const set = (k: keyof ProdForm) => (e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...data, [k]: e.target.value })
+  const setSel = (k: keyof ProdForm) => (e: React.ChangeEvent<HTMLSelectElement>) => onChange({ ...data, [k]: e.target.value })
   const inp = "h-9 rounded-lg bg-input border-border text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10"
   const sel = `${inp} w-full px-3 py-1.5`
 
@@ -283,24 +238,55 @@ function ProductInlineForm({ data, onChange, onSave, onCancel, saving, isNew, en
           <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Producto</label>
           <Input value={data.nombre} onChange={set("nombre")} placeholder="Agua, Lavandina, Gaseosa..." className={inp} />
         </div>
-        {([
-          ["volumen_cantidad","Volumen","number"],["volumen_unidad","Unidad","text"],
-          ["lamina","Lámina","text"],["muestra","Muestra","text"],
-          ["envase_codificado","Cód. Envase","text"],["ubicacion","Ubicación","text"],
-          ["alto","Alto","number"],["cilindro","Cilindro (ø)","number"],["cierre","Cierre (int)","number"],
-        ] as [keyof ProdForm, string, string][]).map(([k, label, type]) => (
-          <div key={k}>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">{label}</label>
-            <Input type={type} value={data[k]} onChange={set(k)} className={inp} />
-          </div>
-        ))}
-        <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Envase</label>
+        <Campo label="Volumen">
+          <Input type="number" value={data.volumen_cantidad} onChange={set("volumen_cantidad")} className={inp} />
+        </Campo>
+
+        <Campo label="Unidad">
+          <select value={data.volumen_unidad} onChange={setSel("volumen_unidad")} className={sel}>
+            <option value="">—</option>
+            {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+            {/* Una presentación vieja puede decir "lts" o "cc": se conserva como
+                está para que editar otro campo no le cambie la unidad sola. */}
+            {data.volumen_unidad && !UNIDADES.includes(data.volumen_unidad) && (
+              <option value={data.volumen_unidad}>{data.volumen_unidad} (como estaba)</option>
+            )}
+          </select>
+        </Campo>
+
+        <Campo label="Lámina">
+          <Input list="laminas-list" value={data.lamina} onChange={set("lamina")} autoComplete="off" className={inp} />
+          <datalist id="laminas-list">{sugerencias.laminas.map((v) => <option key={v} value={v} />)}</datalist>
+        </Campo>
+
+        <Campo label="Cód. Envase">
+          <Input value={data.envase_codificado} onChange={set("envase_codificado")} className={inp} />
+        </Campo>
+
+        <Campo label="Ubicación">
+          <Input list="ubicaciones-list" value={data.ubicacion} onChange={set("ubicacion")} autoComplete="off" className={inp} />
+          <datalist id="ubicaciones-list">{sugerencias.ubicaciones.map((v) => <option key={v} value={v} />)}</datalist>
+        </Campo>
+
+        <Campo label="Alto">
+          <Input type="number" list="altos-list" value={data.alto} onChange={set("alto")} autoComplete="off" className={inp} />
+          <datalist id="altos-list">{sugerencias.altos.map((v) => <option key={v} value={v} />)}</datalist>
+        </Campo>
+
+        <Campo label="Cilindro (ø)">
+          <Input type="number" list="cilindros-list" value={data.cilindro} onChange={set("cilindro")} autoComplete="off" className={inp} />
+          <datalist id="cilindros-list">{sugerencias.cilindros.map((v) => <option key={v} value={v} />)}</datalist>
+        </Campo>
+
+        <Campo label="Cierre (int)">
+          <Input type="number" value={data.cierre} onChange={set("cierre")} className={inp} />
+        </Campo>
+        <Campo label="Envase">
           <Input list="envases-inline-list" value={data.envase} onChange={set("envase")} autoComplete="off" className={inp} />
           <datalist id="envases-inline-list">
             {envases.map((e) => <option key={e} value={e} />)}
           </datalist>
-        </div>
+        </Campo>
         <div className="col-span-4 sm:col-span-2">
           <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1.5">Impresora</label>
           <select
@@ -348,9 +334,20 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
   const [error, setError] = useState("")
   const [envases, setEnvases] = useState<string[]>([])
   const [impresoras, setImpresoras] = useState<Maquina[]>([])
+  // Valores ya usados, para ofrecerlos al cargar en vez de tipear a mano.
+  const [sugerencias, setSugerencias] = useState({
+    laminas: [] as string[], ubicaciones: [] as string[],
+    altos: [] as number[], cilindros: [] as number[],
+  })
 
   useEffect(() => {
     api.admin.envases.list().then((r) => setEnvases(r.map((e: { nombre: string }) => e.nombre))).catch(() => {})
+    api.dashboard.filtros()
+      .then((f) => setSugerencias({
+        laminas: f.laminas ?? [], ubicaciones: f.ubicaciones ?? [],
+        altos: f.altos ?? [], cilindros: f.cilindros ?? [],
+      }))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -425,12 +422,12 @@ function ProductosTab({ clienteId, productos, onProductosChange }: {
       <div className="flex flex-col gap-3">
         {productos.map((p, i) =>
           editingId === p.id
-            ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} envases={envases} impresoras={impresoras} />
+            ? <ProductInlineForm key={p.id} data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} envases={envases} impresoras={impresoras} sugerencias={sugerencias} />
             : <ProductCard key={p.id} producto={p} idx={i} onEdit={() => startEdit(p)} onDelete={() => setAEliminar(p)} deleting={deleting === p.id} disabled={editingId !== null} />
         )}
 
         {editingId === "new"
-          ? <ProductInlineForm data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} isNew envases={envases} impresoras={impresoras} />
+          ? <ProductInlineForm data={form} onChange={setForm} onSave={save} onCancel={cancel} saving={saving} isNew envases={envases} impresoras={impresoras} sugerencias={sugerencias} />
           : productos.length > 0 && (
             <button type="button" onClick={startNew} disabled={editingId !== null}
               className="flex items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed border-border hover:border-gold/40 hover:bg-gold/5 text-muted-foreground hover:text-gold text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed">
@@ -597,7 +594,9 @@ export function ClienteDetalle({ cliente, onBack, onUpdate, onDelete }: ClienteD
                   value={String(editData.razon_social ?? "")}
                   onChange={(id, rs, cuit) => setEditData((prev) => ({
                     ...prev, razon_social_id: id, razon_social: rs,
-                    ...(cuit !== undefined ? { cuit: cuit ?? "" } : {}),
+                    // Sólo pisa el CUIT si la empresa tiene uno cargado: antes, elegir una
+                    // razón social sin CUIT borraba el que ya estaba escrito.
+                    ...(cuit ? { cuit } : {}),
                   }))}
                 />
               </div>

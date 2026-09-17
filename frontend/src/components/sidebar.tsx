@@ -272,7 +272,7 @@ function SidebarContent({
       </div>
 
       {/* Navegación */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-2">
         <p className={`mb-2 mt-1 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50 whitespace-nowrap transition-opacity duration-200 ${mini ? "opacity-0" : "opacity-100"}`}>
           Menú
         </p>
@@ -289,33 +289,44 @@ function SidebarContent({
       </nav>
 
       {/* Cuenta */}
-      <div className="border-t border-white/10 p-3">
-        <div className="flex items-center gap-2 rounded-[12px] p-1 transition-colors hover:bg-white/[0.07]">
+      <div className={`border-t border-white/10 ${mini ? "p-2" : "p-3"}`}>
+        <div className={`flex items-center rounded-[12px] transition-colors hover:bg-white/[0.07] ${
+          mini ? "justify-center p-1" : "gap-2 p-1"
+        }`}>
           <Link
             href="/perfil"
             onClick={onNavigate}
             title={mini ? (userName || userEmail || "Mi perfil") : undefined}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-[10px] px-1.5 py-1.5"
+            className={`flex min-w-0 items-center rounded-[10px] ${
+              mini ? "justify-center" : "flex-1 gap-3 px-1.5 py-1.5"
+            }`}
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-white/10 text-xs font-bold text-white ring-1 ring-white/15">
               {(userName || userEmail)?.[0]?.toUpperCase() || "U"}
             </div>
-            <div className={`min-w-0 flex-1 transition-opacity duration-200 ${mini ? "opacity-0" : "opacity-100"}`}>
-              <p className="mb-0.5 truncate text-[13px] font-semibold leading-none text-white">
-                {userName || userEmail?.split("@")[0]}
-              </p>
-              <p className="truncate text-[11px] text-white/50">{userEmail}</p>
-            </div>
+            {/* En el riel colapsado NO se renderizan: un elemento invisible con
+                ancho 0 igual reserva espacio por `gap` y por `min-width:auto`,
+                y eso descentraba el avatar. Si no se puede ver ni usar, no va. */}
+            {!mini && (
+              <div className="min-w-0 flex-1">
+                <p className="mb-0.5 truncate text-[13px] font-semibold leading-none text-white">
+                  {userName || userEmail?.split("@")[0]}
+                </p>
+                <p className="truncate text-[11px] text-white/50">{userEmail}</p>
+              </div>
+            )}
           </Link>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
-            className={`shrink-0 rounded-[9px] p-2 text-white/50 transition-colors hover:bg-white/10 hover:text-white ${mini ? "pointer-events-none opacity-0" : "opacity-100"}`}
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+          {!mini && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+              className="shrink-0 rounded-[9px] p-2 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

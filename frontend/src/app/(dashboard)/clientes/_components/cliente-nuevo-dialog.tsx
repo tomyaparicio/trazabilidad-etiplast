@@ -7,7 +7,7 @@
  * revisión antes de crear. Header azul de marca + progreso dorado.
  */
 
-import { useState, useEffect, useRef } from "react"
+import { useCallback, useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Cliente, Filtros, RazonSocial } from "@/types/database"
@@ -46,26 +46,68 @@ const PASOS: { key: string; label: string; pregunta: string; sub: string; icon: 
   { key: "revisar",      label: "Revisar",      pregunta: "Revisá y creá",             sub: "Un vistazo final. Tocá “Editar” en una tarjeta para volver a ese paso.",   icon: ClipboardCheck },
 ]
 
+/** Razón social con la que arranca el alta, cuando se entra desde su ficha
+ *  ("Agregar marca"). Preseleccionarla es lo que evita que el usuario intente
+ *  crear una segunda razón social con el mismo N° de cliente. */
+export type RazonSocialInicial = {
+  id: number
+  razon_social: string
+  cuit?: string | null
+  numero?: number | null
+}
+
 interface ClienteNuevoDialogProps {
   open: boolean
   onClose: () => void
   onCreated: (cliente: Cliente) => void
   filtros: Filtros
+  razonSocialInicial?: RazonSocialInicial | null
 }
 
 // ── Selector de razón social (buscar o crear) ────────────────────────────────
-function RazonSocialSelector({
+/** Lo mínimo de una razón social para volver a elegirla sin buscarla. */
+export type RazonSocialElegida = Pick<RazonSocial, "id" | "razon_social" | "cuit" | "numero">
+
+const normalizar = (t: string) => t.trim().toLowerCase()
+
+export function RazonSocialSelector({
   value,
+  valorRs,
   onChange,
+  excluirId,
+  onCrear,
+  listaEnLinea = false,
 }: {
   value: string
+  /** La razón social que ya está elegida al montar (p. ej. al volver a este paso).
+   *  Con ella, si se borra una letra y se vuelve a escribir, se recupera la MISMA
+   *  empresa: buscarla por nombre podía no encontrarla o traer otra homónima. */
+  valorRs?: RazonSocialElegida | null
   onChange: (id: number | null, razonSocial: string, cuit?: string | null, numero?: number | null) => void
+  /** No la ofrece entre los resultados (p. ej. la misma razón social que se está borrando). */
+  excluirId?: number
+  /** Si se pasa, «Crear» sólo avisa el nombre en vez de darla de alta ya: quien
+   *  la usa decide cuándo crearla (p. ej. recién al confirmar un borrado). */
+  onCrear?: (nombre: string) => void
+  /** La lista de resultados ocupa lugar debajo del campo en vez de flotar. Para
+   *  usarlo dentro de algo que se desplaza (un cartel con scroll), donde la lista
+   *  flotante quedaba recortada y no se veía. */
+  listaEnLinea?: boolean
 }) {
   const [query, setQuery] = useState(value)
   const [results, setResults] = useState<RazonSocial[]>([])
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
+  // Lo último elegido. Si el texto se aleja de su nombre, la elección deja de
+  // valer: si no, se borraba el texto, se escribía otra empresa y el formulario
+  // seguía guardando la primera, que ya no estaba en pantalla. Lo soltado se
+  // recuerda para devolverlo si vuelve a escribir exactamente ese nombre.
+  type Eleccion = { nombre: string; rs?: RazonSocialElegida; nueva?: boolean }
+  const elegido = useRef<Eleccion | null>(
+    valorRs ? { nombre: value || valorRs.razon_social, rs: valorRs } : value ? { nombre: value } : null)
+  const soltado = useRef<Eleccion | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -80,23 +122,37 @@ function RazonSocialSelector({
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
-  }, [])
+    // En línea, la lista ocupa lugar: si se cierra al APRETAR el mouse, todo lo de
+    // abajo sube antes de soltarlo y el clic cae en otro lado (el botón «No,
+    // volver» no respondía al primer clic). Se cierra recién con el clic completo.
+    const evento = listaEnLinea ? "click" : "mousedown"
+    document.addEventListener(evento, handler)
+    return () => document.removeEventListener(evento, handler)
+  }, [listaEnLinea])
 
   const handleSelect = (rs: RazonSocial) => {
     setQuery(rs.razon_social)
     setOpen(false)
+    elegido.current = { nombre: rs.razon_social, rs }
     onChange(rs.id, rs.razon_social, rs.cuit, rs.numero)
   }
 
   const handleCreate = async () => {
     if (!query.trim() || creating) return
+    if (onCrear) {
+      const nombre = query.trim()
+      setQuery(nombre)
+      setOpen(false)
+      elegido.current = { nombre, nueva: true }
+      onCrear(nombre)
+      return
+    }
     setCreating(true)
     try {
       const rs = await api.razonessociales.create({ razon_social: query.trim() })
       setOpen(false)
-      onChange(rs.id, rs.razon_social, rs.cuit)
+      elegido.current = { nombre: rs.razon_social, rs }
+      onChange(rs.id, rs.razon_social, rs.cuit, rs.numero)
       toast.success("Razón social creada")
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "No se pudo crear la razón social")
@@ -105,6 +161,13 @@ function RazonSocialSelector({
     }
   }
 
+  const visibles = excluirId == null ? results : results.filter((r) => r.id !== excluirId)
+  const listaAbierta = open && (visibles.length > 0 || query.trim() !== "")
+
+  // En línea, la lista puede quedar debajo de lo visible: se la trae a la vista.
+  useEffect(() => {
+    if (listaEnLinea && listaAbierta) listaRef.current?.scrollIntoView({ block: "nearest" })
+  }, [listaEnLinea, listaAbierta, visibles.length])
   const exactMatch = results.some(
     (r) => r.razon_social.toLowerCase() === query.trim().toLowerCase()
   )
@@ -121,15 +184,43 @@ function RazonSocialSelector({
           api.razonessociales.list({ per_page: 15 }).then((r) => setResults(r.data))
         }}
         onChange={(e) => {
-          setQuery(e.target.value)
+          const texto = e.target.value
+          setQuery(texto)
           setOpen(true)
-          if (!e.target.value) onChange(null, "")
+          const actual = elegido.current
+          // Espacios o mayúsculas de más no la sueltan: se ve igual en pantalla.
+          if (actual && normalizar(texto) !== normalizar(actual.nombre)) {
+            soltado.current = actual
+            elegido.current = null
+            onChange(null, "")
+            return
+          }
+          const previo = soltado.current
+          if (!actual && previo && normalizar(texto) === normalizar(previo.nombre)) {
+            // Borró una letra y la volvió a escribir: la elección vuelve a valer.
+            // Sólo con la empresa en mano; nunca adivinándola por el nombre.
+            const rs = previo.rs
+            if (rs) {
+              elegido.current = { nombre: texto, rs }
+              onChange(rs.id, rs.razon_social, rs.cuit, rs.numero)
+              return
+            }
+            if (previo.nueva && onCrear) {
+              elegido.current = { nombre: texto, nueva: true }
+              onCrear(texto.trim())
+              return
+            }
+          }
+          if (!texto) onChange(null, "")
         }}
         className="h-14 rounded-xl border-[1.5px] bg-input border-border text-[17px] font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:border-gold focus-visible:ring-gold/15"
       />
-      {open && (results.length > 0 || query.trim()) && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-popover border border-border rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
-          {results.map((rs) => (
+      {listaAbierta && (
+        <div
+          ref={listaRef}
+          className={`${listaEnLinea ? "relative" : "absolute z-50 left-0 right-0 top-full"} mt-1.5 bg-popover border border-border rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto`}
+        >
+          {visibles.map((rs) => (
             <button
               key={rs.id}
               type="button"
@@ -170,11 +261,38 @@ function Etiqueta({ children, hint }: { children: React.ReactNode; hint?: string
   )
 }
 
-export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: ClienteNuevoDialogProps) {
+export function ClienteNuevoDialog({ open, onClose, onCreated, filtros, razonSocialInicial }: ClienteNuevoDialogProps) {
+  // Formulario inicial, ya con la razón social si se entró desde su ficha. El N°
+  // de cliente sale de la entidad legal: lo comparten todas sus marcas.
+  const formInicial = useCallback((): Record<string, string | number | null> => (
+    razonSocialInicial
+      ? {
+          ...INITIAL_FORM,
+          razon_social_id: razonSocialInicial.id,
+          razon_social:    razonSocialInicial.razon_social,
+          cuit:            razonSocialInicial.cuit ?? null,
+          ...(razonSocialInicial.numero != null ? { id_cliente: razonSocialInicial.numero } : {}),
+        }
+      : { ...INITIAL_FORM }
+  ), [razonSocialInicial])
+
   const [paso, setPaso] = useState(0)
   // Dirección del último movimiento: avanzar → entra desde la derecha; volver → desde la izquierda.
   const [dir, setDir] = useState<1 | -1>(1)
-  const [formData, setFormData] = useState<Record<string, string | number | null>>(INITIAL_FORM)
+  const [formData, setFormData] = useState<Record<string, string | number | null>>(formInicial)
+  // Lo que la empresa elegida completó sola (CUIT y datos de sus otras marcas),
+  // con el valor que puso. Al cambiar o soltar la empresa se saca lo que siga
+  // igual: si no, la marca se guardaba con el CUIT o la dirección de otra.
+  const autoInicial = useCallback((): Record<string, string> =>
+    razonSocialInicial?.cuit ? { cuit: razonSocialInicial.cuit } : {}, [razonSocialInicial])
+  const autocompletado = useRef<Record<string, string>>(autoInicial())
+  // La empresa elegida entera: el buscador se vuelve a montar cada vez que se
+  // vuelve a este paso, y con sólo el nombre no podía recuperar la misma.
+  const empresaInicial = useCallback((): RazonSocialElegida | null => razonSocialInicial
+    ? { id: razonSocialInicial.id, razon_social: razonSocialInicial.razon_social,
+        cuit: razonSocialInicial.cuit ?? null, numero: razonSocialInicial.numero ?? null }
+    : null, [razonSocialInicial])
+  const [empresaElegida, setEmpresaElegida] = useState<RazonSocialElegida | null>(empresaInicial)
   const [saving, setSaving] = useState(false)
   // Envase fuera del catálogo → input libre en lugar del select.
   const [envaseLibre, setEnvaseLibre] = useState(false)
@@ -187,12 +305,45 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setFormData((prev) => ({ ...prev, [k]: e.target.value || null }))
   const val = (k: string) => String(formData[k] ?? "")
+
+  /** Trae lo que las otras marcas de la empresa ya comparten (domicilio,
+   *  teléfono, transporte) y completa SÓLO los campos vacíos: lo que el usuario
+   *  ya escribió no se pisa nunca. */
+  const precargarDeLaEmpresa = useCallback(async (rsId: number) => {
+    try {
+      const d = await api.razonessociales.get(rsId)
+      const comunes = (d as { datos_comunes?: Record<string, string | null> }).datos_comunes
+      if (!comunes) return
+      setFormData((prev) => {
+        // Llegó tarde: mientras cargaba, eligió otra empresa o la soltó.
+        if (prev.razon_social_id !== rsId) return prev
+        const copiados: string[] = []
+        const siguiente = { ...prev }
+        for (const [campo, valor] of Object.entries(comunes)) {
+          if (!valor) continue
+          if (String(prev[campo] ?? "").trim() !== "") continue   // ya lo escribió
+          if (campo === "pais" && String(prev.pais ?? "") === "Argentina") continue
+          siguiente[campo] = valor
+          autocompletado.current[campo] = valor
+          copiados.push(campo)
+        }
+        if (copiados.length) {
+          toast.success(`Se completaron ${copiados.length} dato(s) de las otras marcas de esta empresa`)
+        }
+        return siguiente
+      })
+    } catch {
+      // Si falla, el alta sigue: es una ayuda, no un requisito.
+    }
+  }, [])
   const filled = (k: string) => val(k).trim() !== ""
 
   const handleOpen = (isOpen: boolean) => {
     if (!isOpen) {
       onClose()
-      setFormData({ ...INITIAL_FORM })
+      setFormData(formInicial())
+      autocompletado.current = autoInicial()
+      setEmpresaElegida(empresaInicial())
       setPaso(0)
       setEnvaseLibre(false)
     }
@@ -322,31 +473,46 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                 <Etiqueta hint="obligatoria">Marca</Etiqueta>
                 <Input autoFocus autoComplete="off" value={val("marca")} onChange={set("marca")} placeholder="Ej: Agua Clara" className={INPUT_CLS} />
               </div>
-              <div className="sm:col-span-2">
-                <Etiqueta hint="vacío = automático">N° Cliente</Etiqueta>
-                <Input type="number" inputMode="numeric" autoComplete="off" value={val("id_cliente")} onChange={set("id_cliente")} placeholder="Auto" className={INPUT_CLS} />
-              </div>
-              <div className="sm:col-span-2">
-                <Etiqueta>Rubro</Etiqueta>
-                <Input list="wiz-rubros" autoComplete="off" value={val("rubro")} onChange={set("rubro")} placeholder="Ej: Agua" className={INPUT_CLS} />
-                <datalist id="wiz-rubros">{filtros.rubros.map((r) => <option key={r} value={r} />)}</datalist>
-              </div>
+              {/* El N° de cliente NO se pide acá: es de la razón social y lo
+                  comparten todas sus marcas. Elegirla es lo que lo define. */}
               <div className="sm:col-span-2">
                 <Etiqueta hint="buscar o crear">Razón Social</Etiqueta>
                 <RazonSocialSelector
                   value={val("razon_social")}
-                  onChange={(id, rs, cuit, numero) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      razon_social_id: id,
-                      razon_social: rs,
-                      ...(cuit !== undefined ? { cuit: cuit ?? "" } : {}),
-                      ...(numero != null ? { id_cliente: numero } : {}),
-                    }))
-                  }
+                  valorRs={formData.razon_social_id != null ? empresaElegida : null}
+                  onChange={(id, rs, cuit, numero) => {
+                    setEmpresaElegida(id != null ? { id, razon_social: rs, cuit: cuit ?? null, numero: numero ?? null } : null)
+                    const puestoPorLaAnterior = autocompletado.current
+                    autocompletado.current = cuit ? { cuit } : {}
+                    setFormData((prev) => {
+                      const siguiente = { ...prev }
+                      // Lo que completó la empresa anterior y nadie tocó, se saca.
+                      for (const [campo, valor] of Object.entries(puestoPorLaAnterior)) {
+                        if (String(prev[campo] ?? "") === valor) siguiente[campo] = INITIAL_FORM[campo] ?? ""
+                      }
+                      return {
+                        ...siguiente,
+                        razon_social_id: id,
+                        razon_social: rs,
+                        // Sólo pisa el CUIT si la empresa REALMENTE tiene uno: 326
+                        // de 400 razones sociales no lo tienen cargado, y con la
+                        // versión anterior elegirlas borraba el que ya habías escrito.
+                        ...(cuit ? { cuit } : {}),
+                        // Al soltar la empresa (o elegir una sin N°) se vacía: si no,
+                        // quedaba el número de la anterior y el alta chocaba con ella.
+                        id_cliente: numero ?? "",
+                      }
+                    })
+                    if (id) precargarDeLaEmpresa(id)
+                  }}
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-3">
+                <Etiqueta>Rubro</Etiqueta>
+                <Input list="wiz-rubros" autoComplete="off" value={val("rubro")} onChange={set("rubro")} placeholder="Ej: Agua" className={INPUT_CLS} />
+                <datalist id="wiz-rubros">{filtros.rubros.map((r) => <option key={r} value={r} />)}</datalist>
+              </div>
+              <div className="sm:col-span-3">
                 <Etiqueta>CUIT</Etiqueta>
                 <Input autoComplete="off" value={val("cuit")} onChange={set("cuit")} placeholder="30-12345678-9" className={INPUT_CLS} />
               </div>
@@ -424,7 +590,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
               <div className="sm:col-span-2">
                 <Etiqueta>Unidad</Etiqueta>
                 <div className="flex gap-2">
-                  {["cc", "ml", "lt"].map((u) => {
+                  {["ml", "lt"].map((u) => {
                     const activa = val("volumen_unidad") === u
                     return (
                       <button
@@ -498,23 +664,22 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
 
               <div className="sm:col-span-2">
                 <Etiqueta>Lámina</Etiqueta>
-                <Input autoComplete="off" value={val("lamina")} onChange={set("lamina")} placeholder="Blco 24" className={INPUT_CLS} />
+                <Input list="wiz-laminas" autoComplete="off" value={val("lamina")} onChange={set("lamina")} placeholder="Blco 24" className={INPUT_CLS} />
+                <datalist id="wiz-laminas">{(filtros.laminas ?? []).map((l) => <option key={l} value={l} />)}</datalist>
               </div>
               <div className="sm:col-span-1">
                 <Etiqueta>Alto</Etiqueta>
-                <Input type="number" inputMode="numeric" autoComplete="off" value={val("alto")} onChange={set("alto")} className={INPUT_CLS} />
+                <Input type="number" inputMode="numeric" list="wiz-altos" autoComplete="off" value={val("alto")} onChange={set("alto")} className={INPUT_CLS} />
+                <datalist id="wiz-altos">{(filtros.altos ?? []).map((a) => <option key={a} value={a} />)}</datalist>
               </div>
               <div className="sm:col-span-1">
                 <Etiqueta>Cilindro (ø)</Etiqueta>
-                <Input type="number" inputMode="numeric" autoComplete="off" value={val("cilindro")} onChange={set("cilindro")} className={INPUT_CLS} />
+                <Input type="number" inputMode="numeric" list="wiz-cilindros" autoComplete="off" value={val("cilindro")} onChange={set("cilindro")} className={INPUT_CLS} />
+                <datalist id="wiz-cilindros">{(filtros.cilindros ?? []).map((c) => <option key={c} value={c} />)}</datalist>
               </div>
               <div className="sm:col-span-1">
                 <Etiqueta>Cierre (int)</Etiqueta>
                 <Input type="number" inputMode="numeric" autoComplete="off" value={val("cierre")} onChange={set("cierre")} className={INPUT_CLS} />
-              </div>
-              <div className="sm:col-span-1">
-                <Etiqueta>Muestra</Etiqueta>
-                <Input autoComplete="off" value={val("muestra")} onChange={set("muestra")} placeholder="OK" className={INPUT_CLS} />
               </div>
             </div>
           )}
@@ -584,14 +749,13 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros }: Client
                 </div>
                 <div className="flex items-baseline justify-between gap-4 py-2 text-[15px]">
                   <span className="font-bold text-muted-foreground">Especificaciones</span>
-                  {filled("lamina") || filled("alto") || filled("cilindro") || filled("cierre") || filled("muestra") ? (
+                  {filled("lamina") || filled("alto") || filled("cilindro") || filled("cierre") ? (
                     <Sum>
                       {[
                         filled("lamina") ? `Lámina ${val("lamina")}` : null,
                         filled("alto") ? `Alto ${val("alto")}` : null,
                         filled("cilindro") ? `Cil. ø ${val("cilindro")}` : null,
                         filled("cierre") ? `Cierre ${val("cierre")} (int)` : null,
-                        filled("muestra") ? `Muestra ${val("muestra")}` : null,
                       ].filter(Boolean).join(" · ")}
                     </Sum>
                   ) : <Sum vacio>—</Sum>}

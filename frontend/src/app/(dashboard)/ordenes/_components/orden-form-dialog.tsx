@@ -12,6 +12,7 @@ import {
   ClipboardList, Layers, Printer, Scissors, PackageCheck, ShieldCheck, CalendarDays, Calculator, Factory,
   Building2, Flag, UserRound, Wrench,
   type LucideIcon,
+  Boxes,
 } from "lucide-react"
 import type { OrderPrefill } from "@/lib/voice/types"
 
@@ -209,9 +210,36 @@ function ProductoSelector({ productos, value, onSelect }: {
       >
         <option value="">Sin producto específico</option>
         {productos.map((p) => {
-          const label = [p.nombre, p.volumen_cantidad != null ? `${p.volumen_cantidad}${p.volumen_unidad ?? ""}` : null, p.envase, p.lamina].filter(Boolean).join(" · ")
+          // Sin el envase: va en su propio select porque puede cambiar
+          // respecto del que tiene cargado la presentación.
+          const label = [p.nombre, p.volumen_cantidad != null ? `${p.volumen_cantidad}${p.volumen_unidad ?? ""}` : null, p.lamina].filter(Boolean).join(" · ")
           return <option key={p.id} value={p.id}>{label || `Producto #${p.id}`}</option>
         })}
+      </select>
+    </div>
+  )
+}
+
+function EnvaseSelector({ catalogo, value, onChange }: {
+  catalogo: string[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  // Se conserva lo guardado aunque no esté en el catálogo: hay 4 envases en uso
+  // que nunca se dieron de alta ("CONSULTAR", "Estin A"…), y sin esto abrir una
+  // orden vieja se lo cambiaría solo.
+  const fuera = value && !catalogo.includes(value)
+  return (
+    <div className="flex h-9 items-center gap-2 rounded-lg border border-input bg-background px-3">
+      <Boxes className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 bg-transparent text-sm outline-none"
+      >
+        <option value="">Sin envase</option>
+        {fuera && <option value={value}>{value} (fuera del catálogo)</option>}
+        {catalogo.map((n) => <option key={n} value={n}>{n}</option>)}
       </select>
     </div>
   )
@@ -328,6 +356,13 @@ export function OrdenFormVista({ orden = null, prefill, onDone }: Props) {
   const [dir, setDir]                           = useState<1 | -1>(1)
   const [clienteName, setClienteName]           = useState("")
   const [clienteProductos, setClienteProductos] = useState<ClienteProducto[]>([])
+  // Catálogo de envases desde /dashboard/filtros: /admin/envases exige rol admin
+  // y a este formulario entra producción, que se quedaría sin opciones.
+  const [envases, setEnvases] = useState<string[]>([])
+
+  useEffect(() => {
+    api.dashboard.filtros().then((f) => setEnvases(f.envases ?? [])).catch(() => {})
+  }, [])
   const [usuarios, setUsuarios]                 = useState<UserAdmin[]>([])
   const [saving, setSaving]                     = useState(false)
   const [error, setError]                       = useState("")
@@ -469,8 +504,14 @@ export function OrdenFormVista({ orden = null, prefill, onDone }: Props) {
                   <Input type="date" value={form.fecha ?? ""} onChange={(e) => set("fecha", e.target.value)} />
                 </Field>
                 {clienteProductos.length > 0 && (
-                  <Field label="Producto" icon={Package} className="sm:col-span-3">
+                  <Field label="Producto" icon={Package} className="sm:col-span-2">
                     <ProductoSelector productos={clienteProductos} value={form.cliente_producto_id ?? null} onSelect={handleSelectProducto} />
+                  </Field>
+                )}
+                {clienteProductos.length > 0 && (
+                  <Field label="Envase" icon={Boxes}>
+                    <EnvaseSelector catalogo={envases} value={form.troquelado_envase ?? ""}
+                      onChange={(v) => set("troquelado_envase", v)} />
                   </Field>
                 )}
               </div>
@@ -668,10 +709,6 @@ export function OrdenFormVista({ orden = null, prefill, onDone }: Props) {
               <Field label="Alto (mm)">
                 <Input type="number" step="0.01" placeholder="0.00" value={form.troquelado_alto ?? ""}
                   onChange={(e) => set("troquelado_alto", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-              <Field label="Envase">
-                <Input placeholder="Tipo de envase" value={form.troquelado_envase ?? ""}
-                  onChange={(e) => set("troquelado_envase", e.target.value)} className="h-9 text-sm" />
               </Field>
             </div>
 

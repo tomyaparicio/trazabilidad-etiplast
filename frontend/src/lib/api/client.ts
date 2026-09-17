@@ -209,11 +209,37 @@ export const api = {
       return get<{ data: RazonSocial[]; total: number; page: number; per_page: number; total_pages: number }>("/api/razones-sociales", p)
     },
     get: (id: number) =>
-      get<RazonSocial & { marcas: { id: number; id_cliente: number | null; marca: string | null }[] }>(`/api/razones-sociales/${id}`),
-    create: (data: { razon_social: string; cuit?: string; numero?: number | null }) =>
+      get<RazonSocial & {
+        marcas: { id: number; id_cliente: number | null; marca: string | null }[]
+        /** Documentos de sus marcas: lo que se perdería si se borran. */
+        historial?: { ordenes: number; remitos: number; facturas: number; presupuestos: number }
+      }>(`/api/razones-sociales/${id}`),
+    create: (data: { razon_social: string; cuit?: string; numero?: number | null; domicilio?: string | null; localidad?: string | null; provincia?: string | null; pais?: string | null; telefono?: string | null; transporte?: string | null; transporte_domicilio?: string | null; transporte_localidad?: string | null }) =>
       post<RazonSocial>("/api/razones-sociales", data),
-    update: (id: number, data: { razon_social?: string; cuit?: string; numero?: number | null }) =>
+    update: (id: number, data: { razon_social?: string; cuit?: string; numero?: number | null; domicilio?: string | null; localidad?: string | null; provincia?: string | null; pais?: string | null; telefono?: string | null; transporte?: string | null; transporte_domicilio?: string | null; transporte_localidad?: string | null }) =>
       put<RazonSocial>(`/api/razones-sociales/${id}`, data),
+    /** Si tiene marcas, hay que decir a dónde pasan: a una existente (`moverA`) o
+     *  a una nueva que se crea al confirmar (`nueva`, con el N° de la borrada). */
+    /** Si tiene marcas, hay que decir qué pasa con ellas: pasarlas a una existente
+     *  (`moverA`), a una nueva que se crea al confirmar (`nueva`), dejarlas sin
+     *  razón social (`marcas: "desvincular"`) o borrarlas (`marcas: "borrar"`). */
+    delete: (id: number, opcion?: {
+      moverA?: number; nueva?: string; marcas?: "desvincular" | "borrar"
+      /** Para borrar marcas: lo que mostró el aviso, «id-id-id,ordenes,remitos,facturas,presupuestos»: QUÉ marcas, no sólo cuántas. */
+      confirmado?: string
+    }) => {
+      const qs = new URLSearchParams()
+      if (opcion?.moverA != null) qs.set("mover_a", String(opcion.moverA))
+      if (opcion?.nueva) qs.set("nueva_razon_social", opcion.nueva)
+      if (opcion?.marcas) qs.set("marcas", opcion.marcas)
+      if (opcion?.confirmado) qs.set("confirmado", opcion.confirmado)
+      const q = qs.toString()
+      return del<{
+        accion: "mover" | "desvincular" | "borrar" | null
+        marcas: number
+        destino: { id: number; razon_social: string; numero: number | null } | null
+      }>(`/api/razones-sociales/${id}${q ? `?${q}` : ""}`)
+    },
   },
   /** Productos de clientes (1:N) */
   productos: {

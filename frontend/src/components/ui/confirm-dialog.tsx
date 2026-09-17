@@ -30,6 +30,13 @@ interface ConfirmDialogProps {
    * toast.success dentro de la acción tras el éxito.
    */
   onConfirm: () => void | Promise<void>
+  /** Contenido extra entre el texto y los botones (p. ej. un campo a completar). */
+  children?: ReactNode
+  /** Bloquea el botón de confirmar hasta que se cumpla lo que pide `children`. */
+  confirmDisabled?: boolean
+  /** Pasa al `DialogContent`: con un buscador adentro, evita que el foco inicial
+   *  abra su lista encima de los botones. */
+  onOpenAutoFocus?: (e: Event) => void
 }
 
 /**
@@ -49,11 +56,14 @@ export function ConfirmDialog({
   cancelLabel = "Cancelar",
   variant = "destructive",
   onConfirm,
+  children,
+  confirmDisabled = false,
+  onOpenAutoFocus,
 }: ConfirmDialogProps) {
   const [busy, setBusy] = useState(false)
 
   async function handleConfirm() {
-    if (busy) return
+    if (busy || confirmDisabled) return
     setBusy(true)
     try {
       await onConfirm()
@@ -69,10 +79,13 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o) }}>
       <DialogContent
         showCloseButton={false}
-        className="max-w-md rounded-2xl"
+        // Nunca más alto que la pantalla: con contenido largo (opciones, avisos)
+        // se desplaza el medio y los botones quedan siempre a la vista.
+        className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col rounded-2xl"
         onEscapeKeyDown={(e) => { if (busy) e.preventDefault() }}
+        onOpenAutoFocus={onOpenAutoFocus}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <div className="flex items-start gap-3">
             <div
               className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl border ${
@@ -91,7 +104,10 @@ export function ConfirmDialog({
             </div>
           </div>
         </DialogHeader>
-        <DialogFooter className="mt-2">
+        {children && (
+          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1">{children}</div>
+        )}
+        <DialogFooter className="mt-2 shrink-0">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -102,7 +118,7 @@ export function ConfirmDialog({
           <Button
             variant={variant === "destructive" ? "destructive" : "default"}
             onClick={handleConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
           >
             {busy && <Loader2 className="size-4 animate-spin" />}
             {confirmLabel}

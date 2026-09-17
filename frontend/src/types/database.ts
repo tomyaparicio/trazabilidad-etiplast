@@ -117,6 +117,11 @@ export interface Filtros {
   envases: string[]
   /** Sólo las razones sociales que algún cliente usa (catálogo + texto libre legacy). */
   razones_sociales: string[]
+  /** Valores ya usados en presentaciones, por frecuencia — sugerencias de carga. */
+  laminas: string[]
+  ubicaciones: string[]
+  altos: number[]
+  cilindros: number[]
 }
 
 export interface Usuario {

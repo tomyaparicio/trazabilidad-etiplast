@@ -8,18 +8,27 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
+import { ClienteNuevoDialog, RazonSocialSelector } from "@/app/(dashboard)/clientes/_components/cliente-nuevo-dialog"
+import type { Filtros } from "@/types/database"
+import Link from "next/link"
+import { tamanioDesdeNombre } from "@/components/presentacion-card"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import {
   Building2, Plus, Pencil, Loader2,
-  Search, Boxes, Package, AlertCircle, Eye,
+  Search, Boxes, AlertCircle, Eye, Trash2, X,
   ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react"
 
 const PER_PAGE = 30
+const FILTROS_VACIOS: Filtros = {
+  rubros: [], provincias: [], envases: [], razones_sociales: [],
+  laminas: [], ubicaciones: [], altos: [], cilindros: [],
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RazonSocialRow {
@@ -27,6 +36,14 @@ interface RazonSocialRow {
   numero: number | null
   razon_social: string
   cuit: string | null
+  domicilio: string | null
+  localidad: string | null
+  provincia: string | null
+  pais: string | null
+  telefono: string | null
+  transporte: string | null
+  transporte_domicilio: string | null
+  transporte_localidad: string | null
   cantidad_marcas: number
   created_at: string | null
 }
@@ -66,24 +83,40 @@ const RUBRO_COLOR: Record<string, string> = {
 const rubroColor = (r?: string | null) =>
   RUBRO_COLOR[r ?? ""] ?? "bg-muted/50 text-muted-foreground border-border"
 
-// ─── Product badge ────────────────────────────────────────────────────────────
-function ProdBadge({ label, value }: { label: string; value: string | number | null | undefined }) {
-  if (value == null || String(value).trim() === "") return null
+/** El tamaño es lo que identifica una presentación de un vistazo:
+ *  "Agua x 500 ml" → "500 ml". Sin " x " se muestra el nombre entero. */
+function resumenPresentacion(p: Producto) {
+  const delNombre = tamanioDesdeNombre(p.nombre)
+  const delVolumen = p.volumen_cantidad != null
+    ? `${p.volumen_cantidad}${p.volumen_unidad ? ` ${p.volumen_unidad}` : ""}`
+    : null
+  return delNombre ?? delVolumen ?? p.nombre ?? "—"
+}
+
+/** Campo del bloque "Datos de la empresa". */
+function CampoRS({ label, value, onChange, full = false }: {
+  label: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  full?: boolean
+}) {
   return (
-    <span className="inline-flex items-center gap-1 bg-background/60 border border-border/60 rounded-md px-2 py-0.5 text-[11px]">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-foreground font-medium">{value}</span>
-    </span>
+    <div className={`space-y-1.5 ${full ? "col-span-2" : ""}`}>
+      <label className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">{label}</label>
+      <Input value={value} onChange={onChange}
+        className="h-9 rounded-lg border-border bg-input text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10" />
+    </div>
   )
 }
 
 // ─── Detail dialog ────────────────────────────────────────────────────────────
 function DetalleMarcasDialog({
-  rs, onClose, onEdit,
+  rs, onClose, onEdit, onAgregarMarca,
 }: {
   rs: RazonSocialRow
   onClose: () => void
   onEdit: () => void
+  onAgregarMarca: () => void
 }) {
   const [data, setData] = useState<RazonSocialDetalle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -102,116 +135,424 @@ function DetalleMarcasDialog({
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="w-[95vw] max-w-[860px] max-h-[85vh] overflow-hidden flex flex-col bg-card border-border p-0">
+      <DialogContent
+        showCloseButton={false}
+        // Radix enfoca el primer elemento al abrir y eso dejaba el "Editar"
+        // resaltado con su anillo de foco, como si estuviera apretado. El foco
+        // se queda en el diálogo: Escape y el tabulado siguen funcionando.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="flex max-h-[88vh] w-[95vw] max-w-[1100px] flex-col overflow-hidden border-border bg-card p-0"
+      >
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
-              <Building2 className="w-5 h-5 text-violet-400" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-bold text-foreground leading-tight">
+        {/* Cabecera: mismo lenguaje que el banner de las páginas — azul de marca,
+            redondeado abajo, identidad grande y acciones a la derecha. */}
+        <div className="bg-hero relative shrink-0 overflow-hidden rounded-b-3xl px-7 pb-7 pt-7 text-white">
+          <Building2 aria-hidden className="pointer-events-none absolute -right-6 -top-10 size-48 text-white/[0.06]" strokeWidth={0.8} />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">Entidad legal</p>
+              <DialogTitle className="mt-1.5 font-display text-[30px] font-bold leading-[1.05] tracking-tight text-white">
                 {rs.razon_social}
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                {rs.cuit ? `CUIT ${rs.cuit}` : "Sin CUIT"} · {rs.cantidad_marcas} marca{rs.cantidad_marcas !== 1 ? "s" : ""}
+              <DialogDescription asChild>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-baseline gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">CUIT</span>
+                    <span className="font-mono text-[13px] font-bold tabular-nums text-white">{rs.cuit || "—"}</span>
+                  </span>
+                  <span className="inline-flex items-baseline gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">N° Cliente</span>
+                    <span className="font-mono text-[13px] font-bold tabular-nums text-white">{rs.numero ?? "—"}</span>
+                  </span>
+                  <span className="inline-flex items-center rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-[13px] font-semibold text-white">
+                    {rs.cantidad_marcas} marca{rs.cantidad_marcas !== 1 ? "s" : ""}
+                  </span>
+                </div>
               </DialogDescription>
             </div>
+            {/* Editar y cerrar son un par: misma altura, mismo lenguaje. El anillo
+                de foco del Button base es lavanda y sobre el azul se ve como un
+                borde doble mal dibujado — se reemplaza por uno blanco. */}
+            <div className="flex shrink-0 items-center gap-2">
+              {/* Sin esta acción el usuario terminaba creando otra razón social
+                  con el mismo N° de cliente, porque era el único camino visible. */}
+              <Button
+                onClick={onAgregarMarca}
+                className="h-10 gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-semibold text-white hover:bg-white/20 focus-visible:border-white/60 focus-visible:ring-2 focus-visible:ring-white/30"
+              >
+                <Plus className="size-4" />Agregar marca
+              </Button>
+              <Button
+                onClick={onEdit}
+                className="h-10 gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-sm font-semibold text-white hover:bg-white/20 focus-visible:border-white/60 focus-visible:ring-2 focus-visible:ring-white/30"
+              >
+                <Pencil className="size-4" />Editar
+              </Button>
+              <DialogClose
+                aria-label="Cerrar"
+                className="grid size-10 place-items-center rounded-xl border border-white/25 bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:border-white/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              >
+                <X className="size-[18px]" />
+              </DialogClose>
+            </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onEdit}
-            className="h-8 rounded-lg text-xs gap-1.5 border-border text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
-          >
-            <Pencil className="w-3.5 h-3.5" />Editar
-          </Button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        {/* Cuerpo: esto responde "¿qué marcas hace esta empresa?". La ficha
+            técnica completa vive en el cliente — desde acá se salta a ella. */}
+        <div className="flex-1 overflow-y-auto px-7 py-6">
           {loading ? (
-            <div className="flex items-center justify-center py-20 gap-3 text-muted-foreground text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />Cargando marcas…
+            <div className="flex items-center justify-center gap-3 py-16 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />Cargando marcas…
             </div>
           ) : fetchError ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-sm">
-                <AlertCircle className="w-4 h-4 shrink-0" />{fetchError}
+            <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+              <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+                <AlertCircle className="size-4 shrink-0" />{fetchError}
               </div>
               <Button variant="outline" size="sm" onClick={fetchDetalle} className="gap-1.5">
-                <RefreshCw className="w-3.5 h-3.5" />
-                Reintentar
+                <RefreshCw className="size-3.5" />Reintentar
               </Button>
             </div>
           ) : !data || data.marcas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-              <div className="w-14 h-14 rounded-2xl bg-muted/30 border border-border flex items-center justify-center">
-                <Boxes className="w-7 h-7 opacity-30" strokeWidth={1.5} />
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+              <div className="flex size-14 items-center justify-center rounded-2xl border border-border bg-muted/30">
+                <Boxes className="size-7 opacity-30" strokeWidth={1.5} />
               </div>
               <p className="text-sm font-medium">Sin marcas vinculadas</p>
-              <p className="text-xs text-muted-foreground/60">Las marcas se vinculan desde el detalle del cliente</p>
+              <p className="text-xs text-muted-foreground/60">Las marcas se vinculan desde la ficha del cliente</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {data.marcas.map((marca) => (
-                <div key={marca.id} className="rounded-xl border border-border bg-muted/10 p-4">
-                  {/* Marca header */}
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div>
-                      <p className="text-sm font-bold text-foreground leading-tight">
-                        {marca.marca || <span className="italic text-muted-foreground">Sin nombre</span>}
-                      </p>
-                      {marca.id_cliente && (
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Cliente #{marca.id_cliente}</p>
-                      )}
-                    </div>
+                <Link
+                  key={marca.id}
+                  href={`/clientes/${marca.id}`}
+                  className="group flex flex-col rounded-xl border border-border bg-muted/10 p-5 transition-colors hover:border-primary/40 hover:bg-muted/30"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="font-display text-[21px] font-bold leading-tight tracking-tight text-foreground">
+                      {marca.marca || <span className="italic text-muted-foreground">Sin nombre</span>}
+                    </h3>
                     {marca.rubro && (
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${rubroColor(marca.rubro)}`}>
+                      <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${rubroColor(marca.rubro)}`}>
                         {marca.rubro}
                       </span>
                     )}
                   </div>
 
-                  {/* Productos */}
-                  {marca.productos.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground/40 italic">Sin productos registrados</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {marca.productos.map((p) => {
-                        const title = [
-                          p.nombre,
-                          p.volumen_cantidad != null ? `${p.volumen_cantidad}${p.volumen_unidad ?? ""}` : null,
-                        ].filter(Boolean).join(" · ")
+                  <p className="mt-1 font-mono text-[11.5px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                    {marca.productos.length === 0
+                      ? "sin presentaciones"
+                      : `${marca.productos.length} presentacio${marca.productos.length === 1 ? "n" : "nes"}`}
+                  </p>
 
-                        return (
-                          <div key={p.id} className="rounded-lg border border-border/60 bg-background/40 px-3 py-2.5">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <Package className="w-3 h-3 text-gold shrink-0" />
-                              <p className="text-xs font-semibold text-foreground">
-                                {title || <span className="italic text-muted-foreground">Sin nombre</span>}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              <ProdBadge label="Lámina"   value={p.lamina}   />
-                              <ProdBadge label="Envase"   value={p.envase}   />
-                              <ProdBadge label="Alto"     value={p.alto}     />
-                              <ProdBadge label="Cilindro" value={p.cilindro} />
-                              <ProdBadge label="Cierre"   value={p.cierre}   />
-                            </div>
-                          </div>
-                        )
-                      })}
+                  {/* Los tamaños alcanzan para saber qué le hacemos a esta marca. */}
+                  {marca.productos.length > 0 && (
+                    <div className="mt-3.5 flex flex-wrap gap-1.5">
+                      {marca.productos.map((prod) => (
+                        <span
+                          key={prod.id}
+                          className="rounded-lg border border-border bg-card px-2.5 py-1 text-[13px] font-semibold text-foreground"
+                        >
+                          {resumenPresentacion(prod)}
+                        </span>
+                      ))}
                     </div>
                   )}
-                </div>
+
+                  <span className="mt-4 inline-flex items-center gap-1 text-[12px] font-semibold text-muted-foreground transition-colors group-hover:text-primary-300">
+                    Ver ficha completa <ChevronRight className="size-3.5" />
+                  </span>
+                </Link>
               ))}
             </div>
           )}
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ─── Borrar ───────────────────────────────────────────────────────────────────
+/** Destino de las marcas: una razón social existente, o una nueva que el backend
+ *  crea recién al confirmar (así no queda suelta si se cancela, y se queda con el
+ *  N° y los datos de la que se borra). */
+type DestinoMarcas =
+  | { tipo: "existente"; id: number; razon_social: string; numero: number | null }
+  | { tipo: "nueva"; razon_social: string }
+
+/** Qué pasa con las marcas de la razón social que se borra. */
+type OpcionMarcas = "desvincular" | "mover" | "borrar"
+
+type Historial = { ordenes: number; remitos: number; facturas: number; presupuestos: number }
+
+const cuenta = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`
+
+/** Una opción grande y clara. Es un radio de verdad (oculto a la vista): las
+ *  flechas cambian de opción y el grupo es una sola parada del tabulador. */
+function OpcionCard({ nombre, activa, peligro = false, titulo, detalle, onElegir }: {
+  nombre: string
+  activa: boolean
+  peligro?: boolean
+  titulo: string
+  detalle: React.ReactNode
+  onElegir: () => void
+}) {
+  const borde = activa
+    ? peligro ? "border-red-500/50 bg-red-500/10" : "border-gold/60 bg-gold/10"
+    : "border-border bg-muted/20 hover:bg-muted/40"
+  return (
+    <label
+      // relative: el radio oculto queda dentro de la tarjeta y, al elegir con las
+      // flechas, la tarjeta se desplaza a la vista.
+      className={`relative flex w-full cursor-pointer items-start gap-3 rounded-xl border-[1.5px] px-4 py-3 text-left transition-colors has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-gold/40 ${borde}`}
+    >
+      <input type="radio" name={nombre} checked={activa} onChange={onElegir} className="sr-only" />
+      <span aria-hidden className={`mt-1 grid size-[18px] shrink-0 place-items-center rounded-full border-2 ${
+        activa ? (peligro ? "border-red-400" : "border-gold") : "border-muted-foreground/50"}`}>
+        {activa && <span className={`size-2 rounded-full ${peligro ? "bg-red-400" : "bg-gold"}`} />}
+      </span>
+      <span className="min-w-0">
+        <span className={`block text-[15px] font-bold ${peligro && activa ? "text-red-400" : "text-foreground"}`}>{titulo}</span>
+        <span className="mt-0.5 block text-[13.5px] leading-snug text-muted-foreground">{detalle}</span>
+      </span>
+    </label>
+  )
+}
+
+/** Si tiene marcas, alguien tiene que decidir qué pasa con ellas antes de borrarla:
+ *  quedan sin razón social (lo más seguro, viene elegido), pasan a otra, o se borran. */
+function BorrarRazonSocialDialog({ rs, onClose, onBorrada }: {
+  rs: RazonSocialRow
+  onClose: () => void
+  onBorrada: () => void
+}) {
+  // Las marcas se consultan al abrir: el conteo de la fila puede estar viejo si
+  // alguien sumó o movió una marca desde que se cargó la lista. Si la consulta
+  // falla no se adivina: sin saber si tiene marcas no se puede borrar.
+  const [marcas, setMarcas]         = useState<{ id: number; marca: string }[] | null>(null)
+  const [historial, setHistorial]   = useState<Historial | null>(null)
+  const [errorCarga, setErrorCarga] = useState(false)
+  const [intento, setIntento]       = useState(0)
+  const [opcion, setOpcion]         = useState<OpcionMarcas>("desvincular")
+  const [destino, setDestino]       = useState<DestinoMarcas | null>(null)
+  const [entiendo, setEntiendo]     = useState(false)
+
+  useEffect(() => {
+    api.razonessociales.get(rs.id)
+      .then((d) => {
+        setMarcas(d.marcas.map((m) => ({ id: m.id, marca: m.marca || "Sin nombre" })))
+        setHistorial(d.historial ?? null)
+        setErrorCarga(false)
+      })
+      .catch(() => setErrorCarga(true))
+  }, [rs.id, intento])
+
+  // Al recargar se desmonta todo el bloque de opciones: se suelta lo elegido para
+  // que no quede un destino o un «Entiendo» que ya no se ven en pantalla.
+  const recargar = () => {
+    setMarcas(null); setErrorCarga(false); setDestino(null); setEntiendo(false)
+    setIntento((n) => n + 1)
+  }
+  // Al salir de «pasar a otra» se suelta el destino: el buscador se desmonta y al
+  // volver aparece vacío, así que no puede quedar elegida una que no se ve.
+  const elegir = (o: OpcionMarcas) => {
+    setOpcion(o)
+    setEntiendo(false)
+    if (o !== "mover") setDestino(null)
+  }
+
+  const cargando    = marcas === null && !errorCarga
+  const cantidad    = marcas?.length ?? 0
+  const tieneMarcas = cantidad > 0
+  const plural      = cantidad !== 1
+  const nombres     = (marcas ?? []).map((m) => m.marca)
+
+  // El N° es de la razón social: las marcas toman el del destino, salvo que no
+  // tenga (una nueva nunca tiene): ahí heredan el de la que se borra.
+  const numeroFinal = !destino ? null
+    : destino.tipo === "existente" ? (destino.numero ?? rs.numero)
+    : rs.numero
+
+  const confirmLabel = marcas === null ? "Borrar"
+    : !tieneMarcas ? "Sí, borrar"
+    : opcion === "mover" ? `Pasar ${plural ? "marcas" : "marca"} y borrar`
+    : opcion === "borrar" ? "Borrar todo"
+    : "Borrar razón social"
+
+  const confirmDisabled = marcas === null || (tieneMarcas && (
+    (opcion === "mover" && !destino) || (opcion === "borrar" && (!entiendo || !historial))))
+
+  // Lo que el aviso mostró. El servidor sólo borra si sigue siendo exactamente eso:
+  // si mientras tanto cambió una marca (por id) o se cargó una orden, lo rechaza.
+  const confirmado = historial && marcas
+    ? [
+        marcas.map((m) => m.id).sort((a, b) => a - b).join("-"),
+        historial.ordenes, historial.remitos, historial.facturas, historial.presupuestos,
+      ].join(",")
+    : undefined
+
+  return (
+    <ConfirmDialog
+      open
+      onOpenChange={(o) => { if (!o) onClose() }}
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      title="¿Borrar esta razón social?"
+      description={
+        <>
+          Vas a borrar <span className="font-semibold text-foreground">«{rs.razon_social}»</span>
+          {rs.numero != null && <> (N° {rs.numero})</>}.
+          {marcas?.length === 0 && <> No tiene marcas asociadas.</>}
+          <span className="font-semibold text-foreground"> No se puede deshacer.</span>
+        </>
+      }
+      confirmLabel={confirmLabel}
+      cancelLabel="No, volver"
+      confirmDisabled={confirmDisabled}
+      onConfirm={async () => {
+        try {
+          const res = await api.razonessociales.delete(rs.id,
+            !tieneMarcas ? undefined
+            : opcion === "desvincular" ? { marcas: "desvincular" }
+            : opcion === "borrar" ? { marcas: "borrar", confirmado }
+            : destino?.tipo === "existente" ? { moverA: destino.id }
+            : { nueva: destino?.razon_social })
+          // El aviso cuenta lo que hizo el servidor, no lo que se vio al abrir.
+          const n = res?.marcas ?? 0
+          const marcasTxt = cuenta(n, "marca", "marcas")
+          toast.success(
+            n > 0 && res?.accion === "mover" && res.destino
+              ? `«${rs.razon_social}» borrada · ${marcasTxt} ${n === 1 ? "pasó" : "pasaron"} a «${res.destino.razon_social}»`
+            : n > 0 && res?.accion === "desvincular"
+              ? `«${rs.razon_social}» borrada · ${marcasTxt} ${n === 1 ? "quedó" : "quedaron"} sin razón social`
+            : n > 0 && res?.accion === "borrar"
+              ? `«${rs.razon_social}» borrada junto con ${marcasTxt}`
+            : `«${rs.razon_social}» borrada`)
+          onBorrada()
+        } catch (e) {
+          // Si alguien le sumó marcas mientras tanto, el servidor lo rechaza:
+          // se vuelven a traer para que aparezca qué hacer con ellas.
+          recargar()
+          throw e
+        }
+      }}
+    >
+      {cargando && (
+        <p className="flex items-center gap-2 text-[14px] text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" />Revisando sus marcas…
+        </p>
+      )}
+      {errorCarga && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3">
+          <p className="text-[14px] font-semibold text-foreground">No se pudieron revisar sus marcas.</p>
+          <Button variant="outline" size="sm" onClick={recargar} className="h-9 gap-1.5 rounded-lg">
+            <RefreshCw className="size-3.5" />Reintentar
+          </Button>
+        </div>
+      )}
+      {tieneMarcas && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+            <p className="text-[13px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              Tiene {cuenta(cantidad, "marca", "marcas")}
+            </p>
+            {nombres.length > 0 && (
+              <p className="mt-1 text-[15px] font-semibold text-foreground">{nombres.join(" · ")}</p>
+            )}
+          </div>
+
+          <p className="text-[15px] font-semibold text-foreground">¿Qué hacemos con {plural ? "sus marcas" : "su marca"}?</p>
+          <div role="radiogroup" aria-label="Qué hacer con las marcas" className="space-y-2">
+            <OpcionCard
+              nombre={`marcas-${rs.id}`}
+              activa={opcion === "desvincular"}
+              onElegir={() => elegir("desvincular")}
+              titulo={plural ? "Dejarlas sin razón social" : "Dejarla sin razón social"}
+              detalle={<>
+                {plural ? "Siguen" : "Sigue"} igual{rs.numero != null && <>, con el N° {rs.numero}</>} y con sus datos.
+                Después {plural ? "les" : "le"} podés asignar una desde la ficha del cliente.
+              </>}
+            />
+            <OpcionCard
+              nombre={`marcas-${rs.id}`}
+              activa={opcion === "mover"}
+              onElegir={() => elegir("mover")}
+              titulo={plural ? "Pasarlas a otra razón social" : "Pasarla a otra razón social"}
+              detalle={<>{plural ? "Toman" : "Toma"} el N° de la empresa que elijas.</>}
+            />
+            <OpcionCard
+              nombre={`marcas-${rs.id}`}
+              activa={opcion === "borrar"}
+              peligro
+              onElegir={() => elegir("borrar")}
+              titulo={plural ? "Borrar las marcas también" : "Borrar la marca también"}
+              detalle={<>Se {plural ? "borran" : "borra"} {plural ? "las marcas" : "la marca"} con su historial.</>}
+            />
+          </div>
+
+          {opcion === "mover" && (
+            <div>
+              <RazonSocialSelector
+                value=""
+                excluirId={rs.id}
+                listaEnLinea
+                onChange={(id, razonSocial, _cuit, numero) =>
+                  setDestino(id == null ? null : { tipo: "existente", id, razon_social: razonSocial, numero: numero ?? null })}
+                onCrear={(nombre) => setDestino({ tipo: "nueva", razon_social: nombre })}
+              />
+              {/* El destino se nombra siempre: es lo que se confirma, y no puede
+                  depender de lo que haya quedado escrito en el buscador. */}
+              {destino && (
+                <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
+                  {plural ? "Pasan" : "Pasa"} a{" "}
+                  <span className="font-bold text-foreground">«{destino.razon_social}»</span>
+                  {destino.tipo === "nueva" && <> (se crea al confirmar)</>}
+                  {numeroFinal != null && (
+                    <> con el <span className="font-bold text-foreground">N° {numeroFinal}</span></>
+                  )}
+                  {numeroFinal != null && (destino.tipo === "nueva" || destino.numero == null) && (
+                    <>, el de «{rs.razon_social}»</>
+                  )}
+                  .{" "}
+                  {destino.tipo === "nueva"
+                    ? <>Se lleva también el CUIT, la dirección y el teléfono de «{rs.razon_social}».</>
+                    : <>Si a «{destino.razon_social}» le falta el CUIT, la dirección o el teléfono, los toma de «{rs.razon_social}».</>}
+                </p>
+              )}
+            </div>
+          )}
+
+          {opcion === "borrar" && (
+            <div className="space-y-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+              <p className="text-[14px] font-bold text-foreground">Esto se pierde para siempre:</p>
+              <ul className="list-disc space-y-0.5 pl-5 text-[14px] text-foreground">
+                <li>{cuenta(cantidad, "marca", "marcas")}, con sus presentaciones</li>
+                {historial && historial.ordenes > 0 && <li>{cuenta(historial.ordenes, "orden de trabajo", "órdenes de trabajo")}</li>}
+                {historial && historial.remitos > 0 && <li>{cuenta(historial.remitos, "remito", "remitos")}</li>}
+                {historial && historial.presupuestos > 0 && <li>{cuenta(historial.presupuestos, "presupuesto", "presupuestos")}</li>}
+              </ul>
+              {historial && historial.facturas > 0 && (
+                <p className="text-[14px] text-foreground">
+                  {historial.facturas === 1 ? "La factura no se borra" : `Las ${historial.facturas} facturas no se borran`},
+                  pero {historial.facturas === 1 ? "queda" : "quedan"} <span className="font-bold">sin cliente</span>:
+                  no se va a saber de quién {historial.facturas === 1 ? "era" : "eran"}.
+                </p>
+              )}
+              <label className="flex cursor-pointer items-center gap-2.5 pt-1 text-[14px] font-semibold text-foreground">
+                <input
+                  type="checkbox"
+                  checked={entiendo}
+                  onChange={(e) => setEntiendo(e.target.checked)}
+                  className="size-[18px] accent-red-500"
+                />
+                Entiendo que no se puede recuperar
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+    </ConfirmDialog>
   )
 }
 
@@ -227,6 +568,14 @@ export default function RazonesSocialesPage() {
   const [viewRS, setViewRS]       = useState<RazonSocialRow | null>(null)
   const [nuevoOpen, setNuevoOpen] = useState(false)
   const [editRS, setEditRS]       = useState<RazonSocialRow | null>(null)
+  // Alta de cliente con la razón social ya elegida, desde su propia ficha.
+  const [marcaPara, setMarcaPara]  = useState<RazonSocialRow | null>(null)
+  const [borrarRS, setBorrarRS]    = useState<RazonSocialRow | null>(null)
+  const [filtros, setFiltros]      = useState<Filtros>(FILTROS_VACIOS)
+
+  useEffect(() => {
+    api.dashboard.filtros().then(setFiltros).catch(() => {})
+  }, [])
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchRows = useCallback(async (q: string, p: number) => {
@@ -339,6 +688,16 @@ export default function RazonesSocialesPage() {
             className="h-8 rounded-lg text-xs gap-1.5 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
           >
             <Pencil className="w-3.5 h-3.5" />Editar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBorrarRS(rs)}
+            title="Borrar razón social"
+            aria-label="Borrar razón social"
+            className="h-8 w-8 rounded-lg border-border p-0 text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
       ),
@@ -463,6 +822,42 @@ export default function RazonesSocialesPage() {
           rs={viewRS}
           onClose={() => setViewRS(null)}
           onEdit={() => { setEditRS(viewRS); setViewRS(null) }}
+          onAgregarMarca={() => { setMarcaPara(viewRS); setViewRS(null) }}
+        />
+      )}
+
+      {/* Borrar: irreversible, se confirma nombrando la razón social */}
+      {borrarRS && (
+        <BorrarRazonSocialDialog
+          rs={borrarRS}
+          onClose={() => setBorrarRS(null)}
+          onBorrada={() => {
+            // Si era la única fila de la última página, se vuelve a la anterior:
+            // si no, quedaba «Página 3 de 2» con la tabla vacía.
+            const destinoPagina = rows.length === 1 && page > 1 ? page - 1 : page
+            setPage(destinoPagina)
+            fetchRows(search, destinoPagina)
+          }}
+        />
+      )}
+
+      {/* Alta de marca con la razón social preseleccionada */}
+      {marcaPara && (
+        <ClienteNuevoDialog
+          open
+          filtros={filtros}
+          razonSocialInicial={{
+            id: marcaPara.id,
+            razon_social: marcaPara.razon_social,
+            cuit: marcaPara.cuit,
+            numero: marcaPara.numero,
+          }}
+          onClose={() => setMarcaPara(null)}
+          onCreated={() => {
+            toast.success(`Marca agregada a ${marcaPara.razon_social}`)
+            setMarcaPara(null)
+            fetchRows(search, page)   // el contador de marcas quedó viejo
+          }}
         />
       )}
 
@@ -494,12 +889,17 @@ function RSDialog({
   onSaved: (rs: RazonSocialRow) => void
 }) {
   const isEdit = !!rs
-  const [form, setForm] = useState({ razon_social: rs?.razon_social ?? "", cuit: rs?.cuit ?? "", numero: rs?.numero != null ? String(rs.numero) : "" })
+  const desde = (r?: RazonSocialRow) => ({
+    razon_social: r?.razon_social ?? "", cuit: r?.cuit ?? "",
+    numero: r?.numero != null ? String(r.numero) : "",
+    domicilio: r?.domicilio ?? "", localidad: r?.localidad ?? "", provincia: r?.provincia ?? "", pais: r?.pais ?? "", telefono: r?.telefono ?? "", transporte: r?.transporte ?? "", transporte_domicilio: r?.transporte_domicilio ?? "", transporte_localidad: r?.transporte_localidad ?? "",
+  })
+  const [form, setForm] = useState(desde(rs))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
-    setForm({ razon_social: rs?.razon_social ?? "", cuit: rs?.cuit ?? "", numero: rs?.numero != null ? String(rs.numero) : "" })
+    setForm(desde(rs))
     setError("")
   }, [rs?.id, open])
 
@@ -514,7 +914,12 @@ function RSDialog({
       // numero vacío = "sin número" (null), no "no lo toques": la pantalla
       // muestra el valor actual, así que lo que se ve es lo que se guarda.
       const numero = form.numero.trim() ? Number(form.numero) : null
-      const body = { razon_social: form.razon_social.trim(), cuit: form.cuit.trim() || undefined, numero }
+      const body = {
+        razon_social: form.razon_social.trim(),
+        cuit: form.cuit.trim() || undefined,
+        numero,
+        domicilio: form.domicilio.trim() || null, localidad: form.localidad.trim() || null, provincia: form.provincia.trim() || null, pais: form.pais.trim() || null, telefono: form.telefono.trim() || null, transporte: form.transporte.trim() || null, transporte_domicilio: form.transporte_domicilio.trim() || null, transporte_localidad: form.transporte_localidad.trim() || null,
+      }
       const saved = isEdit
         ? await api.razonessociales.update(rs!.id, body)
         : await api.razonessociales.create(body)
@@ -531,7 +936,7 @@ function RSDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !saving) onClose() }}>
-      <DialogContent className="sm:max-w-[440px] bg-card border-border">
+      <DialogContent className="sm:max-w-[560px] max-h-[88vh] overflow-y-auto bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
             <Building2 className="w-5 h-5 text-gold" />
@@ -568,6 +973,27 @@ function RSDialog({
             <label className="block text-[11px] font-medium text-muted-foreground uppercase tracking-wider">CUIT</label>
             <Input value={form.cuit} onChange={set("cuit")} placeholder="30-12345678-9"
               className="h-10 rounded-xl bg-input border-border focus-visible:border-gold/40 focus-visible:ring-gold/15 font-mono" />
+          </div>
+
+          {/* Datos de la empresa: los heredan todas sus marcas, salvo las que
+              tengan el suyo propio cargado. */}
+          <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Datos de la empresa
+              <span className="ml-1.5 normal-case tracking-normal text-muted-foreground/70">
+                · los heredan sus marcas
+              </span>
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <CampoRS label="Domicilio" value={form.domicilio} onChange={set("domicilio")} full />
+              <CampoRS label="Localidad" value={form.localidad} onChange={set("localidad")} />
+              <CampoRS label="Provincia" value={form.provincia} onChange={set("provincia")} />
+              <CampoRS label="País" value={form.pais} onChange={set("pais")} />
+              <CampoRS label="Teléfono" value={form.telefono} onChange={set("telefono")} />
+              <CampoRS label="Transporte" value={form.transporte} onChange={set("transporte")} full />
+              <CampoRS label="Dom. transporte" value={form.transporte_domicilio} onChange={set("transporte_domicilio")} />
+              <CampoRS label="Loc. transporte" value={form.transporte_localidad} onChange={set("transporte_localidad")} />
+            </div>
           </div>
 
           <DialogFooter className="pt-2">

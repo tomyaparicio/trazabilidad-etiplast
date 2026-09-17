@@ -5,7 +5,10 @@ import { api } from "@/lib/api"
 import type { Cliente, Filtros } from "@/types/database"
 
 const PER_PAGE = 20
-const EMPTY_FILTROS: Filtros = { rubros: [], provincias: [], envases: [], razones_sociales: [] }
+const EMPTY_FILTROS: Filtros = {
+  rubros: [], provincias: [], envases: [], razones_sociales: [],
+  laminas: [], ubicaciones: [], altos: [], cilindros: [],
+}
 export type SortDir = "asc" | "desc"
 
 /** Centinela del filtro de razón social: pide los clientes que NO tienen ninguna. */
