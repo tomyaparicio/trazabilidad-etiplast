@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from dependencies import verify_token
+from core.security import verify_token
 from routers.auth import _create_token
 
 

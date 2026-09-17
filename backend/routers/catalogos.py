@@ -7,8 +7,8 @@ El CRUD de máquinas vive en /api/admin/maquinas (solo admin).
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from database import get_db
-from dependencies import verify_token
+from core.database import get_db
+from core.security import verify_token
 from models import Maquina
 
 router = APIRouter(prefix="/api", tags=["catalogos"])

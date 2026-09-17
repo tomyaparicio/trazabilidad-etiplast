@@ -4,7 +4,7 @@ Requiere el contenedor `etiplast-test-pg` (puerto 5459) con el esquema migrado:
 
     docker run -d --name etiplast-test-pg -e POSTGRES_PASSWORD=test \\
       -e POSTGRES_USER=test -e POSTGRES_DB=etiplast_test -p 5459:5432 postgres:16-alpine
-    DATABASE_URL="postgresql://test:test@localhost:5459/etiplast_test" python migrate.py
+    DATABASE_URL="postgresql://test:test@localhost:5459/etiplast_test" python migrations/migrate.py
 
 Si el Postgres de test no está disponible, estos tests se SALTAN (no fallan),
 así la suite unitaria sigue corriendo sin Docker.
@@ -71,8 +71,8 @@ def api(admin):
     """TestClient con get_db → test DB y auth overrideada al admin sembrado."""
     from fastapi.testclient import TestClient
     from main import app
-    from database import get_db
-    from dependencies import verify_token, verify_admin
+    from core.database import get_db
+    from core.security import verify_token, verify_admin
 
     def _get_db():
         s = _Session()
@@ -80,6 +80,12 @@ def api(admin):
             yield s
         finally:
             s.close()
+
+    # El rate limit (120/min) es una defensa de producción, no del test: la suite
+    # hace muchas más peticiones que eso y, al recibir 429, los teardown dejaban
+    # clientes sin borrar que rompían la corrida siguiente.
+    from core.middleware import limiter
+    limiter.enabled = False
 
     app.dependency_overrides[get_db] = _get_db
     app.dependency_overrides[verify_token] = lambda: admin

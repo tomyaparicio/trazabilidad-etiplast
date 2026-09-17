@@ -14,8 +14,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
-from database import get_db
-from dependencies import require_permiso, verify_token
+from core.database import get_db
+from core.security import require_permiso, verify_token
 from models import (
     Cliente, OrdenExtrusionBobina, OrdenTrabajo, Remito, RemitoItem,
     StockItem, StockMovimiento,

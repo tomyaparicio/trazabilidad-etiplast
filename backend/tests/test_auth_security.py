@@ -1,7 +1,7 @@
 """routers/auth.py — hashing de contraseñas y creación de JWT."""
 from jose import jwt
 
-from config import SECRET_KEY, ALGORITHM
+from core.config import SECRET_KEY, ALGORITHM
 from routers.auth import _hash_password, _verify_password, _create_token
 
 

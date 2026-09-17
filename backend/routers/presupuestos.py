@@ -12,8 +12,8 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
 
-from database import get_db
-from dependencies import require_permiso, verify_token
+from core.database import get_db
+from core.security import require_permiso, verify_token
 from models import Cliente, OrdenTrabajo, Presupuesto, PresupuestoItem
 from schemas import PresupuestoCreateSchema, PresupuestoItemSchema, PresupuestoUpdateSchema
 from services import auditoria, notificaciones

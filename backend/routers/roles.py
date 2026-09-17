@@ -12,11 +12,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import get_db
-from dependencies import verify_token, verify_admin, rol_permisos
+from core.database import get_db
+from core.security import verify_token, verify_admin, rol_permisos
 from models import Role, User
 from services import auditoria
-import rbac
+from core import rbac
 
 router = APIRouter(prefix="/api", tags=["roles"])
 

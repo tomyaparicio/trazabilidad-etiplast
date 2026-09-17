@@ -89,3 +89,13 @@ def test_editar_el_nombre_no_pisa_el_numero(api, escenario):
     r = api.put(f"/api/razones-sociales/{escenario['a']['id']}", json={"razon_social": RS_A + " BIS"})
     assert r.status_code == 200, r.text
     assert r.json()["numero"] == 91001, "no mandar 'numero' no debe borrarlo"
+
+
+def test_el_error_de_numero_repetido_explica_como_sumar_una_marca(api, escenario):
+    """El choque más común es querer sumar una marca a una empresa que ya existe.
+    El mensaje tiene que decir adónde ir, no sólo qué está prohibido."""
+    r = api.put(f"/api/razones-sociales/{escenario['a']['id']}", json={"numero": 91002})
+    assert r.status_code == 409
+    detalle = r.json()["detail"]
+    assert RS_B in detalle, "dice de quién es el número"
+    assert "Nuevo cliente" in detalle, "dice adónde ir a sumar la marca"

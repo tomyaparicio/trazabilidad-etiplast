@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate": "echo 'Usar python migrate.py desde backend/'"
+    "migrate": "echo 'Usar python migrations/migrate.py desde backend/'"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

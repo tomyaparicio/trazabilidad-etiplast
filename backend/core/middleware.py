@@ -27,8 +27,38 @@ def obtener_ip_cliente(request: Request) -> str:
     return request.client.host if request.client else "desconocido"
 
 
+def clave_rate_limit(request: Request) -> str:
+    """A quién se le cuentan las peticiones.
+
+    Por IP no sirve: el navegador nunca habla con este backend, pasa por el
+    proxy de Vercel, que no reenvía la IP del usuario. Agrupando por IP, TODA la
+    empresa compartía un solo balde de 120/min y se cortaban entre sí.
+
+    El token JWT viene FIRMADO, así que la identidad no se puede falsificar —a
+    diferencia de un header de IP, que atraviesa dos proxies y lo puede poner
+    cualquiera que le pegue al backend directo—. Un límite de uso acota lo que
+    puede hacer una PERSONA, y esa es la persona.
+
+    Sin token (login, health) se cae a la IP, que es lo único que hay.
+    """
+    cabecera = request.headers.get("authorization") or ""
+    if cabecera.lower().startswith("bearer "):
+        try:
+            from jose import jwt
+            from core.config import ALGORITHM, SECRET_KEY
+            payload = jwt.decode(cabecera[7:].strip(), SECRET_KEY, algorithms=[ALGORITHM])
+            sub = payload.get("sub")
+            if sub:
+                return f"user:{sub}"
+        except Exception:
+            # Token vencido, roto o firmado con otra clave: no da identidad ni
+            # privilegio, se lo trata como anónimo.
+            pass
+    return f"ip:{obtener_ip_cliente(request)}"
+
+
 # Limiter compartido: lo importan main.py (registro global) y routers/auth.py (login)
-limiter = Limiter(key_func=obtener_ip_cliente, default_limits=["120/minute"])
+limiter = Limiter(key_func=clave_rate_limit, default_limits=["120/minute"])
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

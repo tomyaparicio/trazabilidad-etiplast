@@ -17,4 +17,4 @@ El proyecto comenzó usando Supabase como backend-as-a-service (auth + DB). Se d
 - Mayor control sobre el esquema de DB y migraciones
 - Sin vendor lock-in con Supabase
 - Se necesita gestionar el ciclo de vida del JWT manualmente
-- Las migraciones se corren con `python migrate.py`
+- Las migraciones se corren con `python migrations/migrate.py`

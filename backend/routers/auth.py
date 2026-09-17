@@ -8,11 +8,12 @@ from pydantic import BaseModel
 from jose import jwt
 from sqlalchemy.orm import Session
 
-from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS
-from database import get_db
-from dependencies import verify_token
-from middleware import limiter
+from core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_HOURS
+from core.database import get_db
+from core.security import verify_token
+from core.middleware import limiter
 from models import User
+from services import login_throttle
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -46,13 +47,25 @@ def _create_token(email: str, role: str = "user", user_id: int | None = None, no
 
 
 @router.post("/login", summary="Iniciar sesión")
-@limiter.limit("5/minute")
+# El límite por IP queda como red de contención del endpoint entero (todos
+# llegan con la IP del proxy, así que es un techo global, no por persona). El
+# freno que importa contra fuerza bruta es el de abajo, que cuenta POR CUENTA.
+@limiter.limit("60/minute")
 def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
+    if not login_throttle.registrar_intento(data.email):
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos con esta cuenta. Esperá un minuto y probá de nuevo.",
+        )
+
     user = db.query(User).filter(User.email == data.email).first()
     if not user or not _verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Usuario inactivo")
+
+    # Entró bien: no queda penalizado por los intentos fallidos previos.
+    login_throttle.limpiar(data.email)
     return {"access_token": _create_token(user.email, user.role or "user", user.id, user.nombre, user.apellido), "token_type": "bearer"}
 
 

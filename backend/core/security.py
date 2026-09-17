@@ -5,8 +5,8 @@ from fastapi import Depends, Header, HTTPException
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from config import SECRET_KEY, ALGORITHM
-from database import get_db
+from core.config import SECRET_KEY, ALGORITHM
+from core.database import get_db
 from models import User, Role
 
 

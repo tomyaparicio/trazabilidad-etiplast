@@ -20,8 +20,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from database import get_db
-from dependencies import verify_token
+from core.database import get_db
+from core.security import verify_token
 from models import (
     Cliente, OrdenExtrusionBobina, OrdenTrabajo,
     StockItem,

@@ -4,7 +4,7 @@ Pasos para agregar un nuevo módulo completo (ej: "Proveedores").
 
 ## 1. Backend — Modelo
 
-En `backend/models.py`:
+En `backend/models/<dominio>.py`:
 ```python
 class Proveedor(Base):
     __tablename__ = "proveedores"
@@ -15,7 +15,7 @@ class Proveedor(Base):
 
 ## 2. Backend — Migración
 
-En `backend/migrate.py`, agregar a la lista `MIGRATIONS_*`:
+En `backend/migrations/migrate.py`, agregar a la lista `MIGRATIONS_*`:
 ```python
 MIGRATIONS_PROVEEDORES = [
     ("Crear tabla proveedores", """
@@ -25,7 +25,7 @@ MIGRATIONS_PROVEEDORES = [
 all_migrations = ... + MIGRATIONS_PROVEEDORES
 ```
 
-Correr: `python migrate.py`
+Correr: `python migrations/migrate.py`
 
 ## 3. Backend — Router
 

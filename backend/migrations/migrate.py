@@ -3,9 +3,9 @@ Script de migraciones — Etiplast ERP
 =====================================
 Ejecutar desde la carpeta backend:
 
-  python migrate.py           → base de datos LOCAL   (backend/.env)
-  python migrate.py --stage   → base de datos STAGING (backend/.env.stage)
-  python migrate.py --prod    → base de datos RAILWAY (backend/.env.prod)
+  python migrations/migrate.py           → base de datos LOCAL   (backend/.env)
+  python migrations/migrate.py --stage   → base de datos STAGING (backend/.env.stage)
+  python migrations/migrate.py --prod    → base de datos RAILWAY (backend/.env.prod)
 
 Las migraciones son idempotentes (pueden correrse múltiples veces sin error).
 """
@@ -13,7 +13,12 @@ import os
 import sys
 
 # ── Cargar el .env correcto ANTES de importar database (que lee DATABASE_URL) ──
-_here = os.path.dirname(os.path.abspath(__file__))
+# Este script vive en backend/migrations/, pero los .env y los paquetes (core,
+# models) están un nivel arriba: se resuelve contra el padre y se agrega la raíz
+# del backend al path para que `from core...` funcione al correrlo directo.
+_here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _here not in sys.path:
+    sys.path.insert(0, _here)
 _prod = "--prod" in sys.argv
 _stage = "--stage" in sys.argv
 
@@ -43,7 +48,7 @@ else:
     print("💻  Modo LOCAL (backend/.env)")
 
 from sqlalchemy import text   # noqa: E402
-from database import engine, Base  # noqa: E402
+from core.database import engine, Base  # noqa: E402
 import models  # noqa: E402 — registra todos los modelos para create_all
 
 
@@ -1198,6 +1203,66 @@ MIGRATIONS_FACTURAS = [
      """),
 ]
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Datos de la EMPRESA en la razón social
+# ──────────────────────────────────────────────────────────────────────────────
+# El domicilio, el teléfono y el transporte son de la entidad legal, no de cada
+# marca: en la cartera real, 30 de 35 empresas con varias marcas comparten el
+# mismo domicilio. Las 5 que difieren (Bahia Jugos, Hielomar, Chiflon, Villa
+# Giardino, Labza) conservan el suyo — la marca pisa a la empresa cuando tiene
+# dato propio, igual que ya pasa con el N° de cliente.
+MIGRATIONS_RS_DATOS = [
+    ("RS: domicilio de la empresa",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS domicilio VARCHAR(300)"),
+    ("RS: localidad",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS localidad VARCHAR(150)"),
+    ("RS: provincia",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS provincia_id INTEGER REFERENCES provincias(id) ON DELETE SET NULL"),
+    ("RS: pais",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS pais VARCHAR(100)"),
+    ("RS: telefono",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS telefono VARCHAR(100)"),
+    ("RS: transporte",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS transporte VARCHAR(200)"),
+    ("RS: transporte_domicilio",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS transporte_domicilio VARCHAR(300)"),
+    ("RS: transporte_localidad",
+     "ALTER TABLE razones_sociales ADD COLUMN IF NOT EXISTS transporte_localidad VARCHAR(150)"),
+
+    # Backfill: se toma el valor MÁS FRECUENTE entre las marcas de cada empresa.
+    # Sólo rellena lo que está vacío, así una corrida repetida no pisa ediciones.
+    ("RS: poblar datos desde las marcas (valor más frecuente)", """
+     WITH frec AS (
+       SELECT cl.razon_social_id AS rs_id,
+              u.domicilio, u.localidad, u.provincia_id, u.pais,
+              u.transporte, u.transporte_domicilio, u.transporte_localidad,
+              ct.telefono,
+              row_number() OVER (
+                PARTITION BY cl.razon_social_id
+                ORDER BY count(*) DESC, max(cl.id) DESC
+              ) AS puesto
+       FROM clientes cl
+       LEFT JOIN cliente_ubicaciones u ON u.cliente_id = cl.id
+       LEFT JOIN cliente_contactos  ct ON ct.cliente_id = cl.id
+       WHERE cl.razon_social_id IS NOT NULL
+       GROUP BY cl.razon_social_id, u.domicilio, u.localidad, u.provincia_id, u.pais,
+                u.transporte, u.transporte_domicilio, u.transporte_localidad, ct.telefono
+     )
+     UPDATE razones_sociales rs SET
+       domicilio            = coalesce(rs.domicilio,            f.domicilio),
+       localidad            = coalesce(rs.localidad,            f.localidad),
+       provincia_id         = coalesce(rs.provincia_id,         f.provincia_id),
+       pais                 = coalesce(rs.pais,                 f.pais),
+       telefono             = coalesce(rs.telefono,             f.telefono),
+       transporte           = coalesce(rs.transporte,           f.transporte),
+       transporte_domicilio = coalesce(rs.transporte_domicilio, f.transporte_domicilio),
+       transporte_localidad = coalesce(rs.transporte_localidad, f.transporte_localidad)
+     FROM frec f
+     WHERE f.rs_id = rs.id AND f.puesto = 1;
+     """),
+]
+
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Runner principal
@@ -1232,7 +1297,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS
 
     aplicadas = 0
     salteadas = 0
@@ -1274,7 +1339,7 @@ def run_migrations():
     try:
         from sqlalchemy.orm import Session as _Session
         from models import Role
-        import rbac
+        from core import rbac
         with _Session(bind=engine) as s:
             existentes = {r.clave for r in s.query(Role).all()}
             creados = 0

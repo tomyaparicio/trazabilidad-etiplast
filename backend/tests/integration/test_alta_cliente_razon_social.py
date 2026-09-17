@@ -73,3 +73,14 @@ def test_sin_numero_se_autoasigna(api, razon_social):
     assert r.status_code == 201, r.text
     razon_social["creados"].append(r.json()["id"])
     assert r.json()["id_cliente"] is not None
+
+
+def test_el_error_de_numero_ocupado_dice_como_resolverlo(api, razon_social):
+    """Quien escribe el N° a mano no está equivocándose por capricho: sabe que la
+    empresa es esa. El error tiene que llevarlo al paso de Razón Social."""
+    r = api.post("/api/clientes", json={"marca": "PYTEST ALTA GUIA", "id_cliente": NUMERO_RS})
+    assert r.status_code == 400
+    detalle = r.json()["detail"]
+    assert RS in detalle, "dice de quién es el número"
+    assert "Razón Social" in detalle, "dice adónde ir"
+    assert "vacío" in detalle, "dice qué hacer si es otra empresa"

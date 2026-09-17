@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from middleware import SecurityHeadersMiddleware, limiter
+from core.middleware import SecurityHeadersMiddleware, limiter
 from routers import (
     admin, auth, calidad, catalogos, clientes, dashboard, notificaciones,
     facturas, ordenes, presupuestos, razones_sociales, remitos,

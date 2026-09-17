@@ -10,9 +10,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from database import get_db
+from core.database import get_db
 from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina, AuditLog, Role
-from dependencies import verify_admin
+from core.security import verify_admin
 from schemas import MaquinaCreateSchema, MaquinaUpdateSchema
 from services import auditoria
 

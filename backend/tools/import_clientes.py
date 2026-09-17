@@ -25,7 +25,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from database import SessionLocal
+from core.database import SessionLocal
 from models import (
     Cliente, ClienteUbicacion, ClienteContacto,
     ClienteProducto, RazonSocial, Rubro, Provincia

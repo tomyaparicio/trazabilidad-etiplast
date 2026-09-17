@@ -5,5 +5,5 @@
 set -e
 source venv/bin/activate
 echo "Corriendo migraciones..."
-python migrate.py
+python migrations/migrate.py
 echo "✓ Base de datos actualizada"

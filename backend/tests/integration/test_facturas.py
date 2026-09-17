@@ -177,7 +177,7 @@ def test_numeracion_ignora_numeros_con_otro_formato(api, db_session):
 def test_finanzas_del_dashboard_exige_permiso_de_facturas(api, db_session):
     """La plata es admin-only: un rol sin 'facturas:ver' no debe verla."""
     from models import Role
-    from dependencies import tiene_permiso
+    from core.security import tiene_permiso
 
     # El admin (protegido) sí puede
     assert api.get("/api/dashboard/finanzas").status_code == 200

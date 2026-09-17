@@ -10,14 +10,15 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import cast, func, or_, String
 from sqlalchemy.orm import Session, joinedload
 
-from database import get_db
-from dependencies import require_permiso, verify_token
+from core.database import get_db
+from core.security import require_permiso, verify_token
 from models import (
     Cliente, ClienteContacto, ClienteProducto,
     ClienteUbicacion, Provincia, RazonSocial, Rubro,
 )
 from schemas import ClienteCreateSchema, ClienteUpdateSchema
 from services import auditoria
+from services.numeracion import siguiente_numero_cliente
 
 router = APIRouter(prefix="/api", tags=["clientes"])
 
@@ -70,7 +71,12 @@ def _resolver_id_cliente(db: Session, id_cliente, rs_id):
     el número visible, así que no puede pisar el de otra entidad.
     """
     if id_cliente is None:
-        return (db.query(func.max(Cliente.id_cliente)).scalar() or 0) + 1
+        # El próximo libre mirando TAMBIÉN los números de razones sociales: una
+        # recién creada todavía no tiene marcas y, contando sólo clientes, el
+        # cliente suelto se quedaba con su mismo N°. Nunca por debajo de los
+        # id_cliente internos, por si la marca después se queda sin empresa.
+        maximo_interno = db.query(func.max(Cliente.id_cliente)).scalar() or 0
+        return max(siguiente_numero_cliente(db), maximo_interno + 1)
 
     rs = db.query(RazonSocial).filter(RazonSocial.id == rs_id).first() if rs_id else None
     if rs is not None and rs.numero is not None:
@@ -87,9 +93,16 @@ def _resolver_id_cliente(db: Session, id_cliente, rs_id):
             choca.razon_social_obj.razon_social if choca.razon_social_obj
             else (choca.marca or f"el cliente #{choca.id}")
         )
+        # El caso típico: el usuario sabe que la empresa es la 255 y escribe el
+        # número a mano, sin elegir la razón social. El mensaje lo lleva ahí.
         raise HTTPException(
             status_code=400,
-            detail=f"El N° {id_cliente} ya es de «{de_quien}». Cada razón social lleva el suyo.",
+            detail=(
+                f"El N° {id_cliente} ya es de «{de_quien}». Si esta marca es de esa "
+                f"empresa, elegila en el paso de Razón Social y el N° se completa "
+                f"solo. Si es otra empresa, dejá el número vacío para que el sistema "
+                f"le asigne uno."
+            ),
         )
     return id_cliente
 
@@ -109,7 +122,10 @@ def _get_or_create_razon_social(db: Session, razon_social: str, cuit: Optional[s
     rs_text = razon_social.strip()
     obj = db.query(RazonSocial).filter(RazonSocial.razon_social == rs_text).first()
     if not obj:
-        obj = RazonSocial(razon_social=rs_text, cuit=(cuit or "").strip() or None)
+        obj = RazonSocial(
+            razon_social=rs_text, cuit=(cuit or "").strip() or None,
+            numero=siguiente_numero_cliente(db),
+        )
         db.add(obj)
         db.flush()
     return obj

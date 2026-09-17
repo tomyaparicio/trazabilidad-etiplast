@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import extract, func
 from sqlalchemy.orm import Session, joinedload
 
-from database import get_db
-from dependencies import require_permiso, tiene_permiso, verify_token
+from core.database import get_db
+from core.security import require_permiso, tiene_permiso, verify_token
 from models import Cliente, ClienteProducto, ClienteUbicacion, Factura, OrdenTrabajo, Presupuesto, Provincia, RazonSocial, Rubro
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
@@ -353,9 +353,35 @@ async def obtener_filtros(
             vistas.setdefault(texto.upper(), texto)
     razones_sociales = sorted(vistas.values(), key=str.upper)
 
+    # Sugerencias para cargar una presentación. No son catálogos cerrados —
+    # se puede escribir uno nuevo — pero en la práctica se repiten siempre los
+    # mismos, así que se ofrecen ordenados por uso. Es lo que evita que
+    # convivan "lts", "lt" y " lts" por tipear a mano.
+    def _mas_usados(col, limite=60):
+        filas = (
+            db.query(col, func.count(ClienteProducto.id).label("n"))
+            .filter(col.isnot(None))
+            .group_by(col)
+            .order_by(func.count(ClienteProducto.id).desc())
+            .limit(limite)
+            .all()
+        )
+        vistos, salida = set(), []
+        for valor, _ in filas:
+            v = valor.strip() if isinstance(valor, str) else valor
+            if v in ("", None) or v in vistos:
+                continue
+            vistos.add(v)
+            salida.append(v)
+        return salida
+
     return {
         "rubros": rubros,
         "provincias": provincias,
         "envases": envases,
         "razones_sociales": razones_sociales,
+        "laminas":     _mas_usados(ClienteProducto.lamina),
+        "ubicaciones": _mas_usados(ClienteProducto.ubicacion),
+        "altos":       [float(a) for a in _mas_usados(ClienteProducto.alto, 20)],
+        "cilindros":   [float(c) for c in _mas_usados(ClienteProducto.cilindro, 20)],
     }

@@ -7,8 +7,8 @@ marcado de lectura (individual y masivo).
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from database import get_db
-from dependencies import verify_token
+from core.database import get_db
+from core.security import verify_token
 from models import Notificacion, User
 
 router = APIRouter(prefix="/api", tags=["notificaciones"])
