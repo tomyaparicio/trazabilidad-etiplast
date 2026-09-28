@@ -10,12 +10,15 @@
 import { useCallback, useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
-import type { Cliente, Filtros, RazonSocial } from "@/types/database"
+import type { Cliente, Filtros } from "@/types/database"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import {
-  Plus, Loader2, X, Check, ChevronLeft, ChevronRight,
+  RazonSocialSelector, AVISO_RAZON_SOCIAL_PENDIENTE, type RazonSocialElegida,
+} from "@/components/razon-social-selector"
+import {
+  Loader2, X, Check, ChevronLeft, ChevronRight,
   Building2, MapPin, Phone, Package, ClipboardCheck,
   type LucideIcon,
 } from "lucide-react"
@@ -64,190 +67,6 @@ interface ClienteNuevoDialogProps {
   razonSocialInicial?: RazonSocialInicial | null
 }
 
-// ── Selector de razón social (buscar o crear) ────────────────────────────────
-/** Lo mínimo de una razón social para volver a elegirla sin buscarla. */
-export type RazonSocialElegida = Pick<RazonSocial, "id" | "razon_social" | "cuit" | "numero">
-
-const normalizar = (t: string) => t.trim().toLowerCase()
-
-export function RazonSocialSelector({
-  value,
-  valorRs,
-  onChange,
-  excluirId,
-  onCrear,
-  listaEnLinea = false,
-}: {
-  value: string
-  /** La razón social que ya está elegida al montar (p. ej. al volver a este paso).
-   *  Con ella, si se borra una letra y se vuelve a escribir, se recupera la MISMA
-   *  empresa: buscarla por nombre podía no encontrarla o traer otra homónima. */
-  valorRs?: RazonSocialElegida | null
-  onChange: (id: number | null, razonSocial: string, cuit?: string | null, numero?: number | null) => void
-  /** No la ofrece entre los resultados (p. ej. la misma razón social que se está borrando). */
-  excluirId?: number
-  /** Si se pasa, «Crear» sólo avisa el nombre en vez de darla de alta ya: quien
-   *  la usa decide cuándo crearla (p. ej. recién al confirmar un borrado). */
-  onCrear?: (nombre: string) => void
-  /** La lista de resultados ocupa lugar debajo del campo en vez de flotar. Para
-   *  usarlo dentro de algo que se desplaza (un cartel con scroll), donde la lista
-   *  flotante quedaba recortada y no se veía. */
-  listaEnLinea?: boolean
-}) {
-  const [query, setQuery] = useState(value)
-  const [results, setResults] = useState<RazonSocial[]>([])
-  const [open, setOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const listaRef = useRef<HTMLDivElement>(null)
-  // Lo último elegido. Si el texto se aleja de su nombre, la elección deja de
-  // valer: si no, se borraba el texto, se escribía otra empresa y el formulario
-  // seguía guardando la primera, que ya no estaba en pantalla. Lo soltado se
-  // recuerda para devolverlo si vuelve a escribir exactamente ese nombre.
-  type Eleccion = { nombre: string; rs?: RazonSocialElegida; nueva?: boolean }
-  const elegido = useRef<Eleccion | null>(
-    valorRs ? { nombre: value || valorRs.razon_social, rs: valorRs } : value ? { nombre: value } : null)
-  const soltado = useRef<Eleccion | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const t = setTimeout(async () => {
-      const res = await api.razonessociales.list({ search: query, per_page: 15 })
-      setResults(res.data)
-    }, 250)
-    return () => clearTimeout(t)
-  }, [query, open])
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    // En línea, la lista ocupa lugar: si se cierra al APRETAR el mouse, todo lo de
-    // abajo sube antes de soltarlo y el clic cae en otro lado (el botón «No,
-    // volver» no respondía al primer clic). Se cierra recién con el clic completo.
-    const evento = listaEnLinea ? "click" : "mousedown"
-    document.addEventListener(evento, handler)
-    return () => document.removeEventListener(evento, handler)
-  }, [listaEnLinea])
-
-  const handleSelect = (rs: RazonSocial) => {
-    setQuery(rs.razon_social)
-    setOpen(false)
-    elegido.current = { nombre: rs.razon_social, rs }
-    onChange(rs.id, rs.razon_social, rs.cuit, rs.numero)
-  }
-
-  const handleCreate = async () => {
-    if (!query.trim() || creating) return
-    if (onCrear) {
-      const nombre = query.trim()
-      setQuery(nombre)
-      setOpen(false)
-      elegido.current = { nombre, nueva: true }
-      onCrear(nombre)
-      return
-    }
-    setCreating(true)
-    try {
-      const rs = await api.razonessociales.create({ razon_social: query.trim() })
-      setOpen(false)
-      elegido.current = { nombre: rs.razon_social, rs }
-      onChange(rs.id, rs.razon_social, rs.cuit, rs.numero)
-      toast.success("Razón social creada")
-    } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : "No se pudo crear la razón social")
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  const visibles = excluirId == null ? results : results.filter((r) => r.id !== excluirId)
-  const listaAbierta = open && (visibles.length > 0 || query.trim() !== "")
-
-  // En línea, la lista puede quedar debajo de lo visible: se la trae a la vista.
-  useEffect(() => {
-    if (listaEnLinea && listaAbierta) listaRef.current?.scrollIntoView({ block: "nearest" })
-  }, [listaEnLinea, listaAbierta, visibles.length])
-  const exactMatch = results.some(
-    (r) => r.razon_social.toLowerCase() === query.trim().toLowerCase()
-  )
-
-  return (
-    <div ref={ref} className="relative">
-      <Input
-        type="text"
-        autoComplete="off"
-        value={query}
-        placeholder="Buscar o crear…"
-        onFocus={() => {
-          setOpen(true)
-          api.razonessociales.list({ per_page: 15 }).then((r) => setResults(r.data))
-        }}
-        onChange={(e) => {
-          const texto = e.target.value
-          setQuery(texto)
-          setOpen(true)
-          const actual = elegido.current
-          // Espacios o mayúsculas de más no la sueltan: se ve igual en pantalla.
-          if (actual && normalizar(texto) !== normalizar(actual.nombre)) {
-            soltado.current = actual
-            elegido.current = null
-            onChange(null, "")
-            return
-          }
-          const previo = soltado.current
-          if (!actual && previo && normalizar(texto) === normalizar(previo.nombre)) {
-            // Borró una letra y la volvió a escribir: la elección vuelve a valer.
-            // Sólo con la empresa en mano; nunca adivinándola por el nombre.
-            const rs = previo.rs
-            if (rs) {
-              elegido.current = { nombre: texto, rs }
-              onChange(rs.id, rs.razon_social, rs.cuit, rs.numero)
-              return
-            }
-            if (previo.nueva && onCrear) {
-              elegido.current = { nombre: texto, nueva: true }
-              onCrear(texto.trim())
-              return
-            }
-          }
-          if (!texto) onChange(null, "")
-        }}
-        className="h-14 rounded-xl border-[1.5px] bg-input border-border text-[17px] font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:border-gold focus-visible:ring-gold/15"
-      />
-      {listaAbierta && (
-        <div
-          ref={listaRef}
-          className={`${listaEnLinea ? "relative" : "absolute z-50 left-0 right-0 top-full"} mt-1.5 bg-popover border border-border rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto`}
-        >
-          {visibles.map((rs) => (
-            <button
-              key={rs.id}
-              type="button"
-              onMouseDown={() => handleSelect(rs)}
-              className="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex flex-col gap-0.5"
-            >
-              <span className="text-[15px] font-semibold text-foreground">{rs.razon_social}</span>
-              {rs.cuit && <span className="text-[12.5px] text-muted-foreground">{rs.cuit}</span>}
-            </button>
-          ))}
-          {!exactMatch && query.trim() && (
-            <button
-              type="button"
-              onMouseDown={handleCreate}
-              disabled={creating}
-              className="w-full text-left px-4 py-3 hover:bg-emerald-500/10 text-[15px] font-semibold text-emerald-400 flex items-center gap-2 border-t border-border"
-            >
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Crear &ldquo;{query.trim()}&rdquo;
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Bloques de UI reutilizables ──────────────────────────────────────────────
 const LABEL_CLS = "block text-[13px] font-bold uppercase tracking-[0.06em] text-muted-foreground mb-2"
 const INPUT_CLS = "h-14 rounded-xl border-[1.5px] bg-input border-border text-[17px] font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:border-gold focus-visible:ring-gold/15"
@@ -293,6 +112,9 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros, razonSoc
         cuit: razonSocialInicial.cuit ?? null, numero: razonSocialInicial.numero ?? null }
     : null, [razonSocialInicial])
   const [empresaElegida, setEmpresaElegida] = useState<RazonSocialElegida | null>(empresaInicial)
+  // Hay texto en el buscador de razón social pero ninguna elegida: en pantalla se
+  // lee una empresa y el alta saldría sin razón social.
+  const [rsPendiente, setRsPendiente] = useState(false)
   const [saving, setSaving] = useState(false)
   // Envase fuera del catálogo → input libre en lugar del select.
   const [envaseLibre, setEnvaseLibre] = useState(false)
@@ -344,6 +166,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros, razonSoc
       setFormData(formInicial())
       autocompletado.current = autoInicial()
       setEmpresaElegida(empresaInicial())
+      setRsPendiente(false)
       setPaso(0)
       setEnvaseLibre(false)
     }
@@ -357,13 +180,23 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros, razonSoc
     return false
   }
 
+  // Texto escrito en la razón social sin elegir ninguna: antes el cliente se creaba
+  // sin razón social y en silencio. Se frena en el paso 1 hasta que la elija de la
+  // lista, la cree o borre el texto (un cliente sin razón social sí se permite).
+  const razonSocialOk = () => {
+    if (!rsPendiente) return true
+    toast.error(AVISO_RAZON_SOCIAL_PENDIENTE)
+    setPaso(0)
+    return false
+  }
+
   const avanzar = () => {
-    if (paso === 0 && !marcaOk()) return
+    if (paso === 0 && (!marcaOk() || !razonSocialOk())) return
     irA(Math.min(paso + 1, PASOS.length - 1))
   }
 
   const handleSave = async () => {
-    if (saving || !marcaOk()) return
+    if (saving || !marcaOk() || !razonSocialOk()) return
     setSaving(true)
     try {
       const numericFields = ["id_cliente", "alto", "cilindro", "cierre", "volumen_cantidad", "razon_social_id"]
@@ -442,7 +275,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros, razonSoc
                 <button
                   key={s.key}
                   type="button"
-                  onClick={() => { if (i > 0 && !String(formData.marca ?? "").trim()) { toast.error("La marca es obligatoria"); return } irA(i) }}
+                  onClick={() => { if (i > 0 && (!marcaOk() || !razonSocialOk())) return; irA(i) }}
                   className="flex flex-1 flex-col gap-2.5 px-1 pb-4 text-left"
                 >
                   <span className={`h-[5px] rounded-full ${act ? "bg-gold" : done ? "bg-gold/50" : "bg-white/20"}`} />
@@ -505,6 +338,7 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros, razonSoc
                     })
                     if (id) precargarDeLaEmpresa(id)
                   }}
+                  onPendiente={setRsPendiente}
                 />
               </div>
               <div className="sm:col-span-3">

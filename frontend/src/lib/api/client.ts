@@ -18,6 +18,7 @@ import type {
   ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
   ReporteClientesTop, ReporteStockResumen, Trazabilidad,
 } from "./types"
+import type { RazonSocialSimilar } from "@/types/database"
 
 const PROXY = "/api/backend"
 
@@ -30,6 +31,18 @@ function buildPath(path: string, params?: Record<string, string | number | undef
   })
   const q = sp.toString()
   return `${PROXY}/${base}${q ? `?${q}` : ""}`
+}
+
+/** El error del backend con su código HTTP. Mirar el texto para saber qué pasó
+ *  es adivinar: el mismo 409 puede ser "ya existe con ese nombre exacto" o
+ *  "parece la misma empresa, confirmá", y una pantalla necesita distinguirlos
+ *  para ofrecer la confirmación. Sigue siendo un Error: quien sólo lee
+ *  `.message` no se entera de nada. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = "ApiError"
+  }
 }
 
 async function request<T>(
@@ -62,7 +75,7 @@ async function request<T>(
     } catch {
       /* usar text tal cual */
     }
-    throw new Error(msg)
+    throw new ApiError(msg, res.status)
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -214,7 +227,14 @@ export const api = {
         /** Documentos de sus marcas: lo que se perdería si se borran. */
         historial?: { ordenes: number; remitos: number; facturas: number; presupuestos: number }
       }>(`/api/razones-sociales/${id}`),
-    create: (data: { razon_social: string; cuit?: string; numero?: number | null; domicilio?: string | null; localidad?: string | null; provincia?: string | null; pais?: string | null; telefono?: string | null; transporte?: string | null; transporte_domicilio?: string | null; transporte_localidad?: string | null }) =>
+    /** Las que pueden ser la misma empresa, para preguntar ANTES de crear otra: el
+     *  buscador filtra con ILIKE %texto%, así que escribiendo «Megaton SAS» la
+     *  «Megaton» que ya existe no aparece y lo único que se ofrece es «Crear». */
+    similares: (nombre: string) =>
+      get<RazonSocialSimilar[]>("/api/razones-sociales/similares", { nombre }),
+    /** `crear_igual`: el backend rechaza el mismo nombre normalizado salvo que el
+     *  usuario, ya avisado, confirme que es otra empresa («X SA» y «X SRL»). */
+    create: (data: { razon_social: string; crear_igual?: boolean; cuit?: string; numero?: number | null; domicilio?: string | null; localidad?: string | null; provincia?: string | null; pais?: string | null; telefono?: string | null; transporte?: string | null; transporte_domicilio?: string | null; transporte_localidad?: string | null }) =>
       post<RazonSocial>("/api/razones-sociales", data),
     update: (id: number, data: { razon_social?: string; cuit?: string; numero?: number | null; domicilio?: string | null; localidad?: string | null; provincia?: string | null; pais?: string | null; telefono?: string | null; transporte?: string | null; transporte_domicilio?: string | null; transporte_localidad?: string | null }) =>
       put<RazonSocial>(`/api/razones-sociales/${id}`, data),

@@ -4,12 +4,14 @@ import React, { useEffect, useState, useCallback, useRef } from "react"
 import { PageContainer } from "@/components/ui/page-container"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
+import { ApiError } from "@/lib/api/client"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
-import { ClienteNuevoDialog, RazonSocialSelector } from "@/app/(dashboard)/clientes/_components/cliente-nuevo-dialog"
-import type { Filtros } from "@/types/database"
+import { ClienteNuevoDialog } from "@/app/(dashboard)/clientes/_components/cliente-nuevo-dialog"
+import { RazonSocialSelector, claveNombre } from "@/components/razon-social-selector"
+import type { Filtros, RazonSocialSimilar } from "@/types/database"
 import Link from "next/link"
 import { tamanioDesdeNombre } from "@/components/presentacion-card"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -620,6 +622,24 @@ export default function RazonesSocialesPage() {
     if (viewRS?.id === rs.id) setViewRS(rs)
   }
 
+  /** En el alta dijo que la empresa que quería crear es una que ya está cargada:
+   *  se cierra el alta y se le abre esa, así no tiene que ir a buscarla a mano
+   *  (que es justo lo que no encontraba, y por eso estaba creando otra). */
+  const abrirExistente = async (s: RazonSocialSimilar) => {
+    setNuevoOpen(false)
+    const enLaTabla = rows.find((r) => r.id === s.id)
+    if (enLaTabla) { setViewRS(enLaTabla); return }
+    try {
+      const detalle = await api.razonessociales.get(s.id)
+      setViewRS(detalle as RazonSocialDetalle)
+    } catch {
+      // Sin la ficha no hay qué abrir: al menos se deja la tabla filtrada por su
+      // nombre, que es donde tiene que seguir.
+      toast.info(`«${s.razon_social}»${s.numero != null ? ` (N° ${s.numero})` : ""} ya está cargada. La buscamos en la lista.`)
+      handleSearch(s.razon_social)
+    }
+  }
+
   // Genera los números de página a mostrar (máx 7 botones)
   const pageNumbers = (() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -866,6 +886,7 @@ export default function RazonesSocialesPage() {
         open={nuevoOpen}
         onClose={() => setNuevoOpen(false)}
         onSaved={handleCreated}
+        onElegirExistente={abrirExistente}
       />
       {editRS && (
         <RSDialog
@@ -881,12 +902,15 @@ export default function RazonesSocialesPage() {
 
 // ─── Create / Edit dialog ─────────────────────────────────────────────────────
 function RSDialog({
-  open, rs, onClose, onSaved,
+  open, rs, onClose, onSaved, onElegirExistente,
 }: {
   open: boolean
   rs?: RazonSocialRow
   onClose: () => void
   onSaved: (rs: RazonSocialRow) => void
+  /** Sólo en el alta: el usuario dijo que la empresa que quería crear ya estaba
+   *  cargada. La pantalla cierra el alta y le abre esa. */
+  onElegirExistente?: (rs: RazonSocialSimilar) => void
 }) {
   const isEdit = !!rs
   const desde = (r?: RazonSocialRow) => ({
@@ -896,37 +920,78 @@ function RSDialog({
   })
   const [form, setForm] = useState(desde(rs))
   const [saving, setSaving] = useState(false)
+  const [consultando, setConsultando] = useState(false)
   const [error, setError] = useState("")
+  // Las que pueden ser la misma empresa, preguntadas al tocar «Crear». Van con el
+  // nombre que se preguntó: si lo cambia, dejan de tener que ver.
+  const [similares, setSimilares] = useState<{ de: string; items: RazonSocialSimilar[] } | null>(null)
 
   useEffect(() => {
     setForm(desde(rs))
     setError("")
+    setSimilares(null)
   }, [rs?.id, open])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.razon_social.trim()) { setError("La razón social es requerida"); return }
+  const nombre = form.razon_social.trim()
+  // Lo preguntado sigue en pie mientras no cambie el nombre escrito.
+  const pregunta = similares && claveNombre(similares.de) === claveNombre(nombre) ? similares : null
+  // Con el MISMO nombre exacto el servidor no crea otra ni confirmando: nadie
+  // podría distinguirlas en la lista. Ahí no se ofrece «crearla igual».
+  const yaExisteIgual = !!pregunta?.items.some((s) => claveNombre(s.razon_social) === claveNombre(nombre))
+  const ocupado = saving || consultando
+
+  /** Las que pueden ser la misma empresa. `null` = no se pudo preguntar; ahí se
+   *  crea igual, que trabar el alta por no poder preguntar es peor que un
+   *  duplicado, que al menos después se arregla. */
+  const pedirSimilares = async (n: string): Promise<RazonSocialSimilar[] | null> => {
+    setConsultando(true)
+    try {
+      return await api.razonessociales.similares(n)
+    } catch {
+      return null
+    } finally {
+      setConsultando(false)
+    }
+  }
+
+  const guardar = async (crearIgual: boolean) => {
     setSaving(true); setError("")
     try {
       // numero vacío = "sin número" (null), no "no lo toques": la pantalla
       // muestra el valor actual, así que lo que se ve es lo que se guarda.
       const numero = form.numero.trim() ? Number(form.numero) : null
       const body = {
-        razon_social: form.razon_social.trim(),
+        razon_social: nombre,
         cuit: form.cuit.trim() || undefined,
         numero,
         domicilio: form.domicilio.trim() || null, localidad: form.localidad.trim() || null, provincia: form.provincia.trim() || null, pais: form.pais.trim() || null, telefono: form.telefono.trim() || null, transporte: form.transporte.trim() || null, transporte_domicilio: form.transporte_domicilio.trim() || null, transporte_localidad: form.transporte_localidad.trim() || null,
       }
       const saved = isEdit
         ? await api.razonessociales.update(rs!.id, body)
-        : await api.razonessociales.create(body)
+        : await api.razonessociales.create({ ...body, ...(crearIgual ? { crear_igual: true } : {}) })
       toast.success(isEdit ? "Razón social actualizada" : "Razón social creada")
+      setSimilares(null)
       onSaved(saved as RazonSocialRow)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo guardar la razón social"
+      const msg = err instanceof Error && err.message ? err.message : "No se pudo guardar la razón social"
+      // 409 del alta: el servidor dice que ya hay una que puede ser la misma
+      // empresa. Puede pasar aunque se haya preguntado (alguien la cargó en el
+      // medio, o la consulta falló): se pregunta acá en vez de dejar un error que
+      // pide confirmar algo que la pantalla no tendría dónde confirmar.
+      if (!isEdit && !crearIgual && err instanceof ApiError && err.status === 409) {
+        const parecidas = await pedirSimilares(nombre)
+        // Si entre ellas está la del nombre exacto, no hay nada que confirmar:
+        // vale el aviso del servidor, que dice que la elija de la lista.
+        const hayIgual = (parecidas ?? []).some((s) => claveNombre(s.razon_social) === claveNombre(nombre))
+        if (parecidas?.length && !hayIgual) {
+          setSimilares({ de: nombre, items: parecidas })
+          setError("")
+          return
+        }
+      }
       setError(msg)
       toast.error(msg)
     } finally {
@@ -934,8 +999,27 @@ function RSDialog({
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nombre) { setError("La razón social es requerida"); return }
+    if (ocupado || pregunta) return
+    // En el alta se pregunta ANTES de crear: el buscador de arriba filtra por
+    // texto, así que escribiendo «Aguas del Sur SRL» la «Aguas del Sur SA» que ya
+    // está no aparece y el único camino visible es crear otra. Por ahí entraron
+    // los duplicados de producción.
+    if (!isEdit) {
+      const parecidas = await pedirSimilares(nombre)
+      if (parecidas?.length) {
+        setSimilares({ de: nombre, items: parecidas })
+        setError("")
+        return
+      }
+    }
+    await guardar(false)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v && !saving) onClose() }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !ocupado) onClose() }}>
       <DialogContent className="sm:max-w-[560px] max-h-[88vh] overflow-y-auto bg-card border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
@@ -950,6 +1034,57 @@ function RSDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">{error}</div>
+          )}
+
+          {/* Antes de crear: lo que ya está cargado y puede ser la misma empresa.
+              Es la misma pregunta que hace el buscador de razón social; sin ella
+              esta pantalla chocaba contra el 409 del servidor sin forma de
+              contestarlo, y «Aguas del Sur SRL» no se podía dar de alta. */}
+          {pregunta && (
+            <div className="space-y-2.5 rounded-xl border-[1.5px] border-gold/50 bg-gold/10 px-4 py-3.5">
+              <p className="text-[16px] font-bold text-foreground">¿Es alguna de estas?</p>
+              <p className="text-[14px] leading-snug text-muted-foreground">
+                {pregunta.items.length === 1
+                  ? "Ya hay una razón social cargada que puede ser la misma empresa."
+                  : "Ya hay razones sociales cargadas que pueden ser la misma empresa."}
+                {" "}Si es esa, elegila y te abrimos su ficha.
+              </p>
+              <div className="space-y-1.5">
+                {pregunta.items.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => onElegirExistente?.(s)}
+                    disabled={ocupado}
+                    className="flex w-full flex-col gap-0.5 rounded-lg border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-gold/60 hover:bg-muted/40 disabled:opacity-50"
+                  >
+                    <span className="text-[15px] font-semibold text-foreground">{s.razon_social}</span>
+                    <span className="text-[13px] text-muted-foreground">
+                      {s.numero != null ? `N° ${s.numero}` : "Sin N°"}
+                      {" · "}
+                      {s.cantidad_marcas === 1 ? "1 marca" : `${s.cantidad_marcas} marcas`}
+                      {s.cuit ? ` · ${s.cuit}` : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {yaExisteIgual ? (
+                <p className="text-[14px] font-semibold leading-snug text-foreground">
+                  Con ese mismo nombre no se puede crear otra: nadie podría distinguirlas en la lista.
+                  Elegila de arriba, o cambiale el nombre.
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={() => guardar(true)}
+                  disabled={ocupado}
+                  className="h-11 w-full gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-[15px] font-semibold text-emerald-400 hover:bg-emerald-500/20"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  No, es otra empresa: crearla igual
+                </Button>
+              )}
+            </div>
           )}
 
           <div className="space-y-1.5">
@@ -997,11 +1132,13 @@ function RSDialog({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="rounded-xl border-border">Cancelar</Button>
-            <Button type="submit" disabled={saving || !form.razon_social.trim()}
+            <Button type="button" variant="outline" onClick={onClose} disabled={ocupado} className="rounded-xl border-border">Cancelar</Button>
+            {/* Con la pregunta en pantalla se contesta ahí: este botón volvería a
+                preguntar lo mismo. Cambiar el nombre la saca y lo reactiva. */}
+            <Button type="submit" disabled={ocupado || !nombre || !!pregunta}
               className="rounded-xl bg-gold/10 hover:bg-gold/20 text-gold border border-gold/25 gap-2">
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isEdit ? "Guardar cambios" : "Crear"}
+              {ocupado && <Loader2 className="w-4 h-4 animate-spin" />}
+              {consultando ? "Revisando…" : isEdit ? "Guardar cambios" : "Crear"}
             </Button>
           </DialogFooter>
         </form>

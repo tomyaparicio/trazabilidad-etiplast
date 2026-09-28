@@ -1,11 +1,14 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
-import type { Cliente, ClienteProducto, Maquina, RazonSocial } from "@/types/database"
+import type { Cliente, ClienteProducto, Maquina } from "@/types/database"
 import { Button } from "@/components/ui/button"
 import { PresentacionCard } from "@/components/presentacion-card"
+import {
+  RazonSocialSelector, AVISO_RAZON_SOCIAL_PENDIENTE, type RazonSocialElegida,
+} from "@/components/razon-social-selector"
 import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -54,82 +57,6 @@ function FieldCard({
             ? String(value)
             : <span className="text-muted-foreground/30 font-normal text-sm">—</span>}
         </p>
-      )}
-    </div>
-  )
-}
-
-// ─── RazonSocialSelector ──────────────────────────────────────────────────────
-function RazonSocialSelector({
-  value, onChange,
-}: {
-  value: string
-  onChange: (id: number | null, rs: string, cuit?: string | null) => void
-}) {
-  const [query, setQuery] = useState(value)
-  const [results, setResults] = useState<RazonSocial[]>([])
-  const [open, setOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const t = setTimeout(async () => {
-      const res = await api.razonessociales.list({ search: query, per_page: 15 })
-      setResults(res.data)
-    }, 250)
-    return () => clearTimeout(t)
-  }, [query, open])
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", h)
-    return () => document.removeEventListener("mousedown", h)
-  }, [])
-
-  const select = (rs: RazonSocial) => {
-    setQuery(rs.razon_social); setOpen(false)
-    onChange(rs.id, rs.razon_social, rs.cuit)
-  }
-  const create = async () => {
-    if (!query.trim() || creating) return; setCreating(true)
-    try {
-      const rs = await api.razonessociales.create({ razon_social: query.trim() })
-      setOpen(false); onChange(rs.id, rs.razon_social, rs.cuit)
-      toast.success("Razón social creada")
-    } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : "No se pudo crear la razón social")
-    } finally { setCreating(false) }
-  }
-  const exact = results.some((r) => r.razon_social.toLowerCase() === query.trim().toLowerCase())
-
-  return (
-    <div ref={ref} className="relative">
-      <Input
-        autoComplete="off" value={query} placeholder="Buscar o crear..."
-        onFocus={() => { setOpen(true); api.razonessociales.list({ per_page: 15 }).then((r) => setResults(r.data)) }}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); if (!e.target.value) onChange(null, "") }}
-        className="h-9 rounded-lg bg-input border-border text-sm focus-visible:border-gold/40 focus-visible:ring-gold/10"
-      />
-      {open && (results.length > 0 || query.trim()) && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-xl shadow-xl overflow-hidden max-h-52 overflow-y-auto">
-          {results.map((rs) => (
-            <button key={rs.id} type="button" onMouseDown={() => select(rs)}
-              className="w-full text-left px-4 py-2.5 hover:bg-muted/50 text-sm flex flex-col gap-0.5">
-              <span className="font-semibold text-foreground">{rs.razon_social}</span>
-              {rs.cuit && <span className="text-xs text-muted-foreground">{rs.cuit}</span>}
-            </button>
-          ))}
-          {!exact && query.trim() && (
-            <button type="button" onMouseDown={create} disabled={creating}
-              className="w-full text-left px-4 py-2.5 hover:bg-emerald-500/10 text-sm text-emerald-400 flex items-center gap-2 border-t border-border">
-              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-              Crear &ldquo;{query.trim()}&rdquo;
-            </button>
-          )}
-        </div>
       )}
     </div>
   )
@@ -487,6 +414,9 @@ export function ClienteDetalle({ cliente, onBack, onUpdate, onDelete }: ClienteD
   const [productos, setProductos] = useState<ClienteProducto[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Hay texto en el buscador de razón social pero ninguna elegida. Con el buscador
+  // viejo se escribía «Isacer» sin elegirla y se guardaba igual «Megaton».
+  const [rsPendiente, setRsPendiente] = useState(false)
 
   useEffect(() => { setProductos(cliente?.productos ?? []) }, [cliente?.id])
 
@@ -515,12 +445,20 @@ export function ClienteDetalle({ cliente, onBack, onUpdate, onDelete }: ClienteD
     if (!cliente) return
     const base: Record<string, unknown> = { ...cliente }
     CAMPOS_EDITABLES.forEach((c) => { if (!(c in base)) base[c] = null })
-    setEditData(base); setEditing(true); setSaveMsg("")
+    setEditData(base); setEditing(true); setSaveMsg(""); setRsPendiente(false)
   }
-  const cancelEditing = () => { setEditing(false); if (cliente) setEditData({ ...cliente }) }
+  const cancelEditing = () => { setEditing(false); setRsPendiente(false); if (cliente) setEditData({ ...cliente }) }
 
   const handleSave = async () => {
     if (!cliente || saving) return
+    // Lo escrito en la razón social no es una empresa elegida: guardar grabaría
+    // otra cosa que la que se lee en pantalla. Se frena y se muestra el campo.
+    // Vaciarlo del todo sí se puede (cliente sin razón social): eso no queda pendiente.
+    if (rsPendiente) {
+      setTab("razon")
+      toast.error(AVISO_RAZON_SOCIAL_PENDIENTE)
+      return
+    }
     setSaving(true); setSaveMsg("")
     try {
       const numeric = ["id_cliente", "razon_social_id", "latitud", "longitud"]
@@ -574,6 +512,41 @@ export function ClienteDetalle({ cliente, onBack, onUpdate, onDelete }: ClienteD
 
   const fieldProps = { editing, editData, onChange: set }
 
+  // La razón social actual del cliente, entera (el N° que se ve es el de ella):
+  // con la empresa en mano, borrar una letra y volver a escribirla recupera la
+  // MISMA, en vez de quedar como texto suelto sin elegir.
+  const rsActual: RazonSocialElegida | null = cliente?.razon_social_id != null
+    ? {
+        id: cliente.razon_social_id,
+        razon_social: cliente.razon_social ?? "",
+        cuit: cliente.cuit ?? null,
+        numero: cliente.id_cliente ?? null,
+      }
+    : null
+
+  // El buscador queda montado mientras se edita y sólo se oculta fuera de su
+  // pestaña: si se desmontaba al cambiar de pestaña, lo escrito sin elegir se
+  // borraba de la vista y al guardar no se veía qué faltaba.
+  const buscadorRazonSocial = (
+    <div className={tab === "razon" ? "mb-4" : "hidden"}>
+      <div className="rounded-xl border border-border bg-muted/20 px-4 py-4">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1.5">Razón Social</p>
+        <RazonSocialSelector
+          compacto
+          value={String(editData.razon_social ?? "")}
+          valorRs={rsActual}
+          onChange={(id, rs, cuit) => setEditData((prev) => ({
+            ...prev, razon_social_id: id, razon_social: rs,
+            // Sólo pisa el CUIT si la empresa tiene uno cargado: antes, elegir una
+            // razón social sin CUIT borraba el que ya estaba escrito.
+            ...(cuit ? { cuit } : {}),
+          }))}
+          onPendiente={setRsPendiente}
+        />
+      </div>
+    </div>
+  )
+
   const renderTab = () => {
     switch (tab) {
       case "general":
@@ -587,20 +560,8 @@ export function ClienteDetalle({ cliente, onBack, onUpdate, onDelete }: ClienteD
       case "razon":
         return (
           <div className="grid grid-cols-2 gap-4">
-            {(editing) ? (
-              <div className="col-span-full rounded-xl border border-border bg-muted/20 px-4 py-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1.5">Razón Social</p>
-                <RazonSocialSelector
-                  value={String(editData.razon_social ?? "")}
-                  onChange={(id, rs, cuit) => setEditData((prev) => ({
-                    ...prev, razon_social_id: id, razon_social: rs,
-                    // Sólo pisa el CUIT si la empresa tiene uno cargado: antes, elegir una
-                    // razón social sin CUIT borraba el que ya estaba escrito.
-                    ...(cuit ? { cuit } : {}),
-                  }))}
-                />
-              </div>
-            ) : (
+            {/* Editando, el buscador va arriba de esta grilla (ver buscadorRazonSocial). */}
+            {!editing && (
               <FieldCard label="Razón Social" fieldKey="razon_social" value={d?.razon_social as string} full {...fieldProps} />
             )}
             <FieldCard label="CUIT" fieldKey="cuit" value={d?.cuit as string} {...fieldProps} />
@@ -935,6 +896,7 @@ export function ClienteDetalle({ cliente, onBack, onUpdate, onDelete }: ClienteD
                 )
               })}
             </div>
+            {buscadorRazonSocial}
             {renderTab()}
           </>
         ) : (

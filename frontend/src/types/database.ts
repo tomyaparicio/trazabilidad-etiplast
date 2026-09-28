@@ -32,6 +32,17 @@ export interface RazonSocial {
   created_at: string | null
 }
 
+/** Una razón social que puede ser la misma empresa que se está por crear: mismo
+ *  nombre (sin mirar tildes, puntuación ni la sociedad del final) o parecida.
+ *  Trae con qué reconocerla: su N° y cuántas marcas le cuelgan. */
+export interface RazonSocialSimilar {
+  id: number
+  razon_social: string
+  numero: number | null
+  cuit: string | null
+  cantidad_marcas: number
+}
+
 export interface Cliente {
   id: number
   id_cliente: number | null
