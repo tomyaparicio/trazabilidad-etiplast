@@ -28,6 +28,21 @@ type Item = {
   run: () => void
 }
 
+/** Sin tildes y en minúsculas: «Órdenes» tiene que aparecer tipeando "ordenes". */
+const sinTildes = (texto: string) =>
+  texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+
+/** Filtra por texto escrito. Lo hacemos NOSOTROS y no cmdk: su filtro ordena los
+ *  grupos leyendo un mapa del que ya borró los que se desmontaron
+ *  (`filtered.groups.forEach(...c.current.get(i).forEach(...))`), así que al
+ *  escribir o al desaparecer un ítem tiraba «Cannot read properties of undefined
+ *  (reading 'forEach')» y se caía el ERP entero. Con `shouldFilter={false}` ese
+ *  camino de cmdk no se ejecuta nunca. */
+const coincide = (item: Item, q: string) => {
+  const texto = sinTildes(`${item.label} ${item.keywords ?? ""}`)
+  return sinTildes(q).split(/\s+/).filter(Boolean).every((parte) => texto.includes(parte))
+}
+
 interface CommandPaletteProps {
   isAdmin?: boolean
 }
@@ -157,6 +172,15 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
     },
   ]
 
+  const q = query.trim()
+  const accionesVisibles = actionItems.filter((i) => coincide(i, q))
+  const navVisibles = navItems.filter((i) => coincide(i, q))
+  const adminVisibles = adminItems.filter((i) => coincide(i, q))
+  // Los clientes los filtra el backend (por marca, razón social, localidad o
+  // producto): acá se muestran tal cual vienen.
+  const sinNada = clientes.length === 0 && accionesVisibles.length === 0 &&
+    navVisibles.length === 0 && adminVisibles.length === 0
+
   if (!open) return null
 
   return (
@@ -166,6 +190,7 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
     >
       <Command
         label="Paleta de comandos"
+        shouldFilter={false}
         className="w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-popover shadow-2xl animate-in zoom-in-95 slide-in-from-top-2 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
@@ -185,9 +210,11 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
         </div>
 
         <Command.List className="max-h-[60vh] overflow-y-auto p-2">
-          <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
-            {buscando ? "Buscando clientes…" : "Sin resultados."}
-          </Command.Empty>
+          {sinNada && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {buscando ? "Buscando clientes…" : "Sin resultados."}
+            </p>
+          )}
 
           {clientes.length > 0 && (
             <Command.Group
@@ -197,10 +224,7 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
               {clientes.map((cli) => (
                 <Command.Item
                   key={cli.id}
-                  // Incluye la query cruda: el server ya decidió que matchea
-                  // (puede haber sido por razón social o producto, no la marca),
-                  // así el filtro local de cmdk no lo descarta.
-                  value={`cliente-${cli.id} ${cli.marca ?? ""} ${cli.razon_social ?? ""} ${query}`}
+                  value={`cliente-${cli.id}`}
                   onSelect={() => go(`/clientes/${cli.id}`)}
                   className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-brand data-[selected=true]:text-white"
                 >
@@ -214,30 +238,36 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
             </Command.Group>
           )}
 
+          {accionesVisibles.length > 0 && (
           <Command.Group
             heading="Acciones rápidas"
             className="px-1 py-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
           >
-            {actionItems.map((item) => (
+            {accionesVisibles.map((item) => (
               <PaletteItem key={item.label} item={item} accent />
             ))}
           </Command.Group>
 
+          )}
+
+          {navVisibles.length > 0 && (
           <Command.Group
             heading="Navegación"
             className="px-1 py-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
           >
-            {navItems.map((item) => (
+            {navVisibles.map((item) => (
               <PaletteItem key={item.label} item={item} />
             ))}
           </Command.Group>
 
-          {isAdmin && (
+          )}
+
+          {isAdmin && adminVisibles.length > 0 && (
             <Command.Group
               heading="Administración"
               className="px-1 py-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground"
             >
-              {adminItems.map((item) => (
+              {adminVisibles.map((item) => (
                 <PaletteItem key={item.label} item={item} />
               ))}
             </Command.Group>

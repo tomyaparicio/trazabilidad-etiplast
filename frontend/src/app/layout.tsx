@@ -3,6 +3,7 @@ import Script from "next/script"
 import { DM_Sans, Questrial, Poppins, Jost } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { RecargaPorActualizacion } from "@/components/recarga-por-actualizacion"
 
 // Body: DM Sans. Wordmark/marca: Jost (geométrica ≈ Century Gothic, CON pesos → puede ir gorda).
 // UI display (títulos, números): Poppins. Questrial queda de fallback. (No next/font/local — rompe Turbopack.)
@@ -52,6 +53,9 @@ export default function RootLayout({
             __html: `(function(){var t=localStorage.getItem("etiplast-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")})();`,
           }}
         />
+        {/* Escucha los fallos de carga de archivos del sistema (típicos cuando
+            se sube una versión nueva con el ERP abierto) y recarga una vez. */}
+        <RecargaPorActualizacion />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

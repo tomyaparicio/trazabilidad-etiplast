@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/sidebar"
 import { VoiceAgent } from "@/components/voice-agent"
 import { AiAssistant } from "@/components/ai-assistant"
 import { CommandPalette } from "@/components/command-palette"
+import { AccesorioSeguro } from "@/components/accesorio-seguro"
 import { AppDock } from "@/components/app-dock"
 import { useTheme } from "@/components/theme-provider"
 import { PermisosProvider } from "@/components/permisos-provider"
@@ -65,9 +66,10 @@ export function DashboardShell({ userEmail, userName, userRole, children }: Dash
       {/* ── IA sin botón flotante a la vista: los asistentes quedan montados
            pero ocultos. El micrófono aparece solo al invocarlo ("Hola Eti" o
            Ctrl+Espacio); el estado del dock queda por si se vuelve a mostrar. ── */}
-      <VoiceAgent dockOpen={aiDockOpen} />
-      <AiAssistant dockOpen={aiDockOpen} />
-      <CommandPalette isAdmin={isAdmin} />
+      {/* Cada accesorio, aislado: si uno se rompe, se apaga solo y el ERP sigue. */}
+      <AccesorioSeguro nombre="agente de voz"><VoiceAgent dockOpen={aiDockOpen} /></AccesorioSeguro>
+      <AccesorioSeguro nombre="asistente"><AiAssistant dockOpen={aiDockOpen} /></AccesorioSeguro>
+      <AccesorioSeguro nombre="paleta de comandos"><CommandPalette isAdmin={isAdmin} /></AccesorioSeguro>
       <Toaster
         richColors
         position="top-right"
