@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import (
@@ -93,7 +94,7 @@ def _autogenerar_lote(orden: OrdenTrabajo) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/ordenes", summary="Listar órdenes de trabajo con paginación y filtros")
-async def listar_ordenes(
+def listar_ordenes(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -148,7 +149,7 @@ async def listar_ordenes(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/ordenes/{orden_id}", summary="Obtener orden de trabajo por ID")
-async def obtener_orden(
+def obtener_orden(
     orden_id: int,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -169,7 +170,9 @@ async def obtener_orden(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/ordenes", status_code=201, summary="Crear nueva orden de trabajo")
-async def crear_orden(
+# Numera con advisory lock: se suelta antes de responder cualquier error.
+@con_bloqueos()
+def crear_orden(
     payload: OrdenCreateSchema,
     user: dict = Depends(require_permiso("ordenes:crear")),
     db: Session = Depends(get_db),
@@ -283,7 +286,7 @@ async def crear_orden(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.put("/ordenes/{orden_id}", summary="Actualizar orden de trabajo")
-async def actualizar_orden(
+def actualizar_orden(
     orden_id: int,
     payload: OrdenUpdateSchema,
     user: dict = Depends(require_permiso("ordenes:editar")),
@@ -402,7 +405,7 @@ async def actualizar_orden(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.delete("/ordenes/{orden_id}", status_code=204, summary="Eliminar orden de trabajo (solo admin)")
-async def eliminar_orden(
+def eliminar_orden(
     orden_id: int,
     user: dict = Depends(require_permiso("ordenes:borrar")),
     db: Session = Depends(get_db),

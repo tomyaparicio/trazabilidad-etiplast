@@ -171,7 +171,7 @@ def _metricas_financieras(db: Session, year: Optional[int] = None, month: Option
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard/finanzas", summary="Métricas financieras (filtrables por año y mes)")
-async def dashboard_finanzas(
+def dashboard_finanzas(
     year: Optional[int] = Query(None, ge=2000, le=2100, description="Año a filtrar"),
     month: Optional[int] = Query(None, ge=1, le=12, description="Mes a filtrar (requiere year)"),
     _user: dict = Depends(require_permiso("facturas:ver")),
@@ -185,7 +185,7 @@ async def dashboard_finanzas(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard/stats", summary="Estadísticas generales del sistema")
-async def dashboard_stats(
+def dashboard_stats(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
@@ -311,7 +311,7 @@ async def dashboard_stats(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard/filtros", summary="Opciones disponibles para filtros")
-async def obtener_filtros(
+def obtener_filtros(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):

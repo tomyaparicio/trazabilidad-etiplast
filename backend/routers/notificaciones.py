@@ -27,7 +27,7 @@ def _usuario_actual(db: Session, token: dict) -> User:
 
 
 @router.get("/notificaciones", summary="Listar notificaciones del usuario actual")
-async def listar_notificaciones(
+def listar_notificaciones(
     token: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     solo_no_leidas: bool = Query(False, description="Solo notificaciones no leídas"),
@@ -59,7 +59,7 @@ async def listar_notificaciones(
 
 
 @router.get("/notificaciones/count", summary="Cantidad de notificaciones no leídas")
-async def contar_no_leidas(
+def contar_no_leidas(
     token: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
@@ -73,7 +73,7 @@ async def contar_no_leidas(
 
 
 @router.post("/notificaciones/{notificacion_id}/leer", summary="Marcar notificación como leída")
-async def marcar_leida(
+def marcar_leida(
     notificacion_id: int,
     token: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -92,7 +92,7 @@ async def marcar_leida(
 
 
 @router.post("/notificaciones/leer-todas", summary="Marcar todas las notificaciones como leídas")
-async def marcar_todas_leidas(
+def marcar_todas_leidas(
     token: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):

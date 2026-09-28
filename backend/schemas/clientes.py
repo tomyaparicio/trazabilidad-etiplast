@@ -64,3 +64,7 @@ class RazonSocialUpdateSchema(_Schema):
 
 class RazonSocialCreateSchema(RazonSocialUpdateSchema):
     razon_social: str = Field(..., max_length=300)
+    # «Megaton SA» y «Megaton SRL» tienen el mismo nombre normalizado y pueden ser
+    # dos empresas distintas: el alta las rechaza salvo que el usuario, ya avisado,
+    # confirme que es otra. El nombre EXACTO repetido se rechaza igual.
+    crear_igual:  bool = False

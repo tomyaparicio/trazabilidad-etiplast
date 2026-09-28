@@ -12,6 +12,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, joinedload
 
+from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import Cliente, OrdenTrabajo, Presupuesto, PresupuestoItem
@@ -131,7 +132,7 @@ def _sync_items(db: Session, presupuesto: Presupuesto, items_data: List[Tuple[Op
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/presupuestos", summary="Listar presupuestos con paginación y filtros")
-async def listar_presupuestos(
+def listar_presupuestos(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -186,7 +187,7 @@ async def listar_presupuestos(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/presupuestos/{presupuesto_id}", summary="Obtener presupuesto por ID")
-async def obtener_presupuesto(
+def obtener_presupuesto(
     presupuesto_id: int,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -199,7 +200,9 @@ async def obtener_presupuesto(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/presupuestos", status_code=201, summary="Crear nuevo presupuesto")
-async def crear_presupuesto(
+# Numera con advisory lock: se suelta antes de responder cualquier error.
+@con_bloqueos()
+def crear_presupuesto(
     datos: PresupuestoCreateSchema,
     user: dict = Depends(require_permiso("presupuestos:crear")),
     db: Session = Depends(get_db),
@@ -261,7 +264,7 @@ async def crear_presupuesto(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.put("/presupuestos/{presupuesto_id}", summary="Actualizar presupuesto")
-async def actualizar_presupuesto(
+def actualizar_presupuesto(
     presupuesto_id: int,
     datos_raw: Dict[str, Any] = Body(...),
     user: dict = Depends(require_permiso("presupuestos:editar")),
@@ -344,7 +347,7 @@ async def actualizar_presupuesto(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.delete("/presupuestos/{presupuesto_id}", status_code=204, summary="Eliminar presupuesto (solo admin)")
-async def eliminar_presupuesto(
+def eliminar_presupuesto(
     presupuesto_id: int,
     user: dict = Depends(require_permiso("presupuestos:borrar")),
     db: Session = Depends(get_db),
@@ -374,7 +377,9 @@ async def eliminar_presupuesto(
 
 @router.post("/presupuestos/{presupuesto_id}/convertir", status_code=201,
              summary="Convertir presupuesto en orden de trabajo (borrador)")
-async def convertir_presupuesto(
+# Numera la OT con advisory lock: se suelta antes de responder cualquier error.
+@con_bloqueos()
+def convertir_presupuesto(
     presupuesto_id: int,
     user: dict = Depends(require_permiso("presupuestos:aprobar")),
     db: Session = Depends(get_db),

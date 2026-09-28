@@ -17,20 +17,31 @@ import os
 import sys
 from datetime import date, timedelta
 
+# Este script vive en backend/tools/ pero importa core y models, que estan un
+# nivel arriba: sin esto solo funciona si se lo corre desde backend/.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 import models
 from models import (
     Base, Cliente, ClienteContacto, ClienteProducto, ClienteUbicacion, Envase,
-    Maquina, OrdenTrabajo, Provincia, RazonSocial, Role, Rubro, User,
+    Factura, Maquina, OrdenTrabajo, Provincia, RazonSocial, Remito, RemitoItem,
+    Role, Rubro, StockItem, StockMovimiento, User,
 )
 
-URL = os.getenv("TEST_DATABASE_URL",
-                "postgresql+psycopg2://test:test@localhost:5459/etiplast_test")
+URL = os.getenv("SEED_DATABASE_URL") or os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+psycopg2://test:test@localhost:5459/etiplast_test")
 
-if "5459" not in URL or "etiplast_test" not in URL:
-    sys.exit(f"ABORTA: esto sólo corre contra la base de test. URL recibida: {URL}")
+# El script TRUNCATE tablas: sólo puede correr contra una base descartable, y
+# nunca contra una remota. El nombre de la base es la única autorización válida.
+DESCARTABLES = ("etiplast_test", "etiplast_capturas")
+REMOTAS = ("railway", "rlwy.net", "amazonaws", "neon.tech", "supabase")
+if not any(d in URL for d in DESCARTABLES) or any(r in URL for r in REMOTAS):
+    sys.exit("ABORTA: esto sólo corre contra una base descartable y local "
+             f"({' o '.join(DESCARTABLES)}). URL recibida: {URL}")
 
 engine = create_engine(URL)
 Session = sessionmaker(bind=engine)
@@ -73,17 +84,39 @@ LAMINAS = ["Polietileno 60 µ", "Polietileno 80 µ", "BOPP 30 µ", "Autoadhesiva
 
 def limpiar(s):
     """Vacía las tablas que este script llena, respetando las dependencias."""
-    for tabla in ("orden_extrusion_bobinas", "ordenes_trabajo", "cliente_productos",
+    for tabla in ("remito_items", "remitos", "stock_movimientos", "stock_items",
+                  "facturas",
+                  "orden_extrusion_bobinas", "ordenes_trabajo", "cliente_productos",
                   "cliente_ubicaciones", "cliente_contactos", "clientes",
                   "razones_sociales", "envases", "maquinas", "rubros", "provincias"):
         s.execute(text(f"TRUNCATE {tabla} RESTART IDENTITY CASCADE"))
     s.commit()
 
 
+# Credenciales de DEMOSTRACIÓN. Valen sólo contra la base descartable local: no
+# existen en staging ni en producción, y la base se puede borrar entera.
+DEMO_EMAIL = "demo@etiplast.local"
+DEMO_PASSWORD = "capturas-demo-2026"
+
+
+def usuario_demo(s):
+    """Crea (o repone) el usuario con el que se entra a sacar las capturas."""
+    import bcrypt
+    u = s.query(User).filter_by(email=DEMO_EMAIL).first()
+    if u is None:
+        u = User(email=DEMO_EMAIL)
+        s.add(u)
+    u.nombre, u.apellido, u.role, u.is_active = "Tomás", "Aparicio", "admin", True
+    u.hashed_password = bcrypt.hashpw(DEMO_PASSWORD.encode(), bcrypt.gensalt()).decode()
+    s.flush()
+    return u
+
+
 def sembrar():
     Base.metadata.create_all(engine)
     s = Session()
     limpiar(s)
+    autor = usuario_demo(s)
 
     provincias = {n: Provincia(nombre=n) for n in PROVINCIAS}
     rubros = {n: Rubro(nombre=n) for n in RUBROS}
@@ -139,32 +172,124 @@ def sembrar():
     s.flush()
 
     # Órdenes de trabajo repartidas entre los estados posibles.
-    estados = ["completada", "en_proceso", "en_proceso", "pendiente", "pendiente",
-               "borrador"]
+    estados = ["completada", "completada", "completada", "completada",
+               "en_proceso", "en_proceso", "pendiente", "pendiente", "borrador"]
+    OPERARIOS = ["J. Suárez", "R. Gómez", "M. Ledesma", "C. Bustos", "A. Ferreyra"]
     hoy = date.today()
     for n, c in enumerate(clientes[:12], start=1):
         prod = s.query(ClienteProducto).filter_by(cliente_id=c.id).first()
         estado = estados[n % len(estados)]
-        fecha = hoy - timedelta(days=(12 - n) * 3)
+        fecha = hoy - timedelta(days=(12 - n) * 19)
+        # Hasta qué etapa llegó cada orden: es lo que el informe llama avance.
+        avance = {"completada": 3, "en_proceso": 2, "pendiente": 1, "borrador": 0}[estado]
+        op = lambda i: OPERARIOS[(n + i) % len(OPERARIOS)]
         s.add(OrdenTrabajo(
             numero=f"OT-{n:04d}", cliente_id=c.id,
             cliente_producto_id=prod.id if prod else None,
-            fecha=fecha, estado=estado, operador="Operario de planta",
-            lote=f"L-{fecha:%Y%m%d}-{n:04d}",
+            fecha=fecha, estado=estado, operador=op(0), created_by=autor.id,
+            responsable_id=autor.id,
+            lote=f"L-{fecha:%Y%m%d}-{n:04d}" if avance else None,
             extrusion_ancho=round(220 + n * 3, 2), extrusion_color="Natural",
             extrusion_trat="Tratado 38 dinas", extrusion_espesor=round(0.06 + n / 1000, 3),
-            fecha_impresion=fecha + timedelta(days=4),
-            fecha_troquelado=fecha + timedelta(days=7),
-            fecha_entrega=fecha + timedelta(days=30),
+            extrusion_cant_bob=2 + n % 4,
+            extrusion_formulacion="80 % PEBD + 20 % PEAD",
+            extrusion_maquina=f"Extrusora {1 + n % 2}",
+            operador_extrusion=op(0) if avance >= 1 else None,
+            fecha_extrusion=fecha + timedelta(days=2) if avance >= 1 else None,
+            impresion_frente=f"Etiqueta {c.marca}", impresion_colores="4 colores",
+            impresion_cilindro=round(180 + n * 2, 2),
+            operador_impresion=op(1) if avance >= 2 else None,
+            fecha_impresion=fecha + timedelta(days=4) if avance >= 2 else None,
+            troquelado_ancho=round(90 + n, 2), troquelado_alto=round(130 + n, 2),
+            troquelado_maquina=f"Troqueladora {1 + n % 3}",
+            operador_troquelado=op(2) if avance >= 3 else None,
+            fecha_troquelado=fecha + timedelta(days=7) if avance >= 3 else None,
+            fecha_entrega=fecha + timedelta(days=22 + n % 9),
             cantidad=5000 * n, total_final=None,
             observaciones="Orden de demostración — datos ficticios.",
         ))
+
+    s.flush()
+
+    # ── stock: insumos de extrusion e impresion, algunos bajo el minimo ────────
+    INSUMOS = [
+        ("MP-PEBD-CR", "Polietileno baja densidad — cristal", "materia_prima", "kg", 420, 1200),
+        ("MP-PEBD-BL", "Polietileno baja densidad — blanco", "materia_prima", "kg", 1850, 1200),
+        ("MP-PEAD", "Polietileno alta densidad", "materia_prima", "kg", 640, 500),
+        ("TIN-AZUL", "Tinta azul proceso", "insumo", "kg", 12, 40),
+        ("TIN-NEGRA", "Tinta negra proceso", "insumo", "kg", 96, 40),
+        ("TIN-ROJA", "Tinta roja proceso", "insumo", "kg", 31, 40),
+        ("SOL-ACET", "Solvente acetato", "insumo", "lt", 210, 150),
+    ]
+    items = []
+    for cod, nom, tipo, uni, actual, minimo in INSUMOS:
+        it = StockItem(codigo=cod, nombre=nom, tipo=tipo, categoria="Producción",
+                       unidad=uni, stock_actual=actual, stock_minimo=minimo, activo=True)
+        s.add(it)
+        items.append(it)
+    s.flush()
+    for k, it in enumerate(items):
+        # Un ingreso y un egreso por item, para que el kardex no este vacio.
+        s.add(StockMovimiento(
+            stock_item_id=it.id, tipo="ingreso", cantidad=200 + k * 30,
+            motivo="Compra a proveedor", stock_anterior=it.stock_actual,
+            stock_resultante=float(it.stock_actual) + 200 + k * 30,
+            user_id=autor.id, observaciones="Movimiento de demostración."))
+        s.add(StockMovimiento(
+            stock_item_id=it.id, tipo="egreso", cantidad=200 + k * 30,
+            motivo="Consumo de producción", stock_anterior=float(it.stock_actual) + 200 + k * 30,
+            stock_resultante=it.stock_actual, user_id=autor.id,
+            observaciones="Movimiento de demostración."))
+
+    # ── remitos y egresos: cierran la cadena de trazabilidad del lote ─────────
+    # Sin esto la pantalla de trazabilidad encuentra la orden pero muestra cero
+    # movimientos y cero remitos, que es justo lo que el informe quiere ilustrar.
+    terminadas = [o for o in s.query(OrdenTrabajo).order_by(OrdenTrabajo.id).all()
+                  if o.estado == "completada" and o.lote]
+    pt = StockItem(codigo="PT-ETIQ", nombre="Etiquetas terminadas", tipo="producto",
+                   categoria="Producto terminado", unidad="un",
+                   stock_actual=0, stock_minimo=0, activo=True)
+    s.add(pt)
+    s.flush()
+    for n, o in enumerate(terminadas, start=1):
+        rem = Remito(numero=f"REM-{n:04d}", cliente_id=o.cliente_id,
+                     fecha=o.fecha + timedelta(days=21), estado="despachado",
+                     transporte="Transporte Interurbano S.A.",
+                     domicilio_entrega="Ruta Provincial 104 km 24",
+                     created_by=autor.id, observaciones="Remito de demostración.")
+        s.add(rem)
+        s.flush()
+        s.add(RemitoItem(remito_id=rem.id, orden_trabajo_id=o.id,
+                         descripcion=f"Etiquetas orden {o.numero}",
+                         cantidad=o.cantidad, unidad="un", lote=o.lote))
+        s.add(StockMovimiento(
+            stock_item_id=pt.id, tipo="egreso", cantidad=o.cantidad,
+            motivo="Despacho de producto terminado", stock_anterior=o.cantidad,
+            stock_resultante=0, orden_trabajo_id=o.id, remito_id=rem.id,
+            lote=o.lote, user_id=autor.id,
+            observaciones="Egreso de demostración."))
+
+    # ── facturas: alimentan el tablero de finanzas ────────────────────────────
+    for n, o in enumerate(s.query(OrdenTrabajo).order_by(OrdenTrabajo.id).all(), start=1):
+        if o.estado != "completada":
+            continue
+        neto = 180000 + n * 47000
+        s.add(Factura(
+            cliente_id=o.cliente_id, orden_trabajo_id=o.id,
+            fecha=o.fecha + timedelta(days=24),
+            fecha_vencimiento=o.fecha + timedelta(days=54),
+            subtotal=neto, iva_porcentaje=21, total=round(neto * 1.21, 2),
+            created_by=autor.id, observaciones="Factura de demostración."))
 
     s.commit()
     print(f"razones sociales : {s.query(RazonSocial).count()}")
     print(f"clientes (marcas): {s.query(Cliente).count()}")
     print(f"presentaciones   : {s.query(ClienteProducto).count()}")
     print(f"órdenes          : {s.query(OrdenTrabajo).count()}")
+    print(f"stock            : {s.query(StockItem).count()} ítems, "
+          f"{s.query(StockMovimiento).count()} movimientos")
+    print(f"remitos          : {s.query(Remito).count()}")
+    print(f"facturas         : {s.query(Factura).count()}")
     print(f"usuarios         : {s.query(User).count()}  ·  roles: {s.query(Role).count()}")
     s.close()
 

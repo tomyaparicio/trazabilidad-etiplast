@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api", tags=["catalogos"])
 
 
 @router.get("/maquinas", summary="Listar máquinas activas")
-async def listar_maquinas(
+def listar_maquinas(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):

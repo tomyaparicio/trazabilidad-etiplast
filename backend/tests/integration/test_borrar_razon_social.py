@@ -704,8 +704,8 @@ def test_si_otro_tiene_la_marca_bloqueada_no_espera_para_siempre(api, db_session
     """Si alguien está editando una de las marcas justo en ese momento, el borrado
     se rinde enseguida con un mensaje en vez de quedarse esperando."""
     from sqlalchemy import text
-    import routers.razones_sociales as rs_router
-    monkeypatch.setattr(rs_router, "ESPERA_BLOQUEO", "300ms")
+    import core.bloqueos
+    monkeypatch.setattr(core.bloqueos, "ESPERA_BLOQUEO", "300ms")
     c = con_marcas
     db_session.execute(text("SELECT id FROM clientes WHERE id = :id FOR UPDATE"), {"id": c["marcas"][0]})
     try:

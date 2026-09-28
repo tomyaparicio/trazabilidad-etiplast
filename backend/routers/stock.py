@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import StockItem, StockMovimiento, User
@@ -57,7 +58,7 @@ def _validar_codigo_unico(db: Session, codigo: Optional[str], excluir_id: Option
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/stock/alertas", summary="Ítems activos con stock por debajo del mínimo")
-async def alertas_stock(
+def alertas_stock(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
@@ -79,7 +80,7 @@ async def alertas_stock(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/stock", summary="Listar ítems de stock con paginación y filtros")
-async def listar_stock(
+def listar_stock(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -129,7 +130,9 @@ async def listar_stock(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/stock", status_code=201, summary="Crear ítem de stock")
-async def crear_item(
+# El stock inicial entra como movimiento, que toma el ítem con FOR UPDATE.
+@con_bloqueos()
+def crear_item(
     datos: StockItemCreateSchema,
     user: dict = Depends(require_permiso("stock:crear")),
     db: Session = Depends(get_db),
@@ -208,7 +211,7 @@ async def crear_item(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.put("/stock/{item_id}", summary="Actualizar ítem de stock (no toca stock_actual)")
-async def actualizar_item(
+def actualizar_item(
     item_id: int,
     datos: StockItemUpdateSchema,
     user: dict = Depends(require_permiso("stock:editar")),
@@ -254,7 +257,7 @@ async def actualizar_item(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.delete("/stock/{item_id}", status_code=204, summary="Desactivar ítem de stock (soft delete)")
-async def eliminar_item(
+def eliminar_item(
     item_id: int,
     user: dict = Depends(require_permiso("stock:borrar")),
     db: Session = Depends(get_db),
@@ -280,7 +283,7 @@ async def eliminar_item(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/stock/{item_id}/movimientos", summary="Kardex de movimientos de un ítem")
-async def listar_movimientos(
+def listar_movimientos(
     item_id: int,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -316,7 +319,10 @@ async def listar_movimientos(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/stock/{item_id}/movimientos", status_code=201, summary="Registrar movimiento de stock")
-async def crear_movimiento(
+# El movimiento toma el ítem con FOR UPDATE, y el 400 de stock insuficiente
+# se decide DESPUÉS: tiene que salir con el ítem ya suelto.
+@con_bloqueos()
+def crear_movimiento(
     item_id: int,
     datos: StockMovimientoCreateSchema,
     user: dict = Depends(require_permiso("stock:editar")),

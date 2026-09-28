@@ -75,7 +75,7 @@ def _float(valor) -> float:
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/reportes/produccion", summary="Producción agrupada")
-async def reporte_produccion(
+def reporte_produccion(
     desde: Optional[str] = Query(None, description="YYYY-MM-DD (filtra por fecha de OT)"),
     hasta: Optional[str] = Query(None, description="YYYY-MM-DD"),
     agrupar: str = Query("maquina", description="maquina | operador | cliente | mes"),
@@ -213,7 +213,7 @@ async def reporte_produccion(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/reportes/tiempos", summary="Promedio de días entre etapas")
-async def reporte_tiempos(
+def reporte_tiempos(
     desde: Optional[str] = Query(None, description="YYYY-MM-DD"),
     hasta: Optional[str] = Query(None, description="YYYY-MM-DD"),
     _user: dict = Depends(verify_token),
@@ -274,7 +274,7 @@ async def reporte_tiempos(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/reportes/ordenes-series", summary="Serie temporal de OTs por mes")
-async def reporte_ordenes_series(
+def reporte_ordenes_series(
     meses: int = Query(12, ge=1, le=60, description="Cantidad de meses hacia atrás"),
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -321,7 +321,7 @@ async def reporte_ordenes_series(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/reportes/clientes-top", summary="Top clientes por cantidad de OTs")
-async def reporte_clientes_top(
+def reporte_clientes_top(
     limit: int = Query(10, ge=1, le=100),
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -361,7 +361,7 @@ async def reporte_clientes_top(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/reportes/stock-resumen", summary="Totales de stock por tipo")
-async def reporte_stock_resumen(
+def reporte_stock_resumen(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
@@ -411,7 +411,7 @@ async def reporte_stock_resumen(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/reportes/resumen", summary="KPIs resumidos del rango")
-async def reporte_resumen(
+def reporte_resumen(
     desde: Optional[str] = Query(None, description="YYYY-MM-DD (filtra por fecha de OT)"),
     hasta: Optional[str] = Query(None, description="YYYY-MM-DD"),
     _user: dict = Depends(verify_token),

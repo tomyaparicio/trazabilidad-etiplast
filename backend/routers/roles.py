@@ -36,12 +36,12 @@ def _validar(vistas: List[str], acciones: List[str]):
 
 
 @router.get("/roles/catalogo", summary="Catálogo de vistas y acciones para la matriz")
-async def get_catalogo(_user: dict = Depends(verify_token)):
+def get_catalogo(_user: dict = Depends(verify_token)):
     return rbac.catalogo()
 
 
 @router.get("/roles/mias", summary="Permisos del usuario actual (para el frontend)")
-async def mis_permisos(user: dict = Depends(verify_token), db: Session = Depends(get_db)):
+def mis_permisos(user: dict = Depends(verify_token), db: Session = Depends(get_db)):
     rol = rol_permisos(user.get("role"), db)
     if rol is None:
         if user.get("role") == "admin":  # admin legacy sin fila → todo
@@ -61,12 +61,12 @@ async def mis_permisos(user: dict = Depends(verify_token), db: Session = Depends
 
 
 @router.get("/admin/roles", summary="Listar roles")
-async def listar_roles(_admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
+def listar_roles(_admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
     return {"data": [r.to_dict() for r in db.query(Role).order_by(Role.id).all()]}
 
 
 @router.post("/admin/roles", status_code=201, summary="Crear rol")
-async def crear_rol(data: RoleIn, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
+def crear_rol(data: RoleIn, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
     clave = re.sub(r"[^a-z0-9]+", "_", (data.clave or data.nombre or "").strip().lower()).strip("_")
     if not clave:
         raise HTTPException(status_code=400, detail="Nombre inválido")
@@ -87,7 +87,7 @@ async def crear_rol(data: RoleIn, admin: dict = Depends(verify_admin), db: Sessi
 
 
 @router.put("/admin/roles/{role_id}", summary="Editar rol (nombre/vistas/acciones)")
-async def actualizar_rol(role_id: int, data: RoleIn, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
+def actualizar_rol(role_id: int, data: RoleIn, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
     rol = db.query(Role).filter(Role.id == role_id).first()
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
@@ -110,7 +110,7 @@ async def actualizar_rol(role_id: int, data: RoleIn, admin: dict = Depends(verif
 
 
 @router.delete("/admin/roles/{role_id}", status_code=204, summary="Borrar rol")
-async def borrar_rol(role_id: int, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
+def borrar_rol(role_id: int, admin: dict = Depends(verify_admin), db: Session = Depends(get_db)):
     rol = db.query(Role).filter(Role.id == role_id).first()
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")

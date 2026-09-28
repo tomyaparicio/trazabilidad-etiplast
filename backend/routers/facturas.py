@@ -14,6 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import Cliente, Factura, OrdenTrabajo
@@ -58,7 +59,7 @@ def _validar_refs(db: Session, cliente_id: Optional[int], orden_id: Optional[int
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/facturas", summary="Listar facturas")
-async def listar_facturas(
+def listar_facturas(
     _user: dict = Depends(require_permiso("facturas:ver")),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -130,7 +131,7 @@ async def listar_facturas(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/facturas/{factura_id}", summary="Obtener factura")
-async def obtener_factura(
+def obtener_factura(
     factura_id: int,
     _user: dict = Depends(require_permiso("facturas:ver")),
     db: Session = Depends(get_db),
@@ -146,7 +147,9 @@ async def obtener_factura(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/facturas", status_code=201, summary="Crear factura")
-async def crear_factura(
+# Numera con advisory lock: se suelta antes de responder cualquier error.
+@con_bloqueos()
+def crear_factura(
     payload: FacturaCreateSchema,
     user: dict = Depends(require_permiso("facturas:crear")),
     db: Session = Depends(get_db),
@@ -202,7 +205,7 @@ async def crear_factura(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.put("/facturas/{factura_id}", summary="Actualizar factura")
-async def actualizar_factura(
+def actualizar_factura(
     factura_id: int,
     payload: FacturaUpdateSchema,
     user: dict = Depends(require_permiso("facturas:editar")),
@@ -271,7 +274,7 @@ async def actualizar_factura(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.delete("/facturas/{factura_id}", status_code=204, summary="Eliminar factura")
-async def eliminar_factura(
+def eliminar_factura(
     factura_id: int,
     user: dict = Depends(require_permiso("facturas:borrar")),
     db: Session = Depends(get_db),

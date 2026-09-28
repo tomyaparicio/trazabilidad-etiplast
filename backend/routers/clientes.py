@@ -10,15 +10,22 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import cast, func, or_, String
 from sqlalchemy.orm import Session, joinedload
 
+from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import (
     Cliente, ClienteContacto, ClienteProducto,
     ClienteUbicacion, Provincia, RazonSocial, Rubro,
 )
+# Las reglas de nombres de empresa viven en el router de razones sociales y valen
+# IGUAL acá: el alta de una marca también puede crear una razón social, y era el
+# camino por el que entraban los duplicados. No hay ciclo — razones_sociales no
+# importa este módulo.
+from routers.razones_sociales import _con_el_mismo_nombre, _esperar_otras_altas_de_nombre
 from schemas import ClienteCreateSchema, ClienteUpdateSchema
 from services import auditoria
-from services.numeracion import siguiente_numero_cliente
+from services.numeracion import esperar_otros_cambios_de_numero, siguiente_numero_cliente
+from services.razones_sociales import desvincular_marcas
 
 router = APIRouter(prefix="/api", tags=["clientes"])
 
@@ -82,6 +89,12 @@ def _resolver_id_cliente(db: Session, id_cliente, rs_id):
     if rs is not None and rs.numero is not None:
         return id_cliente
 
+    # Acá el id_cliente ES el N° visible, así que hay que revisar que esté libre —
+    # y revisar no alcanza: sin el turno de la numeración, dos altas simultáneas
+    # con el mismo número escrito a mano miran las dos la base de antes, las dos
+    # lo ven libre y entran las dos. El turno es el mismo que toma el alta cuando
+    # el número lo pone el sistema (rama de arriba).
+    esperar_otros_cambios_de_numero(db)
     choca = (
         db.query(Cliente)
         .outerjoin(RazonSocial, RazonSocial.id == Cliente.razon_social_id)
@@ -107,6 +120,41 @@ def _resolver_id_cliente(db: Session, id_cliente, rs_id):
     return id_cliente
 
 
+# Lo que desvincular_marcas deja en la marca y la ficha manda de vuelta con lo
+# que se veía (ver _sacar_razon_social).
+CAMPOS_QUE_COPIA_DESVINCULAR = (
+    "razon_social", "cuit", "telefono", "provincia", "pais",
+    "domicilio", "localidad", "transporte", "transporte_domicilio", "transporte_localidad",
+)
+
+
+def _sacar_razon_social(db: Session, user: dict, cliente: Cliente, datos: dict) -> dict:
+    """Deja la marca sin razón social conservando su N° y lo que heredaba, y
+    devuelve lo que falta aplicar de lo que llegó.
+
+    Es el mismo camino que borrar la empresa eligiendo «dejarlas sin razón social»:
+    sin él, la marca pasaba a mostrar su id_cliente interno (otro N°, que puede
+    ser el de otra empresa) y perdía el domicilio, el teléfono y el CUIT.
+
+    La ficha manda TODOS los campos con lo que se veía, así que el orden importa
+    (el porqué, con casos, en tests/integration/test_ficha_razon_social.py):
+    1. Primero se desvincula: la marca queda con el N° y los datos copiados.
+    2. Lo que llega DISTINTO de lo que se veía lo escribió el usuario: se aplica
+       después y gana, aunque lo haya vaciado a propósito.
+    3. Lo que llega IGUAL es la copia de la pantalla y se descarta. Con empresa, la
+       ficha muestra el CUIT de la EMPRESA: si no tenía, llega vacío, y aplicarlo
+       borraría el CUIT propio de la marca, que el usuario nunca vio.
+    """
+    visto = cliente.to_dict()
+    origen = cliente.razon_social_obj
+    desvincular_marcas(db, user, origen, [cliente],
+                       motivo=f"al sacarle «{origen.razon_social}» desde su ficha")
+    return {
+        campo: valor for campo, valor in datos.items()
+        if not (campo in CAMPOS_QUE_COPIA_DESVINCULAR and valor == visto.get(campo))
+    }
+
+
 def _eager_options():
     """Opciones de carga eager para traer todas las relaciones en 1 query."""
     return [
@@ -118,16 +166,55 @@ def _eager_options():
     ]
 
 
-def _get_or_create_razon_social(db: Session, razon_social: str, cuit: Optional[str] = None) -> RazonSocial:
-    rs_text = razon_social.strip()
-    obj = db.query(RazonSocial).filter(RazonSocial.razon_social == rs_text).first()
-    if not obj:
-        obj = RazonSocial(
-            razon_social=rs_text, cuit=(cuit or "").strip() or None,
-            numero=siguiente_numero_cliente(db),
+def _validar_razon_social_existe(db: Session, rs_id) -> None:
+    """La razón social elegida tiene que seguir existiendo al guardar.
+
+    Pasa cuando alguien la borra mientras el formulario está abierto: la pantalla
+    sigue mostrándola elegida y manda su id. Sin este corte, el alta reventaba con
+    el error de clave foránea de la base (un 500 que no le dice nada a nadie).
+    Un solo texto para el alta y para la ficha: es la misma situación.
+    """
+    if rs_id is not None and db.get(RazonSocial, rs_id) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "La razón social elegida ya no existe. Puede que alguien la haya borrado "
+                "mientras completabas los datos: volvé a elegirla en Razón Social."
+            ),
         )
-        db.add(obj)
-        db.flush()
+
+
+def _get_or_create_razon_social(db: Session, razon_social: str, cuit: Optional[str] = None) -> RazonSocial:
+    """La empresa que se llama así, y si no hay ninguna, una nueva.
+
+    Por acá entraron los duplicados de producción («Megaton SAS» con «Megaton» ya
+    cargada): comparaba el nombre letra a letra, así que una mayúscula, un espacio
+    o la forma societaria al final alcanzaban para crear otra empresa, esquivando
+    todo el anti-duplicados del alta de razones sociales.
+
+    Ahora vale la MISMA regla que allá: mismo nombre exacto o mismo nombre
+    normalizado es la misma empresa. Y acá, a diferencia del alta de razones
+    sociales, no se rechaza nada — quien carga una marca quiere colgarla de esa
+    empresa, así que se le devuelve la que ya está, con sus datos intactos (el N°
+    que ya tiene es el que la planta conoce, y su CUIT no se pisa con el que venga
+    escrito en la marca).
+    """
+    rs_text = razon_social.strip()
+    # Mismo orden de bloqueos que el alta de razones sociales: primero el nombre.
+    # Sin esto, dos altas de marca con el mismo nombre nuevo revisan las dos antes
+    # de que la otra guarde y crean dos empresas iguales.
+    _esperar_otras_altas_de_nombre(db)
+    exacta, igual = _con_el_mismo_nombre(db, rs_text)
+    ya_existe = exacta or igual
+    if ya_existe is not None:
+        return db.get(RazonSocial, ya_existe.id)
+
+    obj = RazonSocial(
+        razon_social=rs_text, cuit=(cuit or "").strip() or None,
+        numero=siguiente_numero_cliente(db),
+    )
+    db.add(obj)
+    db.flush()
     return obj
 
 
@@ -165,7 +252,7 @@ def _to_float(value) -> Optional[float]:
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/clientes", summary="Listar clientes con paginación y filtros")
-async def listar_clientes(
+def listar_clientes(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1, description="Número de página"),
@@ -319,7 +406,7 @@ EXPORT_COLUMNAS = [
 
 
 @router.get("/clientes/export/excel", summary="Exportar todos los clientes a Excel")
-async def exportar_clientes_excel(
+def exportar_clientes_excel(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
 ):
@@ -423,7 +510,7 @@ async def exportar_clientes_excel(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/clientes/{cliente_id}", summary="Obtener cliente por ID")
-async def obtener_cliente(
+def obtener_cliente(
     cliente_id: int,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -444,7 +531,9 @@ async def obtener_cliente(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/clientes", status_code=201, summary="Crear nuevo cliente")
-async def crear_cliente(
+# El N° de cliente (y el de una razón social nueva) sale con advisory lock.
+@con_bloqueos()
+def crear_cliente(
     payload: ClienteCreateSchema,
     user: dict = Depends(require_permiso("clientes:crear")),
     db: Session = Depends(get_db),
@@ -461,6 +550,9 @@ async def crear_cliente(
     # La razón social se resuelve ANTES del número, porque es la que lo aporta.
     rs_id = datos.get("razon_social_id")
     rs_text = datos.get("razon_social", "")
+    # Antes de armar el cliente: si la eligieron y ya no está, se avisa acá. Más
+    # adelante sería la base la que corta, con un 500 y sin explicación.
+    _validar_razon_social_existe(db, rs_id)
     if not rs_id and rs_text and rs_text.strip():
         rs_id = _get_or_create_razon_social(db, rs_text, datos.get("cuit")).id
 
@@ -546,7 +638,9 @@ async def crear_cliente(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.put("/clientes/{cliente_id}", summary="Actualizar cliente")
-async def actualizar_cliente(
+# Si crea la razón social, su N° sale con advisory lock.
+@con_bloqueos()
+def actualizar_cliente(
     cliente_id: int,
     payload: ClienteUpdateSchema,
     user: dict = Depends(require_permiso("clientes:editar")),
@@ -555,6 +649,7 @@ async def actualizar_cliente(
     # exclude_unset: solo los campos realmente enviados → se preserva la semántica
     # de actualización parcial (`if campo in datos`).
     datos = payload.model_dump(exclude_unset=True)
+    enviados = sorted(datos.keys())
 
     cliente = (
         db.query(Cliente)
@@ -565,6 +660,10 @@ async def actualizar_cliente(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
+    # Antes de tocar nada, el mismo control que el alta.
+    # db.get no consulta si es la misma que ya tiene (quedó cargada arriba).
+    _validar_razon_social_existe(db, datos.get("razon_social_id"))
+
     # Foto previa: sin el "antes" la auditoría dice que algo cambió pero no de qué a qué.
     antes = {
         "marca": cliente.marca,
@@ -573,21 +672,34 @@ async def actualizar_cliente(
         "rubro_id": cliente.rubro_id,
     }
 
-    # — Identidad —
-    for campo in ("marca", "razon_social", "cuit"):
-        if campo in datos:
-            setattr(cliente, campo, datos[campo])
+    # Con qué empresa se abrió la ficha: decide si el CUIT que llega es un dato
+    # que escribió el usuario o la copia de lo que la pantalla mostraba (ver abajo).
+    razon_social_al_abrir = cliente.razon_social_id
 
-    # Actualizar razon_social_id
+    # — Razón social — va ANTES que el resto: al sacársela, la marca copia datos de
+    # la empresa, y lo que el usuario escribió en la ficha tiene que ir encima.
     if "razon_social_id" in datos:
-        cliente.razon_social_id = datos["razon_social_id"]
+        if datos["razon_social_id"] is None and cliente.razon_social_obj is not None:
+            datos = _sacar_razon_social(db, user, cliente, datos)
+        else:
+            cliente.razon_social_id = datos["razon_social_id"]
     elif "razon_social" in datos and datos["razon_social"] and datos["razon_social"].strip():
         # Si se actualizó el texto y no viene razon_social_id, buscar/crear la entidad
         rs = _get_or_create_razon_social(db, datos["razon_social"], datos.get("cuit"))
         cliente.razon_social_id = rs.id
 
-    # Si viene cuit, actualizarlo también en la razón social vinculada
-    if "cuit" in datos and cliente.razon_social_id:
+    # — Identidad —
+    for campo in ("marca", "razon_social", "cuit"):
+        if campo in datos:
+            setattr(cliente, campo, datos[campo])
+
+    # El CUIT es de la EMPRESA: corregirlo desde la ficha de cualquiera de sus
+    # marcas lo corrige para todas. Pero sólo si es la MISMA empresa con la que se
+    # abrió la ficha. Al cambiar de empresa en este mismo guardado, el CUIT que
+    # llega es el que se veía de la ANTERIOR (la ficha manda todos los campos con
+    # lo que mostraba): nadie lo escribió, y escribírselo al destino le cambiaba
+    # el dato fiscal a esa empresa y a todas sus otras marcas.
+    if "cuit" in datos and cliente.razon_social_id and cliente.razon_social_id == razon_social_al_abrir:
         rs_obj = db.query(RazonSocial).filter(RazonSocial.id == cliente.razon_social_id).first()
         if rs_obj:
             rs_obj.cuit = datos["cuit"]
@@ -649,7 +761,7 @@ async def actualizar_cliente(
     auditoria.registrar(
         db, user, "actualizar", "cliente", cliente.id,
         f"Actualizó cliente {_nombre_cliente(cliente)}",
-        datos={"antes": antes, "campos": sorted(datos.keys())},
+        datos={"antes": antes, "campos": enviados},
     )
     db.commit()
 
@@ -667,7 +779,7 @@ async def actualizar_cliente(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/clientes/{cliente_id}/productos", status_code=201, summary="Agregar producto a un cliente")
-async def crear_producto_cliente(
+def crear_producto_cliente(
     cliente_id: int,
     datos: Dict[str, Any] = Body(...),
     user: dict = Depends(require_permiso("clientes:editar")),
@@ -706,7 +818,7 @@ async def crear_producto_cliente(
 
 
 @router.put("/clientes/{cliente_id}/productos/{producto_id}", summary="Actualizar producto de un cliente")
-async def actualizar_producto_cliente(
+def actualizar_producto_cliente(
     cliente_id: int,
     producto_id: int,
     datos: Dict[str, Any] = Body(...),
@@ -744,7 +856,7 @@ async def actualizar_producto_cliente(
 
 
 @router.delete("/clientes/{cliente_id}/productos/{producto_id}", status_code=204, summary="Eliminar producto de un cliente")
-async def eliminar_producto_cliente(
+def eliminar_producto_cliente(
     cliente_id: int,
     producto_id: int,
     user: dict = Depends(require_permiso("clientes:editar")),
@@ -770,7 +882,7 @@ async def eliminar_producto_cliente(
 
 
 @router.delete("/clientes/{cliente_id}", status_code=204, summary="Eliminar cliente (solo admin)")
-async def eliminar_cliente(
+def eliminar_cliente(
     cliente_id: int,
     user: dict = Depends(require_permiso("clientes:borrar")),
     db: Session = Depends(get_db),

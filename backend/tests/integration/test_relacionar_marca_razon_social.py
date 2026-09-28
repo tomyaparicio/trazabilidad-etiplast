@@ -13,7 +13,9 @@ VIEJA, DUPLICADA = "PYTEST MEGATON", "PYTEST MEGATON SAS"
 @pytest.fixture()
 def caso_megaton(api, db_session):
     vieja = api.post("/api/razones-sociales", json={"razon_social": VIEJA, "numero": 770440}).json()
-    dup = api.post("/api/razones-sociales", json={"razon_social": DUPLICADA}).json()
+    # Hoy el alta frena «Megaton SAS» si ya existe «Megaton»: el duplicado de
+    # producción se reproduce confirmando que se quiere crear igual.
+    dup = api.post("/api/razones-sociales", json={"razon_social": DUPLICADA, "crear_igual": True}).json()
     marca = api.post("/api/clientes", json={"marca": "PYTEST MEGATON AGUA", "razon_social_id": dup["id"]})
     assert marca.status_code == 201, marca.text
     yield {"vieja": vieja, "dup": dup, "marca_id": marca.json()["id"]}

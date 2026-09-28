@@ -81,7 +81,7 @@ def _nombres_plantillas(db: Session, registros: List[QcRegistro]) -> dict:
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/calidad/plantillas", summary="Listar plantillas de control de calidad")
-async def listar_plantillas(
+def listar_plantillas(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     etapa: Optional[str] = Query(None, description="Filtrar por etapa"),
@@ -98,7 +98,7 @@ async def listar_plantillas(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/calidad/plantillas", status_code=201, summary="Crear plantilla QC")
-async def crear_plantilla(
+def crear_plantilla(
     datos: QcPlantillaCreateSchema,
     user: dict = Depends(require_permiso("calidad:crear")),
     db: Session = Depends(get_db),
@@ -137,7 +137,7 @@ async def crear_plantilla(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.put("/calidad/plantillas/{plantilla_id}", summary="Actualizar plantilla QC")
-async def actualizar_plantilla(
+def actualizar_plantilla(
     plantilla_id: int,
     datos: QcPlantillaUpdateSchema,
     user: dict = Depends(require_permiso("calidad:editar")),
@@ -171,7 +171,7 @@ async def actualizar_plantilla(
 
 @router.delete("/calidad/plantillas/{plantilla_id}", status_code=204,
                summary="Eliminar plantilla QC (soft si tiene registros)")
-async def eliminar_plantilla(
+def eliminar_plantilla(
     plantilla_id: int,
     user: dict = Depends(require_permiso("calidad:borrar")),
     db: Session = Depends(get_db),
@@ -208,7 +208,7 @@ async def eliminar_plantilla(
 
 @router.get("/ordenes/{orden_id}/calidad",
             summary="Listar registros QC de una orden de trabajo")
-async def listar_registros_orden(
+def listar_registros_orden(
     orden_id: int,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -236,7 +236,7 @@ async def listar_registros_orden(
 
 @router.post("/ordenes/{orden_id}/calidad", status_code=201,
              summary="Registrar un control de calidad sobre una orden")
-async def crear_registro_orden(
+def crear_registro_orden(
     orden_id: int,
     datos: QcRegistroCreateSchema,
     user: dict = Depends(require_permiso("calidad:crear")),

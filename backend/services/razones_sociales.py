@@ -2,7 +2,8 @@
 Servicio de razones sociales — Etiplast ERP
 ============================================
 Qué pasa con las marcas al borrar su empresa: pasarlas a otra, dejarlas sin
-razón social o borrarlas. No hace commit: eso es del router.
+razón social o borrarlas. Dejarla sin razón social se usa también al sacársela a
+una marca desde su ficha. No hace commit: eso es del router.
 """
 from typing import Optional
 
@@ -149,7 +150,8 @@ CAMPOS_UBICACION = (
 
 
 def desvincular_marcas(db: Session, user: Optional[dict], origen: RazonSocial,
-                       marcas: Optional[list[Cliente]] = None) -> list[dict]:
+                       marcas: Optional[list[Cliente]] = None,
+                       motivo: Optional[str] = None) -> list[dict]:
     """Deja las marcas sin razón social, sin que cambie lo que muestran.
 
     - Conservan el N° de la empresa: se las sigue buscando por ese número hasta
@@ -157,7 +159,12 @@ def desvincular_marcas(db: Session, user: Optional[dict], origen: RazonSocial,
     - Lo que heredaban (domicilio, teléfono, CUIT…) se copia a la marca, campo por
       campo y sólo donde la marca no tenía dato propio: es exactamente lo que se
       veía en la ficha.
+
+    `motivo` completa la auditoría («Quedó sin razón social …»). Por defecto dice
+    que se borró la empresa; desde la ficha, la empresa sigue existiendo y decirlo
+    sería mentir en la historia del cliente.
     """
+    motivo = motivo or f"al borrarse «{origen.razon_social}»"
     sueltas = []
     for cliente in (marcas if marcas is not None else _marcas_de(db, origen)):
         datos = {"razon_social_id": {"antes": origen.id, "despues": None}}
@@ -197,7 +204,7 @@ def desvincular_marcas(db: Session, user: Optional[dict], origen: RazonSocial,
         sueltas.append({"id": cliente.id, "marca": cliente.marca})
         auditoria.registrar(
             db, user, "actualizar", "cliente", cliente.id,
-            f"Quedó sin razón social al borrarse «{origen.razon_social}»",
+            f"Quedó sin razón social {motivo}",
             datos=datos,
         )
     return sueltas

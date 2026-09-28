@@ -41,6 +41,29 @@ def generar_numero(db: Session, modelo, prefijo: str, ancho: int = 4) -> str:
     return f"{prefijo}-{siguiente:0{ancho}d}"
 
 
+# Clave del advisory lock que ordena TODO lo que toca el N° de cliente. Una sola
+# constante: si cada lugar escribiera el suyo, dos claves distintas no se esperan
+# entre sí y el bloqueo dejaría de servir sin que nada falle a la vista.
+CLAVE_NUMERO_CLIENTE = "numero_cliente"
+
+
+def esperar_otros_cambios_de_numero(db: Session) -> None:
+    """Toma el turno para tocar el N° de cliente; se suelta al cerrar la transacción.
+
+    Lo necesita tanto el que PIDE el próximo número libre como el que VALIDA uno
+    escrito a mano: validar y guardar son dos pasos, así que dos guardados a la vez
+    leen la base de antes, los dos ven el número libre y quedan los dos con él
+    (la columna no tiene UNIQUE). Con el turno, el segundo revisa recién cuando el
+    primero terminó — y ya lo ve.
+
+    Va SIEMPRE después del bloqueo del nombre (`razon_social_nombre`), nunca al
+    revés: mientras el orden sea el mismo en todos lados, dos guardados no pueden
+    quedar trabados uno esperando al otro.
+    """
+    # hashtext(text) -> int4; pg_advisory_xact_lock acepta un bigint (cast implícito).
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:clave))"), {"clave": CLAVE_NUMERO_CLIENTE})
+
+
 def siguiente_numero_cliente(db: Session) -> int:
     """Próximo N° de cliente libre, para una razón social nueva.
 
@@ -52,7 +75,7 @@ def siguiente_numero_cliente(db: Session) -> int:
     Concurrencia: mismo advisory lock por transacción que `generar_numero`.
     Dos altas simultáneas esperan en fila en vez de llevarse el mismo número.
     """
-    db.execute(text("SELECT pg_advisory_xact_lock(hashtext('numero_cliente'))"))
+    esperar_otros_cambios_de_numero(db)
     maximo = db.execute(text("""
         SELECT coalesce(max(n), 0) FROM (
             SELECT numero AS n FROM razones_sociales WHERE numero IS NOT NULL

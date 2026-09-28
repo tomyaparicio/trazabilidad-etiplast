@@ -14,6 +14,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import (
@@ -102,7 +103,7 @@ def _sync_items(db: Session, remito: Remito, items: List[RemitoItemSchema]):
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/remitos", summary="Listar remitos con paginación y filtros")
-async def listar_remitos(
+def listar_remitos(
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -157,7 +158,7 @@ async def listar_remitos(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/remitos/{remito_id}", summary="Obtener remito por ID")
-async def obtener_remito(
+def obtener_remito(
     remito_id: int,
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
@@ -178,7 +179,9 @@ async def obtener_remito(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/remitos", status_code=201, summary="Crear nuevo remito")
-async def crear_remito(
+# Numera con advisory lock: se suelta antes de responder cualquier error.
+@con_bloqueos()
+def crear_remito(
     payload: RemitoCreateSchema,
     user: dict = Depends(require_permiso("remitos:crear")),
     db: Session = Depends(get_db),
@@ -232,7 +235,7 @@ async def crear_remito(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.put("/remitos/{remito_id}", summary="Actualizar remito")
-async def actualizar_remito(
+def actualizar_remito(
     remito_id: int,
     payload: RemitoUpdateSchema,
     user: dict = Depends(require_permiso("remitos:editar")),
@@ -318,7 +321,7 @@ async def actualizar_remito(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.delete("/remitos/{remito_id}", status_code=204, summary="Eliminar remito (solo admin, solo pendiente)")
-async def eliminar_remito(
+def eliminar_remito(
     remito_id: int,
     user: dict = Depends(require_permiso("remitos:borrar")),
     db: Session = Depends(get_db),
@@ -342,7 +345,9 @@ async def eliminar_remito(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.post("/remitos/{remito_id}/despachar", summary="Despachar remito (egresos de stock + notificación)")
-async def despachar_remito(
+# Cada egreso toma el ítem de stock con FOR UPDATE hasta el commit.
+@con_bloqueos()
+def despachar_remito(
     remito_id: int,
     user: dict = Depends(require_permiso("remitos:editar")),
     db: Session = Depends(get_db),
@@ -438,7 +443,7 @@ async def despachar_remito(
 # ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("/trazabilidad", summary="Trazabilidad completa por número de lote")
-async def trazabilidad_por_lote(
+def trazabilidad_por_lote(
     lote: str = Query(..., min_length=1, description="Número de lote a rastrear"),
     _user: dict = Depends(verify_token),
     db: Session = Depends(get_db),
