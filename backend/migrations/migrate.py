@@ -1204,6 +1204,31 @@ MIGRATIONS_FACTURAS = [
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Paso 0 de la orden de trabajo: con qué impresora se hace
+# ──────────────────────────────────────────────────────────────────────────────
+# Antes de cargar nada, el operario elige la máquina impresora (Venus, ReinaFlex
+# o la Autoadhesiva — «Taurus» en el catálogo ES la autoadhesiva). Se guarda
+# como texto, igual que extrusion_maquina y troquelado_maquina, para no romper
+# las órdenes viejas que no tienen máquina elegida.
+MIGRATIONS_OT_MAQUINA_IMPRESION = [
+    ("OT: Agregar máquina de impresión a ordenes_trabajo",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS impresion_maquina VARCHAR(100)"),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Metros de film que hay que extrudar para la tirada
+# ──────────────────────────────────────────────────────────────────────────────
+# En el alta se carga la CANTIDAD de etiquetas y, con el alto del producto, sale
+# solo cuánto film hay que sacar: cantidad × (alto_cm / 100) × 1,05 (5% de margen).
+# Nullable porque las órdenes ya cargadas nunca tuvieron esta cuenta.
+MIGRATIONS_OT_METROS_EXTRUSION = [
+    ("OT: Agregar metros de extrusión calculados a ordenes_trabajo",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS extrusion_metros NUMERIC(12,2)"),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Datos de la EMPRESA en la razón social
 # ──────────────────────────────────────────────────────────────────────────────
 # El domicilio, el teléfono y el transporte son de la entidad legal, no de cada
@@ -1297,7 +1322,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION
 
     aplicadas = 0
     salteadas = 0

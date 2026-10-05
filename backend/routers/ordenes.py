@@ -15,10 +15,11 @@ from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import (
-    Cliente, ClienteProducto, OrdenExtrusionBobina, OrdenTrabajo,
+    Cliente, ClienteProducto, Maquina, OrdenExtrusionBobina, OrdenTrabajo,
 )
 from schemas import OrdenCreateSchema, OrdenUpdateSchema
 from services import auditoria
+from services.extrusion import calcular_metros_extrusion
 from services.numeracion import generar_numero
 
 router = APIRouter(prefix="/api", tags=["ordenes"])
@@ -67,6 +68,69 @@ def _parse_date(raw) -> Optional[date]:
         return date.fromisoformat(raw)
     except (ValueError, TypeError):
         return None
+
+
+def _resolver_maquina_impresion(db: Session, valor) -> Optional[str]:
+    """Paso 0 de la OT: valida la impresora elegida y devuelve su nombre del catálogo.
+
+    Acepta el nombre o el código de la máquina (sin importar mayúsculas ni
+    espacios de más) y guarda siempre el nombre, que es lo que lee la gente de
+    planta. Vacío o None = todavía no eligieron, y eso se permite.
+    Si la máquina no está en el catálogo, no es de impresión o está dada de
+    baja, corta con 400 y un mensaje que se entiende sin ser técnico.
+    """
+    if valor is None:
+        return None
+    texto = str(valor).strip()
+    if not texto:
+        return None
+
+    impresoras = (
+        db.query(Maquina)
+        .filter(Maquina.tipo == "impresion", Maquina.activa.is_(True))
+        .order_by(Maquina.nombre)
+        .all()
+    )
+    buscado = texto.casefold()
+    for m in impresoras:
+        if buscado in ((m.nombre or "").strip().casefold(),
+                       (m.codigo or "").strip().casefold()):
+            return m.nombre
+
+    disponibles = ", ".join(m.nombre for m in impresoras) or "no hay ninguna cargada"
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"La máquina de impresión «{texto}» no figura en el listado. "
+            f"Elegí una de estas: {disponibles}."
+        ),
+    )
+
+
+def _alto_del_producto(db: Session, cliente_producto_id) -> Optional[float]:
+    """El alto (en cm) que tiene cargado la ficha del producto elegido."""
+    if not cliente_producto_id:
+        return None
+    pr = (
+        db.query(ClienteProducto)
+        .filter(ClienteProducto.id == cliente_producto_id)
+        .first()
+    )
+    return _to_float(pr.alto) if pr else None
+
+
+def _metros_extrusion(metros_enviados, cantidad, alto_cm) -> Optional[float]:
+    """Los metros de film que se guardan en la orden.
+
+    Si el que carga escribió los metros, mandan los de él: la pantalla ya hizo
+    la cuenta y además el operario puede corregirla. Si no vinieron —una orden
+    dada de alta por la API o por el agente de voz—, el backend la hace igual
+    con la fórmula única de `services/extrusion.py`, así ninguna orden con
+    cantidad y alto queda sin saber cuánto film preparar.
+    """
+    if metros_enviados is not None:
+        return _to_float(metros_enviados)
+    return calcular_metros_extrusion(cantidad, alto_cm)
 
 
 def _sync_bobinas(db: Session, orden: OrdenTrabajo, bobinas_data: List[Dict]):
@@ -207,13 +271,25 @@ def crear_orden(
     # Fecha (parse defensivo; default hoy)
     fecha = _parse_date(datos.get("fecha")) or date.today()
 
+    # Paso 0: con qué impresora se hace la orden (valida contra el catálogo)
+    impresion_maquina = _resolver_maquina_impresion(db, datos.get("impresion_maquina"))
+
+    # Metros de film: el alto sale de la ficha del producto, salvo que en la
+    # pantalla lo hayan corregido a mano (y entonces viaja en troquelado_alto).
+    alto_cm = datos.get("troquelado_alto")
+    if alto_cm is None:
+        alto_cm = _alto_del_producto(db, cliente_producto_id)
+    extrusion_metros = _metros_extrusion(
+        datos.get("extrusion_metros"), datos.get("cantidad"), alto_cm
+    )
+
     orden = OrdenTrabajo(
         numero=numero,
         cliente_id=cliente_id,
         cliente_producto_id=cliente_producto_id,
         fecha=fecha,
         estado=estado,
-        created_by=_user.get("id"),
+        created_by=user.get("id"),
         responsable_id=_to_int(datos.get("responsable_id")),
         operador=datos.get("operador"),
 
@@ -222,6 +298,7 @@ def crear_orden(
         extrusion_trat=datos.get("extrusion_trat"),
         extrusion_espesor=_to_float(datos.get("extrusion_espesor")),
         extrusion_cant_bob=_to_int(datos.get("extrusion_cant_bob")),
+        extrusion_metros=extrusion_metros,
         extrusion_formulacion=datos.get("extrusion_formulacion"),
         extrusion_maquina=datos.get("extrusion_maquina"),
         extrusion_observaciones=datos.get("extrusion_observaciones"),
@@ -232,6 +309,7 @@ def crear_orden(
         impresion_observaciones=datos.get("impresion_observaciones"),
         impresion_cilindro=_to_float(datos.get("impresion_cilindro")),
         impresion_colores=colores_json,
+        impresion_maquina=impresion_maquina,
         operador_impresion=datos.get("operador_impresion"),
 
         troquelado_ancho=_to_float(datos.get("troquelado_ancho")),
@@ -268,7 +346,9 @@ def crear_orden(
 
     auditoria.registrar(
         db, user, "crear", "orden_trabajo", orden.id, f"Creó orden {orden.numero}",
-        datos={"numero": orden.numero, "cliente_id": orden.cliente_id, "estado": orden.estado},
+        datos={"numero": orden.numero, "cliente_id": orden.cliente_id, "estado": orden.estado,
+               "impresion_maquina": orden.impresion_maquina,
+               "cantidad": orden.cantidad, "extrusion_metros": extrusion_metros},
     )
     db.commit()
 
@@ -348,6 +428,9 @@ def actualizar_orden(
     if "impresion_cilindro" in datos:
         orden.impresion_cilindro = _to_float(datos["impresion_cilindro"])
 
+    if "impresion_maquina" in datos:
+        orden.impresion_maquina = _resolver_maquina_impresion(db, datos["impresion_maquina"])
+
     if "impresion_colores" in datos:
         colores = datos["impresion_colores"]
         orden.impresion_colores = json.dumps(colores) if colores else None
@@ -375,6 +458,19 @@ def actualizar_orden(
 
     if "cantidad" in datos:
         orden.cantidad = _to_int(datos["cantidad"])
+
+    # Metros de film: si vinieron escritos, se respetan tal cual. Si no, pero
+    # cambió algo de lo que entra en la cuenta (cantidad, alto o producto), se
+    # rehace con lo que quedó guardado en la orden: dejar los metros viejos con
+    # una cantidad nueva sería mandar a extrusión un número que ya no es.
+    if "extrusion_metros" in datos:
+        orden.extrusion_metros = _to_float(datos["extrusion_metros"])
+    elif any(c in datos for c in ("cantidad", "troquelado_alto", "cliente_producto_id")):
+        alto_cm = orden.troquelado_alto
+        if alto_cm is None:
+            alto_cm = _alto_del_producto(db, orden.cliente_producto_id)
+        orden.extrusion_metros = calcular_metros_extrusion(orden.cantidad, alto_cm)
+
     if "total_final" in datos:
         orden.total_final = _to_float(datos["total_final"])
     if "observaciones" in datos:
@@ -387,7 +483,8 @@ def actualizar_orden(
     auditoria.registrar(
         db, user, "actualizar", "orden_trabajo", orden.id, f"Actualizó orden {orden.numero}",
         datos={"antes": antes, "campos": sorted(datos.keys()),
-               "despues": {"estado": orden.estado}},
+               "despues": {"estado": orden.estado,
+                           "extrusion_metros": _to_float(orden.extrusion_metros)}},
     )
     db.commit()
 

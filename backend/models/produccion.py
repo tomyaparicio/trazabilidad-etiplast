@@ -38,6 +38,9 @@ class OrdenTrabajo(Base):
     extrusion_trat               = Column(String(100))
     extrusion_espesor            = Column(Numeric(10, 3))
     extrusion_cant_bob           = Column(Integer)
+    # Metros de film a extrudar = cantidad × (alto_cm / 100) + 400 de margen.
+    # Nullable a propósito: las órdenes viejas se cargaron sin esta cuenta.
+    extrusion_metros             = Column(Numeric(12, 2))
     extrusion_formulacion        = Column(String(300))
     extrusion_maquina            = Column(String(100))
     extrusion_observaciones      = Column(Text)
@@ -49,6 +52,7 @@ class OrdenTrabajo(Base):
     impresion_observaciones      = Column(Text)
     impresion_cilindro           = Column(Numeric(10, 2))
     impresion_colores            = Column(Text)
+    impresion_maquina            = Column(String(100))
     operador_impresion           = Column(String(150))
 
     # — Troquelado —
@@ -125,6 +129,7 @@ class OrdenTrabajo(Base):
             "extrusion_trat":            self.extrusion_trat,
             "extrusion_espesor":         float(self.extrusion_espesor) if self.extrusion_espesor else None,
             "extrusion_cant_bob":        self.extrusion_cant_bob,
+            "extrusion_metros":          float(self.extrusion_metros) if self.extrusion_metros is not None else None,
             "extrusion_formulacion":     self.extrusion_formulacion,
             "extrusion_maquina":         self.extrusion_maquina,
             "extrusion_observaciones":   self.extrusion_observaciones,
@@ -136,6 +141,7 @@ class OrdenTrabajo(Base):
             "impresion_observaciones":   self.impresion_observaciones,
             "impresion_cilindro":        float(self.impresion_cilindro) if self.impresion_cilindro else None,
             "impresion_colores":         colores,
+            "impresion_maquina":         self.impresion_maquina,
             "operador_impresion":        self.operador_impresion,
             # Troquelado
             "troquelado_ancho":          float(self.troquelado_ancho)  if self.troquelado_ancho  else None,

@@ -25,6 +25,9 @@ class OrdenUpdateSchema(_Schema):
     extrusion_trat:          Optional[str] = Field(None, max_length=100)
     extrusion_espesor:       OptNum = None
     extrusion_cant_bob:      OptNum = None
+    # Metros de film a extrudar. Lo manda la pantalla ya calculado; si no viene,
+    # el router lo calcula con cantidad + alto (ver services/extrusion.py).
+    extrusion_metros:        OptNum = None
     extrusion_formulacion:   Optional[str] = Field(None, max_length=300)
     extrusion_maquina:       Optional[str] = Field(None, max_length=100)
     extrusion_observaciones: Optional[str] = None
@@ -37,6 +40,7 @@ class OrdenUpdateSchema(_Schema):
     impresion_observaciones: Optional[str] = None
     impresion_cilindro:      OptNum = None
     impresion_colores:       Optional[List[str]] = None
+    impresion_maquina:       Optional[str] = Field(None, max_length=100)
     operador_impresion:      Optional[str] = Field(None, max_length=150)
 
     # — Troquelado —
