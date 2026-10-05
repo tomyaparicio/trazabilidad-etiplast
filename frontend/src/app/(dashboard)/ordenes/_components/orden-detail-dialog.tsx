@@ -322,10 +322,11 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
           </Section>
 
           {/* Impresión */}
-          {(orden.impresion_frente || orden.impresion_observaciones || orden.impresion_cilindro != null || orden.operador_impresion || coloresActivos.length > 0) && (
+          {(orden.impresion_frente || orden.impresion_observaciones || orden.impresion_cilindro != null || orden.operador_impresion || orden.impresion_maquina || coloresActivos.length > 0) && (
             <Section title="Impresión">
               <Field label="Frente" value={orden.impresion_frente} />
               <Field label="Cilindro" value={orden.impresion_cilindro != null ? `${orden.impresion_cilindro} mm` : null} />
+              <Field label="Máquina" value={orden.impresion_maquina} />
               <Field label="Operador" value={orden.operador_impresion} />
               <FullRow label="Observaciones" value={orden.impresion_observaciones} />
               {coloresActivos.length > 0 && (

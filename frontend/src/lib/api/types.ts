@@ -130,6 +130,8 @@ export type OrdenTrabajo = {
   extrusion_maquina: string | null
   extrusion_observaciones: string | null
   operador_extrusion: string | null
+  /** Metros de film a extrudir: cantidad de etiquetas × alto (mm→m) + 400 de margen. */
+  extrusion_metros: number | null
   bobinas: Bobina[]
 
   // Impresión
@@ -139,6 +141,8 @@ export type OrdenTrabajo = {
   impresion_cilindro: number | null
   impresion_colores: string[]
   operador_impresion: string | null
+  /** Marca de impresora con la que se hace (paso 0 del alta): Venus, ReinaFlex, Autoadhesiva. */
+  impresion_maquina: string | null
 
   // Troquelado
   troquelado_ancho: number | null

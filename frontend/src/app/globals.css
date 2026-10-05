@@ -327,6 +327,40 @@
 /* El chevron del Select debe leerse sobre blanco */
 .ot-wizard [data-slot="select"] + svg { color: #6a7090; }
 
+/* ── Excepción: los campos del paso General de VENUS van SIN caja ──
+   Ese paso se rediseñó sin tarjetas ni recuadros: el único elemento destacado
+   es el total de metros de film, que es lo que el operario se lleva a la
+   máquina. Un campo blanco al lado le compite y arruina esa jerarquía.
+
+   EL CONTRASTE NO BAJA: el valor queda en #f3f4fc sobre #0b0d1e, más de 14:1
+   (el mínimo accesible es 4.5:1). Lo que cambia es la FORMA de marcar el campo:
+   una línea abajo en vez de un recuadro relleno. */
+/* El selector va ESPEJADO al de la regla de arriba (mismo `:not()` doble) a
+   propósito: los dos llevan !important, así que entre ellos decide la
+   especificidad, y `.ot-wizard input:not(...):not(...)` es (0,3,1). Un
+   `.ot-wizard .campo-subrayado` a secas es (0,2,0) y PIERDE — los campos
+   seguían saliendo blancos. Con la clase sumada queda (0,4,1) y gana. */
+.ot-wizard input.campo-subrayado:not([type="checkbox"]):not([type="radio"]),
+.ot-wizard select.campo-subrayado,
+.ot-wizard textarea.campo-subrayado {
+  min-height: 0;
+  font-size: 19px;
+  font-weight: 600;
+  border-radius: 0;
+  background: transparent !important;
+  color: var(--foreground) !important;
+  border-color: var(--input) !important;
+}
+.ot-wizard input.campo-subrayado:not([type="checkbox"]):not([type="radio"]):focus-visible,
+.ot-wizard select.campo-subrayado:focus-visible,
+.ot-wizard textarea.campo-subrayado:focus-visible {
+  border-color: var(--gold) !important;
+  box-shadow: none !important;
+}
+.ot-wizard input.campo-subrayado::placeholder { color: var(--muted-foreground); font-weight: 400; }
+/* El chevron del Select subrayado se lee sobre el fondo oscuro, no sobre blanco */
+.ot-wizard [data-slot="select"].campo-subrayado + svg { color: var(--muted-foreground); }
+
 /* ── Login: swirl de fondo girando lento ── */
 @keyframes eti-spin-slow { to { transform: rotate(360deg); } }
 .login-swirl { animation: eti-spin-slow 240s linear infinite; }
