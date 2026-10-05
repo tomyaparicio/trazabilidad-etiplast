@@ -5,19 +5,17 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Bobina, Cliente, ClienteProducto, EstadoOrden, OrdenTrabajo, UserAdmin } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import {
   Loader2, Plus, Trash2, Search, ChevronDown, Check, Package, ChevronLeft, ChevronRight,
   ClipboardList, Layers, Printer, Scissors, PackageCheck, ShieldCheck, CalendarDays, Calculator,
-  Building2, Flag, UserRound,
   type LucideIcon,
   Boxes,
 } from "lucide-react"
 import type { OrderPrefill } from "@/lib/voice/types"
 import {
   DEMORA_CALCULO_MS, MARGEN_EXTRUSION, altoEnMetros, calcularMetrosExtrusion,
-  esImpresoraVenus, fechaLegible, formatoAr, leerLamina, metrosCrudos,
+  fechaLegible, formatoAr, leerLamina, metrosCrudos,
 } from "./venus"
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -28,14 +26,6 @@ type BobinaForm = Bobina & { numero_lote?: string | null }
 const COLORES_PRESET = [
   "Negro", "Blanco", "Rojo", "Azul", "Amarillo", "Verde",
   "Naranja", "Violeta", "Cyan", "Magenta", "Dorado", "Plateado",
-]
-
-const ESTADOS_OT: { value: EstadoOrden; label: string }[] = [
-  { value: "borrador",   label: "Borrador" },
-  { value: "pendiente",  label: "Pendiente" },
-  { value: "en_proceso", label: "En Proceso" },
-  { value: "completada", label: "Completada" },
-  { value: "cancelada",  label: "Cancelada" },
 ]
 
 const STEPS: { id: number; label: string; icon: LucideIcon }[] = [
@@ -182,24 +172,6 @@ const CAMPO_SUBRAYADO =
   "campo-subrayado h-auto rounded-none border-0 border-b-[1.5px] border-input bg-transparent px-0.5 pb-2 " +
   "dark:bg-transparent focus-visible:bg-transparent focus-visible:ring-0"
 
-/** Bloque visual: agrupa campos relacionados en una tarjeta con título dorado. */
-function Bloque({ title, icon: Icon, children, className = "", aparte }: { title: string; icon: LucideIcon; children: React.ReactNode; className?: string; aparte?: React.ReactNode }) {
-  return (
-    <section className={`rounded-2xl border border-border bg-secondary/30 p-5 ${className}`}>
-      {/* `aparte` va arriba a la derecha, en la línea del título: es para el
-          dato que NO se edita (la fecha de hoy) y que si va abajo se lee como
-          un campo más y confunde. En pantalla angosta baja solo. */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2.5">
-          <Icon className="h-4 w-4 shrink-0 text-gold" strokeWidth={2.2} />
-          <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.16em] text-gold">{title}</h3>
-        </div>
-        {aparte}
-      </div>
-      {children}
-    </section>
-  )
-}
 
 // ─── Selector de marca ────────────────────────────────────────────────────
 
@@ -553,10 +525,11 @@ interface Props {
 
 /** Vista de página completa del wizard de orden de trabajo (ya no es dialog). */
 export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null, onDone }: Props) {
-  // Venus tiene su propia primera pantalla. Editar una orden vieja no pasa por
-  // el paso 0 (no llega `impresionMaquina`), así que ahí sigue el de siempre.
-  const esVenus = esImpresoraVenus(impresionMaquina)
-  const estadoInicial: EstadoOrden = esVenus ? "en_proceso" : "borrador"
+  // El paso 0 dice con qué impresora se hace. Editar una orden vieja no pasa
+  // por ahí, así que puede llegar vacío; el formulario es el MISMO para todas.
+  // Las órdenes arrancan En proceso y el que carga las pasa a borrador con el
+  // check, en vez de elegir entre cinco estados que casi siempre son dos.
+  const estadoInicial: EstadoOrden = "en_proceso"
   // Por ref y no en las dependencias del efecto que arma el formulario: si
   // fuera dependencia, cambiar de máquina a mitad de carga vaciaría todo lo
   // que el operario ya cargó, y el paso 0 justamente está pensado para volver.
@@ -604,13 +577,12 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
   // vacío. `/auth/me` lo contesta cualquiera, así que de acá sale el usuario
   // que va a figurar como responsable (y él mismo como opción del select).
   useEffect(() => {
-    if (!esVenus) return
     let vigente = true
     api.auth.me()
       .then((u) => { if (vigente) setUsuarioActual(u) })
       .catch(() => { /* si no se pudo saber quién es, queda «Sin asignar» */ })
     return () => { vigente = false }
-  }, [esVenus])
+  }, [])
 
   // Se pone de responsable solo si nadie lo eligió todavía: al editar manda el
   // que ya tiene la orden, y si el operario lo cambia a mano no se lo pisamos.
@@ -752,7 +724,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
         ...(impresionMaquina ? { impresion_maquina: impresionMaquina } : {}),
         // Los metros de film salen de la cuenta, no de un campo que se tipea:
         // se recalculan al guardar con lo último que quedó en pantalla.
-        ...(esVenus ? { extrusion_metros: calcularMetrosExtrusion(form.cantidad, form.troquelado_alto) } : {}),
+        extrusion_metros: calcularMetrosExtrusion(form.cantidad, form.troquelado_alto),
         impresion_colores: form.impresion_colores.filter(Boolean),
         bobinas: form.bobinas.filter((b) => b.metros != null || b.kg_bob != null || (b as BobinaForm).numero_lote?.trim()),
       }
@@ -773,7 +745,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
   // Es una función normal y no un componente: si fuera `<PasoGeneralVenus />`
   // React lo trataría como un tipo nuevo en cada render y lo volvería a montar,
   // y el campo que se está tipeando perdería el foco tecla por tecla.
-  const pasoGeneralVenus = () => {
+  const pasoGeneral = () => {
     const cantidad = form.cantidad
     const alto     = form.troquelado_alto
     const metros   = calcularMetrosExtrusion(cantidad, alto)
@@ -960,54 +932,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
     switch (step) {
       // ── Step 1: General — 2 bloques: el pedido / asignación ─────────────
       case 1:
-        // Venus tiene su propia primera pantalla: sólo marca y producto, la
-        // fecha es la de hoy y sin elegir, el envase se carga en troquelado y
-        // acá se define cuántas etiquetas salen y cuántos metros hay que
-        // extrudir. El resto de las impresoras sigue con el formulario de
-        // siempre, que está abajo.
-        if (esVenus) return pasoGeneralVenus()
-
-        return (
-          <div className="space-y-4">
-            {/* ① El pedido: para quién y qué se produce */}
-            <Bloque title="El pedido" icon={ClipboardList}>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <Field label="Marca" icon={Building2} className="sm:col-span-2">
-                  <ClienteSelector value={form.cliente_id || null} onSelect={handleSelectCliente} initialName={clienteName} />
-                </Field>
-                <Field label="Fecha" icon={CalendarDays}>
-                  <Input type="date" value={form.fecha ?? ""} onChange={(e) => set("fecha", e.target.value)} />
-                </Field>
-                {clienteProductos.length > 0 && (
-                  <Field label="Producto" icon={Package} className="sm:col-span-2">
-                    <ProductoSelector productos={clienteProductos} value={form.cliente_producto_id ?? null} onSelect={handleSelectProducto} />
-                  </Field>
-                )}
-              </div>
-            </Bloque>
-
-            {/* ② Asignación: quién la lleva y en qué estado arranca */}
-            <Bloque title="Asignación y estado" icon={UserRound}>
-              {/* Sin "Operador": el que carga la orden no sabe todavía quién la
-                  va a hacer. El operador se anota en cada paso de producción
-                  (extrusión, impresión, troquelado), que es donde se conoce.
-                  Lo que ya esté guardado en órdenes viejas no se toca. */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Responsable" icon={UserRound}>
-                  <Select value={form.responsable_id ?? ""} onChange={(e) => set("responsable_id", e.target.value === "" ? null : Number(e.target.value))}>
-                    <option value="">Sin asignar</option>
-                    {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre_completo || u.email}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Estado" icon={Flag}>
-                  <Select value={form.estado} onChange={(e) => set("estado", e.target.value)}>
-                    {ESTADOS_OT.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-                  </Select>
-                </Field>
-              </div>
-            </Bloque>
-          </div>
-        )
+        return pasoGeneral()
 
       // ── Step 2: Extrusión — 3 secciones: film / bobinas / producción ───
       case 2:
@@ -1043,7 +968,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
 
                 {/* Venus: los metros salen de la cuenta del paso anterior y acá
                     es donde hacen falta. Se muestran, no se tipean. */}
-                {esVenus && (() => {
+                {(() => {
                   const metros = calcularMetrosExtrusion(form.cantidad, form.troquelado_alto)
                   if (metros == null) {
                     return (
