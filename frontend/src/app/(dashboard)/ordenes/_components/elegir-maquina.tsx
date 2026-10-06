@@ -41,6 +41,40 @@ function normalizar(texto: string): string {
 }
 
 /**
+ * El texto partido en palabras, sin acentos y en minúscula.
+ * "IMP-001 (Venus)" → ["imp", "001", "venus"]
+ */
+function enPalabras(texto: string): string[] {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+}
+
+/**
+ * ¿`clave` aparece como palabra (o palabras seguidas) dentro de `texto`?
+ *
+ * POR QUÉ POR PALABRAS Y NO EL TEXTO ENTERO: en producción las máquinas están
+ * cargadas como «IMP-001 (Venus)», «IMP-002 (Reinaflex)». Comparando el nombre
+ * completo, ninguna coincide con «venus» ni «reinaflex», y cada una salía como
+ * una tarjeta suelta con su nombre crudo.
+ *
+ * SE SABE QUE ES CONCESIVO: una «Venus 2» quedaría absorbida bajo Venus. Se
+ * prefiere eso a que el catálogo real no agrupe nada, y el día que exista una
+ * segunda Venus se le da su propia entrada acá.
+ */
+function contieneClave(texto: string, clave: string): boolean {
+  const palabras = enPalabras(texto)
+  const buscadas = enPalabras(clave)
+  if (buscadas.length === 0) return false
+  return palabras.some((_, i) =>
+    buscadas.every((b, j) => palabras[i + j] === b),
+  )
+}
+
+/**
  * Las tres impresoras que la empresa reconoce. El catálogo manda (de ahí sale
  * el nombre real que se guarda), pero estas tres se ofrecen siempre: si la API
  * no responde, el alta no se puede frenar por eso.
@@ -105,14 +139,15 @@ export function armarOpciones(maquinas: Maquina[], conFallback = false): Opcion[
     // comparan tal cual se escribieron, «impresora autoadhesiva» nunca iguala a
     // normalizar("Impresora Autoadhesiva") = "impresoraautoadhesiva", la fila
     // queda sin dueño y la misma máquina aparece dos veces en pantalla.
-    const claves = c.claves.map(normalizar)
-    const filas = impresoras.filter(
-      (m) => claves.includes(normalizar(m.nombre)) || claves.includes(normalizar(m.codigo ?? "")),
+    const filas = impresoras.filter((m) =>
+      c.claves.some(
+        (clave) => contieneClave(m.nombre, clave) || contieneClave(m.codigo ?? "", clave),
+      ),
     )
     filas.forEach((m) => usadas.add(m.id))
     if (filas.length === 0 && !conFallback) return []
-    const preferida = c.preferida ? normalizar(c.preferida) : null
-    const elegida = (preferida && filas.find((m) => normalizar(m.nombre) === preferida)) || filas[0]
+    const elegida =
+      (c.preferida && filas.find((m) => contieneClave(m.nombre, c.preferida!))) || filas[0]
     return [{
       id: c.id,
       label: c.label,
