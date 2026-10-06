@@ -101,12 +101,18 @@ export function armarOpciones(maquinas: Maquina[], conFallback = false): Opcion[
   const usadas = new Set<number>()
 
   const tres: Opcion[] = CANONICAS.flatMap((c) => {
+    // Las claves se normalizan ACÁ, igual que los nombres del catálogo. Si se
+    // comparan tal cual se escribieron, «impresora autoadhesiva» nunca iguala a
+    // normalizar("Impresora Autoadhesiva") = "impresoraautoadhesiva", la fila
+    // queda sin dueño y la misma máquina aparece dos veces en pantalla.
+    const claves = c.claves.map(normalizar)
     const filas = impresoras.filter(
-      (m) => c.claves.includes(normalizar(m.nombre)) || c.claves.includes(normalizar(m.codigo)),
+      (m) => claves.includes(normalizar(m.nombre)) || claves.includes(normalizar(m.codigo ?? "")),
     )
     filas.forEach((m) => usadas.add(m.id))
     if (filas.length === 0 && !conFallback) return []
-    const elegida = (c.preferida && filas.find((m) => normalizar(m.nombre) === c.preferida)) || filas[0]
+    const preferida = c.preferida ? normalizar(c.preferida) : null
+    const elegida = (preferida && filas.find((m) => normalizar(m.nombre) === preferida)) || filas[0]
     return [{
       id: c.id,
       label: c.label,
