@@ -1,15 +1,14 @@
 """La cuenta de cuántos metros de film hay que extrudar para una tirada.
 
-Cada etiqueta consume su ALTO de film, y al total se le suma un 5% de margen
-(arranque, puesta a punto y recortes). El alto se carga en CENTÍMETROS, así que
-va dividido por 100: 11,5 cm → 0,115 m.
+Cada etiqueta consume su ALTO de film, y al total se le suman 400 metros fijos
+de margen (arranque, puesta a punto y recortes). El alto se carga en
+CENTÍMETROS, así que va dividido por 100: 11,5 cm → 0,115 m.
 
-    metros = cantidad × (alto_cm ÷ 100) × 1,05
+    metros = cantidad × (alto_cm ÷ 100) + 400
 
-POR QUÉ UN PORCENTAJE Y NO METROS FIJOS: antes eran 400 m fijos más un redondeo
-al próximo mil. En tiradas chicas eso duplicaba el pedido (1.200 m de film
-terminaban siendo 2.000). El margen tiene que crecer con el trabajo, no ser un
-número suelto.
+POR QUÉ 400 FIJOS Y NO UN PORCENTAJE: es la cuenta que hace la planta a mano y
+con la que pide el film. Se probó con un 5% y los números no coincidían con los
+de ellos (50.000 etiquetas de 10 cm dan 5.400, no 5.250). Manda la planta.
 
 POR QUÉ CENTÍMETROS Y NO MILÍMETROS: los altos cargados en la ficha de producto
 van de 4 a 20 (los más usados: 10, 6, 8, 15). Una etiqueta de gaseosa de 10 mm
@@ -19,7 +18,7 @@ Vive en un solo lugar (`services.extrusion`) porque la usan la pantalla, la API
 y el agente de voz, y las tres tienen que dar el MISMO número.
 """
 from services.extrusion import (
-    MARGEN_EXTRUSION,
+    MARGEN_METROS_EXTRUSION,
     calcular_metros_extrusion,
     metros_crudos,
 )
@@ -29,20 +28,20 @@ from services.extrusion import (
 # La cuenta cruda
 # ──────────────────────────────────────────────────────────────────────────────
 
-def test_el_margen_es_del_cinco_por_ciento():
-    assert float(MARGEN_EXTRUSION) == 0.05
+def test_el_margen_son_400_metros():
+    assert MARGEN_METROS_EXTRUSION == 400
 
 
 def test_el_ejemplo_real_de_la_planta():
-    """10.000 etiquetas de 12 cm → 10.000 × 0,12 = 1.200 + 5% = 1.260 m."""
-    assert metros_crudos(10_000, 12) == 1260.0
-    assert calcular_metros_extrusion(10_000, 12) == 1260.0
+    """50.000 etiquetas de 10 cm → 50.000 × 0,1 = 5.000 + 400 = 5.400 m."""
+    assert metros_crudos(50_000, 10) == 5400.0
+    assert calcular_metros_extrusion(50_000, 10) == 5400.0
 
 
-def test_el_margen_se_aplica_sobre_el_film_y_no_es_un_numero_suelto():
-    """El doble de etiquetas es el doble de margen: crece con el trabajo."""
-    assert metros_crudos(10_000, 10) == 1050.0    # 1.000 + 5%
-    assert metros_crudos(20_000, 10) == 2100.0    # 2.000 + 5%
+def test_el_margen_es_el_mismo_sin_importar_el_tamano_de_la_tirada():
+    """400 fijos: no crece con la tirada, es el arranque de la máquina."""
+    assert metros_crudos(10_000, 10) == 1400.0    # 1.000 + 400
+    assert metros_crudos(20_000, 10) == 2400.0    # 2.000 + 400
 
 
 def test_sin_cantidad_no_hay_cuenta():
@@ -69,20 +68,20 @@ def test_numeros_negativos_se_descartan():
 
 def test_acepta_lo_que_llega_por_la_api_como_texto():
     """El agente de voz y los scripts mandan strings; no tienen que romper."""
-    assert metros_crudos("10000", "12") == 1260.0
-    assert calcular_metros_extrusion("10000", "12") == 1260.0
+    assert metros_crudos("50000", "10") == 5400.0
+    assert calcular_metros_extrusion("50000", "10") == 5400.0
     assert metros_crudos("", "11.5") is None
     assert metros_crudos("mil", "11.5") is None
 
 
 def test_el_crudo_redondea_a_dos_decimales_como_la_columna():
-    # 30.000 × 0,115 = 3.450 + 5% = 3.622,50
-    assert metros_crudos(30_000, 11.5) == 3622.5
+    # 3 etiquetas × 0,115 = 0,345 + 400 = 400,35
+    assert metros_crudos(3, 11.5) == 400.35
 
 
 def test_no_arrastra_error_de_coma_flotante():
     """0,1 + 0,2 no puede aparecer nunca en un número que firma un operario."""
-    assert metros_crudos(10_000, 0.3) == 31.5
+    assert metros_crudos(10_000, 0.3) == 430.0
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -90,14 +89,15 @@ def test_no_arrastra_error_de_coma_flotante():
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_los_metros_no_quedan_con_decimales():
-    """Nadie pide 3.622,50 m de film: se sube al metro entero."""
-    assert metros_crudos(30_000, 11.5) == 3622.5
-    assert calcular_metros_extrusion(30_000, 11.5) == 3623.0
+    """Nadie pide 3.850,35 m de film: se sube al metro entero."""
+    assert metros_crudos(30_003, 11.5) == 3850.35
+    assert calcular_metros_extrusion(30_003, 11.5) == 3851.0
 
 
 def test_una_cuenta_entera_se_queda_donde_esta():
-    """1.260 clavados no se tocan: no se suma un metro porque sí."""
-    assert calcular_metros_extrusion(10_000, 12) == 1260.0
+    """1.600 clavados no se tocan: no se suma un metro porque sí."""
+    assert metros_crudos(10_000, 12) == 1600.0
+    assert calcular_metros_extrusion(10_000, 12) == 1600.0
 
 
 def test_nunca_devuelve_menos_que_la_cuenta():
@@ -107,7 +107,6 @@ def test_nunca_devuelve_menos_que_la_cuenta():
         assert calcular_metros_extrusion(cantidad, alto) >= metros_crudos(cantidad, alto)
 
 
-def test_una_tirada_minima_da_al_menos_un_metro():
-    """3 etiquetas de 11,5 cm son 0,36 m: se pide 1, no 0."""
-    assert metros_crudos(3, 11.5) == 0.36
-    assert calcular_metros_extrusion(3, 11.5) == 1.0
+def test_una_tirada_minima_igual_paga_el_arranque():
+    """3 etiquetas son 0,35 m de etiqueta, pero la máquina igual arranca."""
+    assert calcular_metros_extrusion(3, 11.5) == 401.0

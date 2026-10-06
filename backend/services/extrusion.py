@@ -7,19 +7,19 @@ la fórmula viviera en los dos lados, tarde o temprano darían números distinto
 y nadie sabría cuál creerle.
 
 Son dos pasos y los dos se muestran:
-  · `metros_crudos`             → la cuenta exacta (3.622,50)
-  · `calcular_metros_extrusion` → lo que se extruda de verdad (3.623)
+  · `metros_crudos`             → la cuenta exacta (5.400)
+  · `calcular_metros_extrusion` → lo que se extruda de verdad (5.400)
 """
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP
 from typing import Optional
 
-# Margen de arranque, puesta a punto y recortes, como PROPORCIÓN de la tirada.
+# Metros de arranque, puesta a punto y recortes. Es un número FIJO: no depende
+# del tamaño de la tirada.
 #
-# POR QUÉ UN PORCENTAJE Y NO METROS FIJOS: antes eran 400 m fijos más un
-# redondeo al próximo mil. En tiradas chicas eso casi duplicaba el pedido
-# —1.200 m de film terminaban siendo 2.000— y en tiradas grandes se quedaba
-# corto. El desperdicio crece con la tirada, así que el margen también.
-MARGEN_EXTRUSION = Decimal("0.05")   # 5%
+# POR QUÉ 400 FIJOS Y NO UN PORCENTAJE: es la cuenta que la planta hace a mano y
+# con la que pide el film. Se probó con un 5% y los números no coincidían con
+# los de ellos (50.000 etiquetas de 10 cm dan 5.400, no 5.250). Manda la planta.
+MARGEN_METROS_EXTRUSION = 400
 
 _CENTIMETROS_POR_METRO = Decimal(100)
 _DOS_DECIMALES = Decimal("0.01")   # los mismos que guarda la columna
@@ -42,15 +42,15 @@ def _a_decimal(valor) -> Optional[Decimal]:
 def metros_crudos(cantidad, alto_cm) -> Optional[float]:
     """La cuenta exacta, sin subir al metro.
 
-        metros = cantidad × (alto_cm ÷ 100) × 1,05
+        metros = cantidad × (alto_cm ÷ 100) + 400
 
     Cada etiqueta consume su ALTO de film. El alto se carga en CENTÍMETROS
     porque así viene en la ficha del producto (ej. 11,5 cm), y para pasarlo a
     metros hay que correrle la coma dos lugares a la izquierda: 11,5 → 0,115.
-    Al total se le suma el 5% de margen.
+    Al total se le suman los 400 m de margen.
 
     Ejemplo real de la planta:
-        10.000 etiquetas × 12 cm → 10.000 × 0,12 = 1.200 + 5% = 1.260 m
+        50.000 etiquetas × 10 cm → 50.000 × 0,1 = 5.000 + 400 = 5.400 m
 
     Este número es el que se MUESTRA para explicar de dónde sale el total, pero
     no es el que se extruda: para eso está `calcular_metros_extrusion`.
@@ -65,16 +65,15 @@ def metros_crudos(cantidad, alto_cm) -> Optional[float]:
         return None
 
     film = cant * alto / _CENTIMETROS_POR_METRO
-    metros = film * (Decimal(1) + MARGEN_EXTRUSION)
+    metros = film + Decimal(MARGEN_METROS_EXTRUSION)
     return float(metros.quantize(_DOS_DECIMALES, rounding=ROUND_HALF_UP))
 
 
 def calcular_metros_extrusion(cantidad, alto_cm) -> Optional[float]:
     """Los metros que se extrudan de verdad: la cuenta subida al metro entero.
 
-        1.260    → 1.260   (ya es entero, no se toca)
-        3.622,50 → 3.623
-        0,36     → 1       (una tirada mínima igual pide un metro)
+        5.400    → 5.400   (ya es entero, no se toca)
+        3.850,35 → 3.851
 
     SIEMPRE PARA ARRIBA, nunca para abajo: si faltan metros a mitad de la
     tirada hay que frenar la máquina. Que sobre film se guarda para la próxima;
@@ -84,5 +83,5 @@ def calcular_metros_extrusion(cantidad, alto_cm) -> Optional[float]:
     if crudos is None:
         return None
     # ROUND_CEILING sobre Decimal y no `math.ceil` sobre float: `ceil` arrastra
-    # el error binario y un 1.260,0000000000002 pediría 1.261 sin motivo.
+    # el error binario y un 5.400,0000000000002 pediría 5.401 sin motivo.
     return float(Decimal(str(crudos)).to_integral_value(rounding=ROUND_CEILING))

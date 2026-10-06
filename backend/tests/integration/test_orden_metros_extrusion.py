@@ -3,7 +3,7 @@
 En la primera pantalla del alta (la de Venus) se carga la CANTIDAD de etiquetas
 y, con el alto del producto, sale solo cuántos metros de film hay que extrudar:
 
-    metros = cantidad × (alto_cm ÷ 100) × 1,05, subido al metro entero
+    metros = cantidad × (alto_cm ÷ 100) + 400, subido al metro entero
 
 La cuenta la muestra la pantalla, pero el número tiene que quedar GUARDADO en
 la orden: es lo que después lee el de extrusión para saber cuánto film preparar.
@@ -56,14 +56,14 @@ def producto_id(api, cliente_id):
 def test_alta_con_cantidad_y_alto_del_producto_calcula_los_metros(
     api, cliente_id, producto_id
 ):
-    """30.000 × 0,115 = 3.450 + 5% = 3.622,50 → se extrudan 3.623 m."""
+    """30.000 × 0,115 = 3.450 + 400 = 3.850 m."""
     r = api.post("/api/ordenes", json={
         "cliente_id": cliente_id,
         "cliente_producto_id": producto_id,
         "cantidad": 30_000,
     })
     assert r.status_code == 201, r.text
-    assert r.json()["extrusion_metros"] == 3623.0
+    assert r.json()["extrusion_metros"] == 3850.0
 
 
 def test_alta_con_alto_corregido_a_mano_usa_ese_alto(api, cliente_id, producto_id):
@@ -75,7 +75,7 @@ def test_alta_con_alto_corregido_a_mano_usa_ese_alto(api, cliente_id, producto_i
         "troquelado_alto": 23,        # pisa los 11,5 del producto
     })
     assert r.status_code == 201, r.text
-    assert r.json()["extrusion_metros"] == 24150.0   # 23.000 + 5%
+    assert r.json()["extrusion_metros"] == 23400.0   # 23.000 + 400
 
 
 def test_alta_con_metros_explicitos_los_respeta(api, cliente_id, producto_id):
@@ -123,7 +123,7 @@ def test_editar_la_cantidad_recalcula_los_metros(api, cliente_id, producto_id):
 
     r = api.put(f"/api/ordenes/{oid}", json={"cantidad": 200_000})
     assert r.status_code == 200, r.text
-    assert r.json()["extrusion_metros"] == 24150.0   # 23.000 + 5%
+    assert r.json()["extrusion_metros"] == 23400.0   # 23.000 + 400
 
 
 def test_editar_mandando_los_metros_a_mano_no_los_pisa(api, cliente_id, producto_id):
@@ -150,7 +150,7 @@ def test_editar_solo_el_alto_tambien_recalcula(api, cliente_id, producto_id):
 
     r = api.put(f"/api/ordenes/{oid}", json={"troquelado_alto": 23})
     assert r.status_code == 200, r.text
-    assert r.json()["extrusion_metros"] == 24150.0   # 23.000 + 5%
+    assert r.json()["extrusion_metros"] == 23400.0   # 23.000 + 400
 
 
 def test_editar_otra_cosa_no_toca_los_metros_guardados(api, cliente_id, producto_id):
@@ -178,11 +178,11 @@ def test_los_metros_viajan_en_el_detalle_y_en_el_listado(api, cliente_id, produc
         "cantidad": 100_000,
     }).json()["id"]
 
-    assert api.get(f"/api/ordenes/{oid}").json()["extrusion_metros"] == 12075.0
+    assert api.get(f"/api/ordenes/{oid}").json()["extrusion_metros"] == 11900.0
 
     listado = api.get("/api/ordenes", params={"cliente_id": cliente_id}).json()["data"]
     fila = next(o for o in listado if o["id"] == oid)
-    assert fila["extrusion_metros"] == 12075.0
+    assert fila["extrusion_metros"] == 11900.0
 
 
 def test_los_metros_quedan_auditados(api, db_session, cliente_id, producto_id):
@@ -200,7 +200,7 @@ def test_los_metros_quedan_auditados(api, db_session, cliente_id, producto_id):
         .first()
     )
     assert log is not None, "crear la orden tiene que dejar rastro en auditoría"
-    assert (log.datos or {}).get("extrusion_metros") == 12075.0
+    assert (log.datos or {}).get("extrusion_metros") == 11900.0
 
     api.put(f"/api/ordenes/{oid}", json={"cantidad": 200_000})
     log = (
@@ -212,4 +212,4 @@ def test_los_metros_quedan_auditados(api, db_session, cliente_id, producto_id):
     )
     assert log is not None
     assert "cantidad" in (log.datos or {}).get("campos", [])
-    assert (log.datos or {}).get("despues", {}).get("extrusion_metros") == 24150.0
+    assert (log.datos or {}).get("despues", {}).get("extrusion_metros") == 23400.0
