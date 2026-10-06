@@ -7,14 +7,14 @@
  */
 
 /**
- * Margen de arranque, puesta a punto y recortes, como PROPORCIÓN de la tirada.
+ * Metros de arranque, puesta a punto y recortes. Número FIJO: no depende del
+ * tamaño de la tirada.
  *
- * POR QUÉ UN PORCENTAJE Y NO METROS FIJOS: antes eran 400 m fijos más un
- * redondeo al próximo mil. En tiradas chicas eso casi duplicaba el pedido
- * —1.200 m de film terminaban siendo 2.000— y en tiradas grandes se quedaba
- * corto. El desperdicio crece con la tirada, así que el margen también.
+ * POR QUÉ 400 FIJOS Y NO UN PORCENTAJE: es la cuenta que la planta hace a mano
+ * y con la que pide el film. Se probó con un 5% y los números no coincidían con
+ * los de ellos (50.000 etiquetas de 10 cm dan 5.400, no 5.250). Manda la planta.
  */
-export const MARGEN_EXTRUSION = 0.05
+export const MARGEN_METROS = 400
 
 /**
  * Lo que tarda el botón «Calcular» en mostrar el total, en milisegundos.
@@ -61,13 +61,13 @@ export function esImpresoraVenus(maquina?: string | null): boolean {
 /**
  * La cuenta EXACTA de metros de film, sin subir al metro.
  *
- *   metros = cantidad × (alto_cm ÷ 100) × 1,05
+ *   metros = cantidad × (alto_cm ÷ 100) + 400
  *
  * Cada etiqueta consume su ALTO de film. El alto se carga en CENTÍMETROS (11,5)
  * y el film se mide en METROS, así que va dividido por 100 — «le corremos la
- * coma dos lugares»: 11,5 cm → 0,115 m. Al total se le suma el 5% de margen.
+ * coma dos lugares»: 11,5 cm → 0,115 m. Al total se le suman los 400 de margen.
  *
- *   10.000 etiquetas × 0,12 m + 5% de margen = 1.260 m
+ *   50.000 etiquetas × 0,1 m + 400 de margen = 5.400 m
  *
  * POR QUÉ CENTÍMETROS: los altos de la ficha de producto van de 4 a 20. Una
  * etiqueta de 10 mm sería del grosor de una uña; de 10 cm es una etiqueta de
@@ -84,8 +84,8 @@ export function metrosCrudos(
   if (!Number.isFinite(cantidad) || !Number.isFinite(altoCm)) return null
   if (cantidad <= 0 || altoCm <= 0) return null
   const film = cantidad * (altoCm / CENTIMETROS_POR_METRO)
-  const metros = film * (1 + MARGEN_EXTRUSION)
-  // Multiplicar decimales en binario deja basura (1260.0000000000002):
+  const metros = film + MARGEN_METROS
+  // Multiplicar decimales en binario deja basura (5400.0000000000002):
   // se redondea a 2 para que lo que se guarda sea el número que la gente ve.
   return Math.round(metros * 100) / 100
 }
@@ -93,7 +93,7 @@ export function metrosCrudos(
 /**
  * Los metros que se extrudan de verdad: la cuenta subida al metro entero.
  *
- *   1.260 → 1.260 · 3.622,50 → 3.623 · 0,36 → 1
+ *   5.400 → 5.400 · 3.850,35 → 3.851
  *
  * SIEMPRE PARA ARRIBA, nunca para abajo: si faltan metros a mitad de la tirada
  * hay que frenar la máquina. Que sobre film se guarda para la próxima; que

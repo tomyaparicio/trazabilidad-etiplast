@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import type { OrderPrefill } from "@/lib/voice/types"
 import {
-  DEMORA_CALCULO_MS, MARGEN_EXTRUSION, altoEnMetros, calcularMetrosExtrusion,
+  DEMORA_CALCULO_MS, MARGEN_METROS, altoEnMetros, calcularMetrosExtrusion,
   fechaLegible, formatoAr, leerLamina, metrosCrudos,
 } from "./venus"
 
@@ -302,34 +302,42 @@ function volumenLegible(p: ClienteProducto): string {
 }
 
 /**
+ * ¿El nombre del producto ya dice su volumen?
+ *
+ * «Lavandina x 5 lt» con volumen 5 lt no tiene que terminar siendo
+ * «Lavandina x 5 lt · 5 lt». Se comparan los NÚMEROS del nombre con el del
+ * volumen, no el texto: así «Citrus x 1,5 lt» reconoce su 1,5 escrito con coma,
+ * y «Agua 500» no se confunde con un volumen de 5.
+ */
+function nombreYaDiceElVolumen(nombre: string, p: ClienteProducto): boolean {
+  if (p.volumen_cantidad == null) return false
+  const cantidad = Number(p.volumen_cantidad)
+  if (!Number.isFinite(cantidad)) return false
+  const numeros = (nombre.match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => Number(n.replace(",", ".")))
+  return numeros.some((n) => n === cantidad)
+}
+
+/**
  * Qué texto ve el usuario por cada producto del desplegable.
  *
- * VA SÓLO EL NOMBRE. La lámina ("Blco 31", "Cristal 24") es el material con el
- * que se fabrica la etiqueta: no es algo que reconozca quien carga la orden, y
- * venía pegada al nombre haciendo ruido ("Lavandina x 5 lt · Blco 58").
+ * VA EL NOMBRE Y EL TAMAÑO. La lámina ("Blco 31", "Cristal 24") es el material
+ * con el que se fabrica la etiqueta: no es algo que reconozca quien carga la
+ * orden, y venía pegada al nombre haciendo ruido ("Lavandina x 5 lt · Blco 58").
  *
- * La ÚNICA excepción es cuando dos productos del mismo cliente se llaman igual
- * —pasa con "Agua" de 500 ml, 1,5 lt y 6 lt—: ahí se agrega el volumen, porque
- * si no el usuario vería tres opciones idénticas y elegiría a ciegas.
+ * EL TAMAÑO SÍ VA SIEMPRE que esté cargado. Un cliente de bebidas tiene «Agua»,
+ * «Agua sport», «Agua con gas», y lo único que las distingue de verdad es de
+ * cuántos mililitros son. Antes el volumen aparecía sólo cuando dos productos
+ * se llamaban IGUAL, así que «Agua sport» —que es única— se quedaba sin su
+ * tamaño aunque lo tuviera cargado.
+ *
+ * No se repite cuando el nombre ya lo dice (ver `nombreYaDiceElVolumen`).
  */
-function etiquetasDeProductos(productos: ClienteProducto[]): Map<number, string> {
-  const vistos = new Set<string>()
-  const repetidos = new Set<string>()
-  for (const p of productos) {
-    const nombre = (p.nombre ?? "").trim()
-    if (!nombre) continue
-    if (vistos.has(nombre)) repetidos.add(nombre)
-    vistos.add(nombre)
-  }
-  return new Map(
-    productos.map((p) => {
-      const nombre = (p.nombre ?? "").trim()
-      if (!nombre) return [p.id, `Producto #${p.id}`]
-      if (!repetidos.has(nombre)) return [p.id, nombre]
-      const volumen = volumenLegible(p)
-      return [p.id, volumen ? `${nombre} · ${volumen}` : nombre]
-    }),
-  )
+function etiquetaDeProducto(p: ClienteProducto): string {
+  const nombre = (p.nombre ?? "").trim()
+  if (!nombre) return `Producto #${p.id}`
+  const volumen = volumenLegible(p)
+  if (!volumen || nombreYaDiceElVolumen(nombre, p)) return nombre
+  return `${nombre} · ${volumen}`
 }
 
 function ProductoSelector({ productos, value, onSelect, subrayado = false }: {
@@ -339,7 +347,6 @@ function ProductoSelector({ productos, value, onSelect, subrayado = false }: {
   subrayado?: boolean
 }) {
   if (productos.length === 0) return null
-  const etiquetas = etiquetasDeProductos(productos)
   return (
     <div className={subrayado
       ? "flex items-center gap-2 border-b-[1.5px] border-input px-0.5 pb-2"
@@ -360,7 +367,7 @@ function ProductoSelector({ productos, value, onSelect, subrayado = false }: {
       >
         <option value="">Sin producto específico</option>
         {productos.map((p) => (
-          <option key={p.id} value={p.id}>{etiquetas.get(p.id)}</option>
+          <option key={p.id} value={p.id}>{etiquetaDeProducto(p)}</option>
         ))}
       </select>
     </div>
@@ -875,7 +882,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                 </p>
                 <p className="mt-2.5 text-[14px] font-medium text-muted-foreground">
                   {formatoAr(vigente.cantidad, 0)} etiquetas × {formatoAr(altoEnMetros(vigente.alto), 4)} m
-                  {" "}+ {formatoAr(MARGEN_EXTRUSION * 100)}% de margen = {formatoAr(vigente.crudos)} m
+                  {" "}+ {formatoAr(MARGEN_METROS)} de margen = {formatoAr(vigente.crudos)} m
                   {vigente.metros !== vigente.crudos && ", redondeado para arriba al metro"}
                 </p>
               </div>
@@ -990,7 +997,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                       </p>
                       <p className="mt-2 text-[14px] font-medium text-muted-foreground">
                         {formatoAr(form.cantidad ?? 0, 0)} etiquetas × {formatoAr(altoEnMetros(form.troquelado_alto), 4)} m
-                        {" "}+ {formatoAr(MARGEN_EXTRUSION * 100)}% de margen ={" "}
+                        {" "}+ {formatoAr(MARGEN_METROS)} de margen ={" "}
                         {formatoAr(metrosCrudos(form.cantidad, form.troquelado_alto) ?? 0)} m
                       </p>
                     </div>
