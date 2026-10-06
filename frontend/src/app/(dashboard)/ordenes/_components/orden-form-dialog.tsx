@@ -5,9 +5,9 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Bobina, Cliente, ClienteProducto, EstadoOrden, OrdenTrabajo, UserAdmin } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
-import { Select } from "@/components/ui/select"
+import { Selector } from "@/components/ui/selector"
 import {
-  Loader2, Plus, Trash2, Search, ChevronDown, Check, Package, ChevronLeft, ChevronRight,
+  Loader2, Plus, Trash2, Search, ChevronDown, Check, ChevronLeft, ChevronRight,
   ClipboardList, Layers, Printer, Scissors, PackageCheck, ShieldCheck, CalendarDays, Calculator,
   type LucideIcon,
   Boxes,
@@ -347,30 +347,19 @@ function ProductoSelector({ productos, value, onSelect, subrayado = false }: {
   subrayado?: boolean
 }) {
   if (productos.length === 0) return null
+  const opciones = [
+    { valor: "", label: "Sin producto específico" },
+    ...productos.map((p) => ({ valor: String(p.id), label: etiquetaDeProducto(p) })),
+  ]
   return (
-    <div className={subrayado
-      ? "flex items-center gap-2 border-b-[1.5px] border-input px-0.5 pb-2"
-      : "flex items-center gap-2 border border-input rounded-lg px-3 h-9 bg-background"}>
-      {!subrayado && <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-      <select
-        value={value ?? ""}
-        onChange={(e) => {
-          const id = parseInt(e.target.value)
-          onSelect(isNaN(id) ? null : (productos.find((p) => p.id === id) ?? null))
-        }}
-        // `min-w-0`: sin eso el <select> se estira hasta la opción más larga
-        // ("Detergente/Suavizante/Jabon liquido x 5 lt") y se sale de su
-        // columna, que es lo que desalineaba las dos mitades del formulario.
-        className={subrayado
-          ? "campo-subrayado min-w-0 flex-1 border-0 bg-transparent outline-none"
-          : "min-w-0 flex-1 text-sm bg-transparent outline-none"}
-      >
-        <option value="">Sin producto específico</option>
-        {productos.map((p) => (
-          <option key={p.id} value={p.id}>{etiquetaDeProducto(p)}</option>
-        ))}
-      </select>
-    </div>
+    <Selector
+      etiqueta="Producto"
+      opciones={opciones}
+      valor={value != null ? String(value) : ""}
+      onCambio={(v) => onSelect(v ? (productos.find((p) => String(p.id) === v) ?? null) : null)}
+      placeholder="Sin producto específico"
+      className={subrayado ? "" : "rounded-lg border border-input bg-background px-3"}
+    />
   )
 }
 
@@ -896,18 +885,19 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
         <FilaFicha titulo="Quién la lleva">
           <div className="grid grid-cols-1 gap-x-7 gap-y-5 sm:grid-cols-2">
             <CampoFicha label="Responsable">
-              <Select
-                value={form.responsable_id ?? ""}
-                onChange={(e) => set("responsable_id", e.target.value === "" ? null : Number(e.target.value))}
-                className={CAMPO_SUBRAYADO + " pr-9"}
-              >
-                <option value="">Sin asignar</option>
-                {opcionesResponsable.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.nombre_completo || u.email}{u.id === usuarioActual?.id ? " (vos)" : ""}
-                  </option>
-                ))}
-              </Select>
+              <Selector
+                etiqueta="Responsable"
+                valor={form.responsable_id != null ? String(form.responsable_id) : ""}
+                onCambio={(v) => set("responsable_id", v === "" ? null : Number(v))}
+                placeholder="Sin asignar"
+                opciones={[
+                  { valor: "", label: "Sin asignar" },
+                  ...opcionesResponsable.map((u) => ({
+                    valor: String(u.id),
+                    label: `${u.nombre_completo || u.email}${u.id === usuarioActual?.id ? " (vos)" : ""}`,
+                  })),
+                ]}
+              />
             </CampoFicha>
 
             {/* `self-end` para que el check quede a la altura del campo de al
@@ -964,12 +954,15 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                       onChange={(e) => set("extrusion_espesor", num(e.target.value))} className={CAMPO_SUBRAYADO} />
                   </CampoFicha>
                   <CampoFicha label="Color">
-                    <Select value={form.extrusion_color ?? "Blanco"}
-                      onChange={(e) => set("extrusion_color", e.target.value)}
-                      className={CAMPO_SUBRAYADO + " pr-9"}>
-                      <option value="Blanco">Blanco</option>
-                      <option value="Cristal">Cristal</option>
-                    </Select>
+                    <Selector
+                      etiqueta="Color"
+                      valor={form.extrusion_color ?? "Blanco"}
+                      onCambio={(v) => set("extrusion_color", v)}
+                      opciones={[
+                        { valor: "Blanco", label: "Blanco" },
+                        { valor: "Cristal", label: "Cristal" },
+                      ]}
+                    />
                   </CampoFicha>
                 </div>
 
