@@ -57,6 +57,10 @@ class OrdenTrabajo(Base):
 
     # — Troquelado —
     troquelado_ancho             = Column(Numeric(10, 2))
+    # Diámetro de la tapa del envase (13,4 · 24,9 · 27,6…). Viene de la ficha
+    # del producto. Columna propia y no reaprovechar `troquelado_ancho`: son
+    # dos medidas distintas y confundirlas se paga en un reporte.
+    troquelado_cierre            = Column(Numeric(10, 2))
     troquelado_alto              = Column(Numeric(10, 2))
     troquelado_envase            = Column(String(200))
     troquelado_maquina           = Column(String(100))
@@ -115,6 +119,17 @@ class OrdenTrabajo(Base):
             "cliente_nombre":   cliente.marca     if cliente else None,
             "cliente_numero":   cliente.numero_visible if cliente else None,
             "cliente_producto_id": self.cliente_producto_id,
+            # El nombre del producto: el que está en la máquina necesita
+            # saber QUÉ está haciendo, y hasta ahora la ficha no lo decía.
+            "producto_nombre":  pr.nombre if pr else None,
+            # OK / NOOK. Si la muestra está rechazada, mandar a imprimir
+            # 20.000 etiquetas es tirar el trabajo: tiene que verse.
+            "producto_muestra": pr.muestra if pr else None,
+            # Dónde está el envase en el depósito. En producción el 85% de
+            # los productos los tiene cargados, y el que va a buscarlo va
+            # con la hoja en la mano, no con la computadora.
+            "envase_codificado": pr.envase_codificado if pr else None,
+            "envase_ubicacion":  pr.ubicacion         if pr else None,
             "fecha":            self.fecha.isoformat() if self.fecha else None,
             "estado":           self.estado,
             "created_by":          self.created_by,
@@ -145,6 +160,7 @@ class OrdenTrabajo(Base):
             "operador_impresion":        self.operador_impresion,
             # Troquelado
             "troquelado_ancho":          float(self.troquelado_ancho)  if self.troquelado_ancho  else None,
+            "troquelado_cierre":         float(self.troquelado_cierre) if self.troquelado_cierre else None,
             "troquelado_alto":           float(self.troquelado_alto)   if self.troquelado_alto   else None,
             "troquelado_envase":         self.troquelado_envase,
             "troquelado_maquina":        self.troquelado_maquina,
@@ -193,4 +209,78 @@ class OrdenExtrusionBobina(Base):
             "metros":      float(self.metros)  if self.metros  else None,
             "kg_bob":      float(self.kg_bob)  if self.kg_bob  else None,
             "numero_lote": self.numero_lote,
+        }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Paso por máquina
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Las tres etapas de producción, en orden. Cada una se hace en una máquina del
+# tipo homónimo del catálogo (`maquinas.tipo`), así que el mapeo es 1 a 1 y no
+# hace falta una tabla de equivalencias.
+ETAPAS_PRODUCCION = ("extrusion", "impresion", "troquelado")
+
+# Estados de un pase por máquina.
+#   planificada → la asignó la oficina, todavía no la escaneó nadie
+#   en_curso    → el operario escaneó al entrar: la orden ESTÁ en esa máquina
+#   terminada   → la máquina se liberó (la orden avanzó, o entró otra orden)
+ESTADOS_PASE = ("planificada", "en_curso", "terminada")
+
+# Las etapas donde IMPORTA en qué máquina se hizo.
+#
+# Sólo impresión: Venus, ReinaFlex, Taurus y la Autoadhesiva hacen cosas
+# distintas, así que el operario elige. En extrusión y troquelado las máquinas
+# son intercambiables — alcanza con saber que la etapa pasó.
+ETAPAS_CON_MAQUINA = ("impresion",)
+
+
+class PlanProduccion(Base):
+    """
+    Un pase de una orden por una máquina.
+
+    Es la única fuente de «dónde está cada pedido»: el operario escanea el QR
+    de la ficha antes de arrancar su paso y elige la máquina, y eso deja una
+    fila acá. El último pase `en_curso` de una orden es su posición actual; el
+    conjunto de pases es su recorrido por la planta.
+
+    `created_at` es TIMESTAMPTZ y se llena solo, así que guarda el momento
+    exacto del escaneo sin necesidad de tocar `fecha_inicio` (que es DATE y
+    viene de cuando la tabla se pensó para planificar, no para registrar).
+    """
+    __tablename__ = "plan_produccion"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    orden_trabajo_id = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="CASCADE"),
+                              nullable=False, index=True)
+    # Opcional: sólo impresión elige máquina (ver ETAPAS_CON_MAQUINA). En
+    # extrusión y troquelado las máquinas son intercambiables y queda en NULL.
+    maquina_id       = Column(Integer, ForeignKey("maquinas.id", ondelete="CASCADE"),
+                              nullable=True, index=True)
+    etapa            = Column(String(20))
+    fecha_inicio     = Column(Date, index=True)
+    fecha_fin        = Column(Date)
+    orden_prioridad  = Column(Integer, default=0)
+    estado           = Column(String(20), default="planificada")
+    notas            = Column(Text)
+    created_by       = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at       = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return (f"<PlanProduccion ot={self.orden_trabajo_id} "
+                f"maquina={self.maquina_id} etapa={self.etapa} estado={self.estado}>")
+
+    def to_dict(self) -> dict:
+        return {
+            "id":               self.id,
+            "orden_trabajo_id": self.orden_trabajo_id,
+            "maquina_id":       self.maquina_id,
+            "etapa":            self.etapa,
+            "estado":           self.estado,
+            "fecha_inicio":     self.fecha_inicio.isoformat() if self.fecha_inicio else None,
+            "fecha_fin":        self.fecha_fin.isoformat()    if self.fecha_fin    else None,
+            "notas":            self.notas,
+            "created_by":       self.created_by,
+            "created_at":       self.created_at.isoformat()   if self.created_at   else None,
         }

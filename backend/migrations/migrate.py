@@ -1210,6 +1210,19 @@ MIGRATIONS_FACTURAS = [
 # o la Autoadhesiva — «Taurus» en el catálogo ES la autoadhesiva). Se guarda
 # como texto, igual que extrusion_maquina y troquelado_maquina, para no romper
 # las órdenes viejas que no tienen máquina elegida.
+# ──────────────────────────────────────────────────────────────────────────────
+# Cierre de la etiqueta en el troquelado
+# ──────────────────────────────────────────────────────────────────────────────
+# El cierre es el diámetro de la tapa del envase (13,4 · 24,9 · 27,6…) y ya está
+# cargado en la ficha de cada producto. Reemplazó al «Ancho» del paso de
+# troquelado, que nadie completaba. Va en SU PROPIA columna: son dos medidas
+# distintas de la misma etiqueta y confundirlas se paga en un reporte.
+MIGRATIONS_OT_TROQUELADO_CIERRE = [
+    ("OT: Agregar cierre de la etiqueta a ordenes_trabajo",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS troquelado_cierre NUMERIC(10,2)"),
+]
+
+
 MIGRATIONS_OT_MAQUINA_IMPRESION = [
     ("OT: Agregar máquina de impresión a ordenes_trabajo",
      "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS impresion_maquina VARCHAR(100)"),
@@ -1293,6 +1306,25 @@ MIGRATIONS_RS_DATOS = [
 # Runner principal
 # ──────────────────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Escaneo del QR: el paso por la planta no siempre tiene máquina
+# ──────────────────────────────────────────────────────────────────────────────
+# `plan_produccion` nació para planificar, donde toda fila lleva una máquina
+# asignada. Ahora la llena el escaneo del QR, y ahí sólo IMPRESIÓN distingue
+# máquina: Venus, ReinaFlex, Taurus y la Autoadhesiva hacen cosas distintas.
+# En extrusión y troquelado las máquinas son intercambiables — lo que importa
+# es que la etapa pasó, no en cuál de ellas.
+#
+# Por eso `maquina_id` deja de ser obligatoria. La FK y el índice quedan igual,
+# y la tabla está vacía, así que no hay datos que convertir.
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_PLAN_SIN_MAQUINA = [
+    ("Escaneo: plan_produccion.maquina_id pasa a ser opcional",
+     "ALTER TABLE plan_produccion ALTER COLUMN maquina_id DROP NOT NULL;"),
+]
+
+
 def _ensure_tracking_table(conn):
     """Tabla de control de migraciones ya aplicadas (para saltearlas en re-runs)."""
     conn.execute(text("""
@@ -1322,7 +1354,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA
 
     aplicadas = 0
     salteadas = 0

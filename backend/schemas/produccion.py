@@ -45,6 +45,7 @@ class OrdenUpdateSchema(_Schema):
 
     # — Troquelado —
     troquelado_ancho:         OptNum = None
+    troquelado_cierre:         OptNum = None
     troquelado_alto:          OptNum = None
     troquelado_envase:        Optional[str] = Field(None, max_length=200)
     troquelado_maquina:       Optional[str] = Field(None, max_length=100)
@@ -71,3 +72,19 @@ class OrdenCreateSchema(OrdenUpdateSchema):
     """Alta de OT: cliente_id obligatorio, estado por defecto 'borrador'."""
     cliente_id: int
     estado:     str = "borrador"
+
+
+class EscaneoEtapaSchema(_Schema):
+    """Lo que manda la pantalla del QR cuando el operario escanea al entrar.
+
+    `created_by` NO está acá a propósito: quién escaneó sale del token, nunca
+    del body, si no cualquiera podría firmar el trabajo a nombre de otro.
+    `_Schema` ignora las claves de más, así que mandarlo no rompe: se descarta.
+    """
+    etapa:      str = Field(..., max_length=20)
+    # Obligatoria sólo en impresión; en las otras etapas se ignora.
+    maquina_id: OptId = None
+    # Para la tablet compartida: quién está realmente en la máquina, si el
+    # usuario logueado es una cuenta de oficina y no el operario.
+    operario:   Optional[str] = Field(None, max_length=150)
+    notas:      Optional[str] = None

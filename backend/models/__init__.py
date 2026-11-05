@@ -10,7 +10,10 @@ from core.database import Base
 from .catalogos import Rubro, Envase, Provincia, Maquina
 from .clientes import RazonSocial, Cliente, ClienteUbicacion, ClienteContacto, ClienteProducto
 from .seguridad import User, Role, AuditLog, Notificacion
-from .produccion import OrdenTrabajo, OrdenExtrusionBobina
+from .produccion import (
+    ETAPAS_PRODUCCION, ESTADOS_PASE, ETAPAS_CON_MAQUINA,
+    OrdenTrabajo, OrdenExtrusionBobina, PlanProduccion,
+)
 from .comercial import Presupuesto, PresupuestoItem, Factura, Remito, RemitoItem
 from .stock import StockItem, StockMovimiento
 from .calidad import QcPlantilla, QcPlantillaItem, QcRegistro, QcRegistroItem
@@ -32,6 +35,10 @@ __all__ = [
     "Notificacion",
     "OrdenTrabajo",
     "OrdenExtrusionBobina",
+    "PlanProduccion",
+    "ETAPAS_PRODUCCION",
+    "ESTADOS_PASE",
+    "ETAPAS_CON_MAQUINA",
     "Presupuesto",
     "PresupuestoItem",
     "Factura",

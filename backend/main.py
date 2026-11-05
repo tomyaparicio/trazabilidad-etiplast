@@ -10,7 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from core.middleware import SecurityHeadersMiddleware, limiter
 from routers import (
     admin, auth, calidad, catalogos, clientes, dashboard, notificaciones,
-    facturas, ordenes, presupuestos, razones_sociales, remitos,
+    facturas, ordenes, presupuestos, produccion, razones_sociales, remitos,
     reportes, roles, stock,
 )
 
@@ -92,6 +92,7 @@ app.include_router(roles.router)
 app.include_router(clientes.router)
 app.include_router(razones_sociales.router)
 app.include_router(ordenes.router)
+app.include_router(produccion.router)
 app.include_router(dashboard.router)
 app.include_router(presupuestos.router)
 app.include_router(facturas.router)

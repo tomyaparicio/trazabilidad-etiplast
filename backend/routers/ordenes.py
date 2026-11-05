@@ -15,9 +15,10 @@ from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import (
-    Cliente, ClienteProducto, Maquina, OrdenExtrusionBobina, OrdenTrabajo,
+    ETAPAS_CON_MAQUINA, ETAPAS_PRODUCCION, Cliente, ClienteProducto, Maquina, OrdenExtrusionBobina,
+    OrdenTrabajo, PlanProduccion, User,
 )
-from schemas import OrdenCreateSchema, OrdenUpdateSchema
+from schemas import EscaneoEtapaSchema, OrdenCreateSchema, OrdenUpdateSchema
 from services import auditoria
 from services.extrusion import calcular_metros_extrusion
 from services.numeracion import generar_numero
@@ -313,6 +314,7 @@ def crear_orden(
         operador_impresion=datos.get("operador_impresion"),
 
         troquelado_ancho=_to_float(datos.get("troquelado_ancho")),
+        troquelado_cierre=_to_float(datos.get("troquelado_cierre")),
         troquelado_alto=_to_float(datos.get("troquelado_alto")),
         troquelado_envase=datos.get("troquelado_envase"),
         troquelado_maquina=datos.get("troquelado_maquina"),
@@ -444,6 +446,8 @@ def actualizar_orden(
             setattr(orden, campo, datos[campo])
     if "troquelado_ancho" in datos:
         orden.troquelado_ancho = _to_float(datos["troquelado_ancho"])
+    if "troquelado_cierre" in datos:
+        orden.troquelado_cierre = _to_float(datos["troquelado_cierre"])
     if "troquelado_alto" in datos:
         orden.troquelado_alto = _to_float(datos["troquelado_alto"])
 
@@ -516,3 +520,131 @@ def eliminar_orden(
     )
     db.delete(orden)
     db.commit()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# POST /api/ordenes/{orden_id}/etapa  — el escaneo del QR
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _nombre_de(db: Session, user: dict) -> str:
+    """Nombre y apellido del usuario del token, para firmar el paso."""
+    u = db.query(User).filter(User.id == user.get("id")).first()
+    if not u:
+        return user.get("email") or ""
+    return " ".join(p for p in (u.nombre, u.apellido) if p).strip() or u.email
+
+
+@router.post("/ordenes/{orden_id}/etapa", status_code=201,
+             summary="Registrar el paso de una orden por una máquina (escaneo del QR)")
+def registrar_etapa(
+    orden_id: int,
+    payload: EscaneoEtapaSchema,
+    user: dict = Depends(require_permiso("ordenes:editar")),
+    db: Session = Depends(get_db),
+):
+    """
+    El operario escanea el QR de la ficha ANTES de arrancar su paso y elige la
+    máquina. Este es el único evento de producción del sistema: de acá sale
+    dónde está cada pedido.
+
+    Endpoint propio y no el PUT genérico a propósito: el PUT deja que el cliente
+    mande cualquier `operador_*`, y la atribución de quién hizo el trabajo no
+    puede salir del request.
+    """
+    etapa = (payload.etapa or "").strip().lower()
+    if etapa not in ETAPAS_PRODUCCION:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Etapa inválida: {payload.etapa}. Son {', '.join(ETAPAS_PRODUCCION)}",
+        )
+
+    orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden de trabajo no encontrada")
+    if orden.estado == "cancelada":
+        raise HTTPException(status_code=409, detail="La orden está cancelada: no se puede escanear")
+
+    # Sólo impresión elige máquina. Venus, ReinaFlex, Taurus y la Autoadhesiva
+    # hacen cosas distintas; en extrusión y troquelado son intercambiables y lo
+    # único que importa es que la etapa pasó. Si mandan una máquina en una etapa
+    # que no la usa, se ignora: guardarla sería inventar un dato que nadie eligió.
+    maquina = None
+    if etapa in ETAPAS_CON_MAQUINA:
+        if payload.maquina_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Falta la máquina: en {etapa} hay que elegir en cuál se hace",
+            )
+        maquina = db.query(Maquina).filter(Maquina.id == payload.maquina_id).first()
+        if not maquina or not maquina.activa:
+            raise HTTPException(status_code=400, detail="Máquina inexistente o dada de baja")
+        if (maquina.tipo or "").strip().lower() != etapa:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La máquina «{maquina.nombre}» no es de {etapa}",
+            )
+
+    hoy = date.today()
+
+    # Dos liberaciones, y las dos van ANTES de crear el pase nuevo:
+    #   - la orden suelta donde estaba (avanzó de etapa),
+    #   - y si esta etapa usa máquina, la máquina suelta lo que tuviera encima.
+    filtros = [PlanProduccion.orden_trabajo_id == orden.id]
+    if maquina is not None:
+        filtros.append(PlanProduccion.maquina_id == maquina.id)
+    for filtro in filtros:
+        db.query(PlanProduccion).filter(
+            filtro, PlanProduccion.estado == "en_curso",
+        ).update({"estado": "terminada", "fecha_fin": hoy}, synchronize_session=False)
+
+    pase = PlanProduccion(
+        orden_trabajo_id=orden.id,
+        maquina_id=maquina.id if maquina else None,
+        etapa=etapa,
+        estado="en_curso",
+        fecha_inicio=hoy,
+        notas=(payload.notas or None),
+        created_by=user.get("id"),
+    )
+    db.add(pase)
+
+    # La ficha de siempre se sigue llenando: `fecha_*`, `operador_*` y
+    # `*_maquina` son los campos que hoy se escriben a mano en el papel y nunca
+    # vuelven al sistema. El escaneo los completa solo, y así el PDF impreso y
+    # las pantallas viejas no se enteran de que cambió nada debajo.
+    operario = (payload.operario or "").strip() or _nombre_de(db, user)
+    setattr(orden, f"fecha_{etapa}", hoy)
+    setattr(orden, f"operador_{etapa}", operario[:150] or None)
+    # `*_maquina` sólo se pisa si esta etapa eligió una. Si no, se respeta lo
+    # que haya cargado la oficina (el paso 0 ya elige la impresora).
+    if maquina is not None:
+        setattr(orden, f"{etapa}_maquina", (maquina.nombre or "")[:100] or None)
+
+    # Primer escaneo = arrancó la producción. Cerrar la orden sigue siendo una
+    # decisión de la oficina: empezar a troquelar no es haber terminado.
+    if orden.estado in ("borrador", "pendiente"):
+        orden.estado = "en_proceso"
+    if not orden.lote:
+        orden.lote = _autogenerar_lote(orden)
+
+    auditoria.registrar(
+        db, user, "escanear", "orden_trabajo", orden.id,
+        f"Escaneo de {etapa}" + (f" en {maquina.nombre}" if maquina else ""),
+        datos={"etapa": etapa,
+               "maquina_id": maquina.id if maquina else None,
+               "maquina": maquina.nombre if maquina else None,
+               "operario": operario, "lote": orden.lote},
+    )
+    db.commit()
+    db.refresh(pase)
+
+    return {
+        "orden_id":     orden.id,
+        "numero":       orden.numero,
+        "lote":         orden.lote,
+        "estado_orden": orden.estado,
+        "etapa":        etapa,
+        "maquina":      maquina.to_dict() if maquina else None,
+        "operario":     operario,
+        "pase":         pase.to_dict(),
+    }

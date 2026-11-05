@@ -7,7 +7,9 @@ sigue funcionando igual que cuando era un único archivo.
 from .base import _Schema
 
 from .clientes import ClienteUpdateSchema, ClienteCreateSchema, RazonSocialUpdateSchema, RazonSocialCreateSchema
-from .produccion import OrdenBobinaSchema, OrdenUpdateSchema, OrdenCreateSchema
+from .produccion import (
+    OrdenBobinaSchema, OrdenUpdateSchema, OrdenCreateSchema, EscaneoEtapaSchema,
+)
 from .comercial import PresupuestoItemSchema, PresupuestoCreateSchema, PresupuestoUpdateSchema, FacturaCreateSchema, FacturaUpdateSchema, RemitoItemSchema, RemitoCreateSchema, RemitoUpdateSchema
 from .stock import StockItemCreateSchema, StockItemUpdateSchema, StockMovimientoCreateSchema
 from .calidad import QcPlantillaItemSchema, QcPlantillaCreateSchema, QcPlantillaUpdateSchema, QcRegistroItemSchema, QcRegistroCreateSchema, QcRegistroUpdateSchema
@@ -21,6 +23,7 @@ __all__ = [
     "OrdenBobinaSchema",
     "OrdenUpdateSchema",
     "OrdenCreateSchema",
+    "EscaneoEtapaSchema",
     "PresupuestoItemSchema",
     "PresupuestoCreateSchema",
     "PresupuestoUpdateSchema",
