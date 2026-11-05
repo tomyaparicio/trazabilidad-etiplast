@@ -112,6 +112,14 @@ export type OrdenTrabajo = {
   cliente_nombre: string | null
   cliente_numero: number | null
   cliente_producto_id: number | null
+  /** Nombre del producto: lo que el operario necesita saber que está haciendo */
+  producto_nombre: string | null
+  /** Estado de la muestra del producto: "OK" | "NOOK" | null */
+  producto_muestra: string | null
+  /** Código del envase en el depósito (ej. STAR-260011) */
+  envase_codificado: string | null
+  /** Dónde está ese envase en el depósito (ej. A-1) */
+  envase_ubicacion: string | null
   fecha: string | null
   estado: EstadoOrden
   created_by: number | null
@@ -146,6 +154,7 @@ export type OrdenTrabajo = {
 
   // Troquelado
   troquelado_ancho: number | null
+  troquelado_cierre: number | null
   troquelado_alto: number | null
   troquelado_envase: string | null
   troquelado_maquina: string | null
@@ -462,4 +471,84 @@ export type Trazabilidad = {
   ordenes: TrazabilidadOrden[]
   remitos: TrazabilidadRemito[]
   movimientos_stock: TrazabilidadMovimiento[]
+}
+
+// ─── Producción: dónde está cada pedido ──────────────────────────────────────
+// Sale de los escaneos del QR. Una fila por paso de una orden por una máquina.
+
+export type EtapaProduccion = "extrusion" | "impresion" | "troquelado"
+
+export interface MaquinaTablero {
+  id: number
+  codigo: string | null
+  nombre: string
+  tipo: string | null
+  /** El trabajo que está ocupando la máquina ahora, o null si está libre */
+  orden: OrdenEnMaquina | null
+}
+
+export interface OrdenEnMaquina {
+  id: number
+  numero: string
+  lote: string | null
+  cliente: string | null
+  producto: string | null
+  cantidad: number | null
+  etapa: EtapaProduccion
+  /** Momento del escaneo (ISO) */
+  desde: string | null
+  operario: string | null
+}
+
+export interface OrdenSinUbicar {
+  id: number
+  numero: string
+  lote: string | null
+  cliente: string | null
+  cantidad: number | null
+}
+
+/**
+ * Las etapas donde importa en qué máquina se hizo.
+ *
+ * Sólo impresión: Venus, ReinaFlex, Taurus y la Autoadhesiva hacen cosas
+ * distintas. En extrusión y troquelado las máquinas son intercambiables y
+ * alcanza con saber que la etapa pasó.
+ */
+export const ETAPAS_CON_MAQUINA: EtapaProduccion[] = ["impresion"]
+
+/** Una etapa que no elige máquina, con los trabajos que están en ella */
+export interface EtapaTablero {
+  etapa: EtapaProduccion
+  titulo: string
+  ordenes: OrdenEnMaquina[]
+}
+
+export interface TableroProduccion {
+  /** Columnas por máquina — hoy sólo las impresoras */
+  maquinas: MaquinaTablero[]
+  /** Columnas por etapa — extrusión y troquelado, que no eligen máquina */
+  etapas: EtapaTablero[]
+  /** En producción pero sin escanear: no se sabe dónde están */
+  sin_ubicar: OrdenSinUbicar[]
+  resumen: { ocupadas: number; libres: number; en_etapas: number; sin_ubicar: number }
+}
+
+export interface EscaneoEtapaRequest {
+  etapa: EtapaProduccion
+  /** Obligatoria sólo en impresión; en las otras etapas se ignora */
+  maquina_id?: number
+  /** Sólo para la tablet compartida: quién está realmente en la máquina */
+  operario?: string
+}
+
+export interface EscaneoEtapaResponse {
+  orden_id: number
+  numero: string
+  lote: string | null
+  estado_orden: string
+  etapa: EtapaProduccion
+  /** null en las etapas que no eligen máquina */
+  maquina: { id: number; codigo: string | null; nombre: string; tipo: string | null } | null
+  operario: string | null
 }

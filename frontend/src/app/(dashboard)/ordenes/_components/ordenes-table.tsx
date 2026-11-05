@@ -69,8 +69,32 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
   const [detailOrden, setDetailOrden] = useState<OrdenTrabajo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<OrdenTrabajo | null>(null)
+  // Dónde está cada orden, del tablero de planta. Se pide una sola vez para
+  // toda la tabla en vez de preguntar por orden: es una consulta, no N.
+  const [ubicaciones, setUbicaciones] = useState<Map<number, string>>(new Map())
 
   // ── Agente de voz: el prefill viaja por sessionStorage a /ordenes/nueva ──
+  // El tablero se refresca solo: la columna «Dónde está» sigue a la planta sin
+  // que haya que recargar la página.
+  useEffect(() => {
+    let vivo = true
+    const traer = () =>
+      api.produccion.tablero()
+        .then((t) => {
+          if (!vivo) return
+          // Impresión muestra la máquina (Venus, ReinaFlex…); extrusión y
+          // troquelado muestran la etapa, porque ahí no se elige máquina.
+          const m = new Map<number, string>()
+          for (const maq of t.maquinas) if (maq.orden) m.set(maq.orden.id, maq.nombre)
+          for (const et of t.etapas) for (const o of et.ordenes) m.set(o.id, et.titulo)
+          setUbicaciones(m)
+        })
+        .catch(() => { /* la columna queda en «—»: no vale romper el listado */ })
+    traer()
+    const t = setInterval(traer, 15_000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [])
+
   useEffect(() => {
     const handler = (e: Event) => {
       const payload = (e as CustomEvent<OrderPrefill>).detail
@@ -166,6 +190,23 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
       headerClassName: "text-gold w-32",
       skeleton: <div className="h-5 w-20 rounded-full bg-muted animate-pulse" />,
       cell: (orden) => estadoBadge(orden.estado),
+    },
+    {
+      key: "donde",
+      header: "Dónde está",
+      headerClassName: "text-gold w-40",
+      skeleton: <div className="h-3 w-20 rounded-full bg-muted animate-pulse" />,
+      cell: (orden) => {
+        const maquina = ubicaciones.get(orden.id)
+        if (!maquina) {
+          return <span className="text-muted-foreground text-xs">—</span>
+        }
+        return (
+          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
+            {maquina}
+          </span>
+        )
+      },
     },
     {
       key: "cantidad",

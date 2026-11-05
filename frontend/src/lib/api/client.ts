@@ -17,6 +17,7 @@ import type {
   RoleCatalogo, RolePermisos, MisPermisos, RoleInput,
   ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
   ReporteClientesTop, ReporteStockResumen, Trazabilidad,
+  EscaneoEtapaRequest, EscaneoEtapaResponse, TableroProduccion,
 } from "./types"
 import type { RazonSocialSimilar } from "@/types/database"
 
@@ -280,6 +281,16 @@ export const api = {
     create: (data: CreateOrdenRequest) => post<OrdenTrabajo>("/api/ordenes", data),
     update: (id: number, data: Partial<CreateOrdenRequest>) => put<OrdenTrabajo>(`/api/ordenes/${id}`, data),
     delete: (id: number) => del<void>(`/api/ordenes/${id}`),
+    /**
+     * El escaneo del QR: el operario registra que arranca una etapa en una
+     * máquina. Es lo único que mueve el pedido por la planta.
+     */
+    escanearEtapa: (id: number, data: EscaneoEtapaRequest) =>
+      post<EscaneoEtapaResponse>(`/api/ordenes/${id}/etapa`, data),
+  },
+  /** Tablero de planta: qué hay en cada máquina, en vivo */
+  produccion: {
+    tablero: () => get<TableroProduccion>("/api/produccion/tablero"),
   },
   /** Presupuestos */
   presupuestos: {

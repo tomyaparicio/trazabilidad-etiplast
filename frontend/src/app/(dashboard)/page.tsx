@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { PlantaEnVivo } from "./_components/planta-en-vivo"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -530,6 +531,10 @@ export default function DashboardPage() {
       {/* ═══ PRODUCCIÓN ═══ */}
       {tab === "prod" && (
         <>
+          {/* Dónde está cada pedido ahora mismo. Va primero porque es el único
+              bloque que cambia solo durante el día: lo demás son acumulados. */}
+          <PlantaEnVivo />
+
           {/* Órdenes por etapa (stepper) — arriba de las cards */}
           <section className="eti-in relative overflow-hidden rounded-3xl bg-brand p-5 text-white shadow-[0_30px_60px_-34px_rgba(41,45,150,.9)] sm:p-6" style={delay(0)}>
             <div className="mb-5 flex items-end justify-between gap-4">

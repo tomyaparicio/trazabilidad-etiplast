@@ -30,6 +30,7 @@ const menu: NavEntry[] = [
   ] },
   { group: "Producción", icon: Factory, items: [
     { name: "Órdenes de Trabajo", href: "/ordenes", icon: ClipboardList, vista: "ordenes" },
+    { name: "Tablero de planta", href: "/planificacion", icon: Factory, vista: "planificacion" },
   ] },
   { group: "Inventario", icon: Warehouse, items: [
     { name: "Stock", href: "/stock", icon: Boxes, vista: "stock" },
