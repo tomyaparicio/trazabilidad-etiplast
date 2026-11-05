@@ -7,10 +7,9 @@ import type { Bobina, Cliente, ClienteProducto, EstadoOrden, OrdenTrabajo, UserA
 import { Input } from "@/components/ui/input"
 import { Selector } from "@/components/ui/selector"
 import {
-  Loader2, Plus, Trash2, Search, ChevronDown, Check, ChevronLeft, ChevronRight,
+  Loader2, Search, ChevronDown, Check, ChevronLeft, ChevronRight,
   ClipboardList, Layers, Printer, Scissors, PackageCheck, ShieldCheck, CalendarDays, Calculator,
   type LucideIcon,
-  Boxes,
 } from "lucide-react"
 import type { OrderPrefill } from "@/lib/voice/types"
 import {
@@ -22,11 +21,6 @@ import {
 
 /** Bobina con n° de lote (el tipo base aún no lo expone) */
 type BobinaForm = Bobina & { numero_lote?: string | null }
-
-const COLORES_PRESET = [
-  "Negro", "Blanco", "Rojo", "Azul", "Amarillo", "Verde",
-  "Naranja", "Violeta", "Cyan", "Magenta", "Dorado", "Plateado",
-]
 
 const STEPS: { id: number; label: string; icon: LucideIcon }[] = [
   { id: 1, label: "General",      icon: ClipboardList },
@@ -55,40 +49,6 @@ function Field({ label, icon: Icon, children, className = "" }: { label: string;
       </label>
       {children}
     </div>
-  )
-}
-
-/* ─── Piezas de la ficha ────────────────────────────────────────────────────
- *
- * Acá NO hay tarjetas. Las secciones se separan con una línea fina y llevan su
- * nombre en una columna angosta a la izquierda, como una ficha de taller.
- *
- * POR QUÉ: con tres tarjetas apiladas, cada una con su título dorado y sus
- * campos encajonados, el dorado quedaba gastado en todo y el único número que
- * el operario se lleva a la máquina —los metros de film— no resaltaba más que
- * una etiqueta cualquiera. Acá el acento se usa UNA sola vez, en ese número.
- *
- * Los campos van SUBRAYADOS y no encajonados por la misma razón: un recuadro
- * relleno por campo son manchas que compiten con el resultado.
- */
-
-/** Una sección del paso: nombre a la izquierda, campos a la derecha. */
-function FilaFicha({ titulo, children, className = "" }: { titulo: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`grid grid-cols-1 gap-x-7 gap-y-4 border-t border-border py-5 sm:grid-cols-[170px_minmax(0,1fr)] ${className}`}>
-      <p className="text-[15px] font-bold text-muted-foreground">{titulo}</p>
-      {children}
-    </div>
-  )
-}
-
-/** Campo subrayado: etiqueta chica arriba, valor grande sobre la línea. */
-function CampoFicha({ label, children, className = "" }: { label: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <label className={`flex flex-col gap-1.5 ${className}`}>
-      <span className="text-[13px] font-medium text-muted-foreground">{label}</span>
-      {children}
-    </label>
   )
 }
 
@@ -160,18 +120,6 @@ function CampoCantidad({ value, onChange, className, placeholder }: {
     />
   )
 }
-
-/**
- * Clases para que un <Input> pierda la caja y quede sólo con la línea de abajo.
- *
- * `bg-transparent dark:bg-transparent` van las DOS a propósito: el Input trae
- * un fondo para modo claro y otro para oscuro, y si no se pisan ambos el campo
- * aparece como un rectángulo claro sobre el fondo oscuro.
- */
-const CAMPO_SUBRAYADO =
-  "campo-subrayado h-auto rounded-none border-0 border-b-[1.5px] border-input bg-transparent px-0.5 pb-2 " +
-  "dark:bg-transparent focus-visible:bg-transparent focus-visible:ring-0"
-
 
 // ─── Selector de marca ────────────────────────────────────────────────────
 
@@ -358,33 +306,38 @@ function ProductoSelector({ productos, value, onSelect, subrayado = false }: {
       valor={value != null ? String(value) : ""}
       onCambio={(v) => onSelect(v ? (productos.find((p) => String(p.id) === v) ?? null) : null)}
       placeholder="Sin producto específico"
-      className={subrayado ? "" : "rounded-lg border border-input bg-background px-3"}
+      className={subrayado ? "ficha-selector" : "rounded-lg border border-input bg-background px-3"}
     />
   )
 }
 
-function EnvaseSelector({ catalogo, value, onChange }: {
+function EnvaseSelector({ catalogo, value, onChange, className = "" }: {
   catalogo: string[]
   value: string
   onChange: (v: string) => void
+  className?: string
 }) {
   // Se conserva lo guardado aunque no esté en el catálogo: hay 4 envases en uso
   // que nunca se dieron de alta ("CONSULTAR", "Estin A"…), y sin esto abrir una
   // orden vieja se lo cambiaría solo.
   const fuera = value && !catalogo.includes(value)
+  // El desplegable propio, no el `<select>` nativo: en Windows el nativo delega
+  // la lista al sistema operativo y sale blanca, chica y ajena al tema del ERP.
+  // La planta trabaja en Windows. Ver `components/ui/selector.tsx`.
+  const opciones = [
+    { valor: "", label: "Sin envase" },
+    ...(fuera ? [{ valor: value, label: `${value} (fuera del catálogo)` }] : []),
+    ...catalogo.map((n) => ({ valor: n, label: n })),
+  ]
   return (
-    <div className="flex h-9 items-center gap-2 rounded-lg border border-input bg-background px-3">
-      <Boxes className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 bg-transparent text-sm outline-none"
-      >
-        <option value="">Sin envase</option>
-        {fuera && <option value={value}>{value} (fuera del catálogo)</option>}
-        {catalogo.map((n) => <option key={n} value={n}>{n}</option>)}
-      </select>
-    </div>
+    <Selector
+      etiqueta="Envase"
+      opciones={opciones}
+      valor={value}
+      onCambio={onChange}
+      placeholder="Sin envase"
+      className={className}
+    />
   )
 }
 
@@ -436,6 +389,7 @@ function emptyForm(estadoInicial: EstadoOrden = "borrador") {
     operador_impresion: "",
     impresion_maquina: "",
     troquelado_ancho: null as number | null,
+    troquelado_cierre: null as number | null,
     troquelado_alto: null as number | null,
     troquelado_envase: "",
     troquelado_maquina: "",
@@ -486,6 +440,7 @@ function ordenToForm(orden: OrdenTrabajo): ReturnType<typeof emptyForm> {
     operador_impresion: orden.operador_impresion ?? "",
     impresion_maquina: orden.impresion_maquina ?? "",
     troquelado_ancho: orden.troquelado_ancho,
+    troquelado_cierre: orden.troquelado_cierre,
     troquelado_alto: orden.troquelado_alto,
     troquelado_envase: orden.troquelado_envase ?? "",
     troquelado_maquina: orden.troquelado_maquina ?? "",
@@ -620,6 +575,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
         extrusion_cant_bob:    prefill.extrusion_cant_bob ?? null,
         troquelado_alto:       prefill.troquelado_alto ?? null,
         troquelado_ancho:      prefill.troquelado_ancho ?? null,
+        troquelado_cierre:      prefill.troquelado_cierre ?? null,
         troquelado_envase:     prefill.troquelado_envase ?? "",
         impresion_colores:     coloresPrefill,
       })
@@ -654,6 +610,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
         ...f, cliente_id: c.id, cliente_producto_id: p.id,
         ...(p.cilindro != null && { impresion_cilindro: p.cilindro }),
         ...(p.alto != null     && { troquelado_alto: p.alto }),
+        ...(p.cierre != null   && { troquelado_cierre: p.cierre }),
         ...(p.envase           && { troquelado_envase: p.envase }),
         ...datosDeLamina(p.lamina),
       }))
@@ -668,9 +625,23 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
       ...f, cliente_producto_id: p.id,
       ...(p.cilindro != null && { impresion_cilindro: p.cilindro }),
       ...(p.alto != null     && { troquelado_alto: p.alto }),
+      ...(p.cierre != null   && { troquelado_cierre: p.cierre }),
       ...(p.envase           && { troquelado_envase: p.envase }),
       ...datosDeLamina(p.lamina),
     }))
+  }
+
+  /**
+   * De dónde salió un campo que la ficha del producto tendría que traer.
+   *
+   * Un campo vacío sin explicación mezcla tres causas distintas en la misma
+   * pantalla en blanco: el sistema falló, el que carga se olvidó, o el dato no
+   * existe. El rótulo las separa, y de paso le dice a la empresa dónde cargarlo.
+   */
+  const origenDelProducto = (valor: number | null) => {
+    if (valor != null) return " · viene del producto"
+    const hayProducto = clienteProductos.some((x) => x.id === form.cliente_producto_id)
+    return hayProducto ? " · este producto no lo tiene cargado" : ""
   }
 
   /**
@@ -693,13 +664,6 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
       ...(ancho != null && { extrusion_ancho: ancho }),
     }
   }
-
-  const addBobina    = () => setForm((f) => ({ ...f, bobinas: [...f.bobinas, { metros: null, kg_bob: null, numero_lote: "" }] }))
-  const removeBobina = (i: number) => setForm((f) => ({ ...f, bobinas: f.bobinas.filter((_, idx) => idx !== i) }))
-  const updateBobina = (i: number, key: "metros" | "kg_bob" | "numero_lote", v: string) =>
-    setForm((f) => ({ ...f, bobinas: f.bobinas.map((b, idx) => idx === i ? { ...b, [key]: key === "numero_lote" ? v : num(v) } : b) }))
-  const updateColor  = (i: number, v: string) =>
-    setForm((f) => { const colores = [...f.impresion_colores]; colores[i] = v; return { ...f, impresion_colores: colores } })
 
   const goNext = () => {
     if (step === 1 && !form.cliente_id) { setError("Seleccioná un cliente para continuar"); return }
@@ -773,152 +737,152 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
     }
 
     return (
-      <div>
-        {/* La fecha no es un campo: se informa y ya. Va arriba a la derecha,
-            donde no se confunde con algo que haya que completar. */}
-        <div className="flex justify-end pb-2.5">
-          <p className="flex items-center gap-2 text-[14.5px] font-medium text-muted-foreground">
-            <CalendarDays className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-            Hoy, <span className="font-bold text-foreground">{fechaLegible(form.fecha)}</span>
-          </p>
-        </div>
+      <div className="ficha">
 
-        {/* ① El pedido: para quién y qué se produce. */}
-        <FilaFicha titulo="El pedido">
-          <div className="grid grid-cols-1 gap-x-7 gap-y-5 sm:grid-cols-2">
-            <CampoFicha label="Marca">
-              <ClienteSelector value={form.cliente_id || null} onSelect={handleSelectCliente} initialName={clienteName} subrayado />
-            </CampoFicha>
-            <CampoFicha label="Producto">
-              {clienteProductos.length > 0 ? (
-                <ProductoSelector productos={clienteProductos} value={form.cliente_producto_id ?? null} onSelect={handleSelectProducto} subrayado />
-              ) : (
-                <p className="border-b-[1.5px] border-border px-0.5 pb-2 text-[19px] font-medium text-muted-foreground">
-                  {form.cliente_id ? "Esta marca no tiene productos" : "Elegí primero la marca"}
-                </p>
-              )}
-            </CampoFicha>
-          </div>
-        </FilaFicha>
+        {/* La fecha no es un campo: se informa y ya. Arriba a la derecha, donde
+            no se confunde con algo que haya que completar. */}
+        <p className="flex items-center justify-end gap-2 text-[13px] font-bold uppercase tracking-[0.1em] text-[#5a5f6e]">
+          <CalendarDays className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+          Fecha
+          <span className="text-[15px] font-extrabold tracking-normal text-[#0f0c44]">
+            {fechaLegible(form.fecha)}
+          </span>
+        </p>
 
-        {/* ② Cuántas etiquetas y, con eso, cuánto film hay que extrudir.
-            El resultado va DENTRO de esta sección y no como fila aparte: es la
-            conclusión de estos dos campos. Suelto en su propia fila quedaba
-            flotando entre dos secciones sin pertenecer a ninguna, y su rótulo
-            competía en la misma columna con los nombres de sección. */}
-        <FilaFicha titulo="Cuánto se hace">
-          <div className="flex flex-col gap-7">
-          <div className="grid grid-cols-1 gap-x-7 gap-y-5 sm:grid-cols-2">
-            <CampoFicha label="Cantidad de etiquetas">
-              <CampoCantidad
-                value={cantidad ?? null}
-                onChange={(v) => set("cantidad", v)}
-                placeholder="Ej: 100.000"
-                className={CAMPO_SUBRAYADO}
-              />
-            </CampoFicha>
-            <CampoFicha label="Alto de la etiqueta (cm) · viene del producto">
-              <Input
-                type="number" inputMode="decimal" min={0} step="0.01" placeholder="Ej: 11.5"
-                value={alto ?? ""} onChange={(e) => set("troquelado_alto", num(e.target.value))}
-                className={CAMPO_SUBRAYADO}
-              />
-            </CampoFicha>
-          </div>
-
-            {/* El resultado, sin recuadro: lo que lo destaca es el tamaño y el
-                dorado, que en esta pantalla no se usa en ningún otro lado. */}
-            {metros == null ? (
-              <p className="text-[16px] font-medium text-muted-foreground">
-                Para saber los metros falta cargar {falta.join(" y ")}.
-              </p>
-            ) : vigente == null ? (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-                <button
-                  type="button"
-                  onClick={calcular}
-                  disabled={calculando}
-                  className="inline-flex items-center gap-2.5 rounded-xl bg-brand px-6 py-3.5 text-[16.5px] font-bold text-white transition hover:bg-brand-strong disabled:cursor-wait disabled:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
-                >
-                  {calculando ? (
-                    <>
-                      <Loader2 className="h-[19px] w-[19px] animate-spin motion-reduce:animate-none" strokeWidth={2.4} />
-                      Calculando…
-                    </>
-                  ) : (
-                    <>
-                      <Calculator className="h-[19px] w-[19px]" strokeWidth={2.4} />
-                      {seDesactualizo ? "Volver a calcular" : "Calcular metros de film"}
-                    </>
-                  )}
-                </button>
-                {seDesactualizo && !calculando && (
-                  <span className="text-[15px] font-medium text-muted-foreground">
-                    Cambiaste los datos: calculá de nuevo.
-                  </span>
+        {/* ① El pedido */}
+        <section className="ficha-seccion">
+          <header>El pedido</header>
+          <div className="ficha-cuerpo">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div>
+                <span className="ficha-rotulo">Marca</span>
+                <ClienteSelector value={form.cliente_id || null} onSelect={handleSelectCliente}
+                  initialName={clienteName} subrayado />
+              </div>
+              <div>
+                <span className="ficha-rotulo">Producto</span>
+                {clienteProductos.length > 0 ? (
+                  <ProductoSelector productos={clienteProductos} value={form.cliente_producto_id ?? null}
+                    onSelect={handleSelectProducto} subrayado />
+                ) : (
+                  <p className="min-h-[30px] border-b-[1.5px] border-[#c0c4d8] px-0.5 pb-[3px] text-[15px] font-medium text-[#6b7185]">
+                    {form.cliente_id ? "Esta marca no tiene productos" : "Elegí primero la marca"}
+                  </p>
                 )}
               </div>
-            ) : (
-              <div>
-                <p className="text-[12.5px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                  Hay que extrudir
+            </div>
+          </div>
+        </section>
+
+        {/* ② Cuánto se hace */}
+        <section className="ficha-seccion">
+          <header>Cuánto se hace</header>
+          <div className="ficha-cuerpo">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <label>
+                <span className="ficha-rotulo">Cantidad de etiquetas</span>
+                <CampoCantidad value={cantidad ?? null} onChange={(v) => set("cantidad", v)}
+                  placeholder="Ej: 100.000" className="ficha-campo" />
+              </label>
+              <label>
+                <span className="ficha-rotulo">Alto de la etiqueta (cm) · viene del producto</span>
+                <Input type="number" inputMode="decimal" min={0} step="0.01" placeholder="Ej: 11.5"
+                  value={alto ?? ""} onChange={(e) => set("troquelado_alto", num(e.target.value))}
+                  className="ficha-campo" />
+              </label>
+            </div>
+
+            {/* El total: el único número que el operario se lleva a la máquina. */}
+            <div className="mt-5 border-t border-[#e0e2ed] pt-4">
+              {metros == null ? (
+                <p className="text-[14px] font-semibold text-[#5a5f6e]">
+                  Para saber los metros falta cargar {falta.join(" y ")}.
                 </p>
-                <p className="mt-1 flex flex-wrap items-baseline gap-x-3.5">
-                  <span className="text-[56px] font-bold leading-none tracking-[-0.035em] text-gold tabular-nums">
+              ) : vigente == null ? (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+                  <button
+                    type="button"
+                    onClick={calcular}
+                    disabled={calculando}
+                    className="inline-flex items-center gap-2.5 rounded-md bg-[#0f0c44] px-5 py-3 text-[15px] font-bold text-white transition hover:bg-[#2a2580] disabled:cursor-wait disabled:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f0c44]/40"
+                  >
+                    {calculando ? (
+                      <>
+                        <Loader2 className="h-[18px] w-[18px] animate-spin motion-reduce:animate-none" strokeWidth={2.4} />
+                        Calculando…
+                      </>
+                    ) : (
+                      <>
+                        <Calculator className="h-[18px] w-[18px]" strokeWidth={2.4} />
+                        {seDesactualizo ? "Volver a calcular" : "Calcular metros de film"}
+                      </>
+                    )}
+                  </button>
+                  {seDesactualizo && !calculando && (
+                    <span className="text-[14px] font-semibold text-[#5a5f6e]">
+                      Cambiaste los datos: calculá de nuevo.
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span className="ficha-rotulo !mb-0">Hay que extrudir</span>
+                  <span className="text-[34px] font-extrabold leading-none tracking-[-0.02em] text-[#0f0c44] tabular-nums">
                     {formatoAr(vigente.metros)}
                   </span>
-                  <span className="text-[20px] font-semibold text-secondary-foreground">m de film</span>
-                </p>
-                <p className="mt-2.5 text-[14px] font-medium text-muted-foreground">
-                  {formatoAr(vigente.cantidad, 0)} etiquetas × {formatoAr(altoEnMetros(vigente.alto), 4)} m
-                  {" "}+ {formatoAr(MARGEN_METROS)} de margen = {formatoAr(vigente.crudos)} m
-                  {vigente.metros !== vigente.crudos && ", redondeado para arriba al metro"}
-                </p>
+                  <span className="text-[16px] font-bold text-[#555]">m de film</span>
+                  <span className="w-full text-[13px] font-semibold text-[#5a5f6e]">
+                    {formatoAr(vigente.cantidad, 0)} etiquetas × {formatoAr(altoEnMetros(vigente.alto), 4)} m
+                    {" "}+ {formatoAr(MARGEN_METROS)} de margen = {formatoAr(vigente.crudos)} m
+                    {vigente.metros !== vigente.crudos && ", redondeado para arriba al metro"}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ③ Quién la lleva */}
+        <section className="ficha-seccion">
+          <header>Quién la lleva</header>
+          <div className="ficha-cuerpo">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div>
+                <span className="ficha-rotulo">Responsable</span>
+                <Selector
+                  etiqueta="Responsable"
+                  valor={form.responsable_id != null ? String(form.responsable_id) : ""}
+                  onCambio={(v) => set("responsable_id", v === "" ? null : Number(v))}
+                  placeholder="Sin asignar"
+                  className="ficha-selector"
+                  opciones={[
+                    { valor: "", label: "Sin asignar" },
+                    ...opcionesResponsable.map((u) => ({
+                      valor: String(u.id),
+                      label: `${u.nombre_completo || u.email}${u.id === usuarioActual?.id ? " (vos)" : ""}`,
+                    })),
+                  ]}
+                />
               </div>
-            )}
-          </div>
-        </FilaFicha>
 
-        {/* ③ Quién la lleva y si todavía es un borrador. El responsable ocupa
-            la misma columna que Cantidad, para que todo caiga en la misma
-            grilla en vez de tener cada campo un ancho propio. */}
-        <FilaFicha titulo="Quién la lleva">
-          <div className="grid grid-cols-1 gap-x-7 gap-y-5 sm:grid-cols-2">
-            <CampoFicha label="Responsable">
-              <Selector
-                etiqueta="Responsable"
-                valor={form.responsable_id != null ? String(form.responsable_id) : ""}
-                onCambio={(v) => set("responsable_id", v === "" ? null : Number(v))}
-                placeholder="Sin asignar"
-                opciones={[
-                  { valor: "", label: "Sin asignar" },
-                  ...opcionesResponsable.map((u) => ({
-                    valor: String(u.id),
-                    label: `${u.nombre_completo || u.email}${u.id === usuarioActual?.id ? " (vos)" : ""}`,
-                  })),
-                ]}
-              />
-            </CampoFicha>
-
-            {/* `self-end` para que el check quede a la altura del campo de al
-                lado y no colgado arriba, contra el rótulo. */}
-            <label className="flex cursor-pointer items-start gap-3 sm:self-end">
-              <input
-                type="checkbox" checked={esBorrador}
-                onChange={(e) => set("estado", e.target.checked ? "borrador" : "en_proceso")}
-                className="mt-0.5 h-[22px] w-[22px] shrink-0 cursor-pointer accent-gold"
-              />
-              <span>
-                <span className="block text-[17px] font-bold text-foreground">Es borrador</span>
-                <span className="mt-0.5 block text-[14px] font-medium text-muted-foreground">
-                  {esBorrador
-                    ? "Se guarda a medio cargar: no entra a producción hasta que la completen."
-                    : "Sin tildar entra a producción."}
+              <label className="flex cursor-pointer items-start gap-3 sm:self-end sm:pb-1">
+                <input
+                  type="checkbox" checked={esBorrador}
+                  onChange={(e) => set("estado", e.target.checked ? "borrador" : "en_proceso")}
+                  className="mt-0.5 h-[20px] w-[20px] shrink-0 cursor-pointer accent-[#0f0c44]"
+                />
+                <span>
+                  <span className="block text-[15px] font-bold text-[#111]">Es borrador</span>
+                  <span className="mt-0.5 block text-[13px] font-semibold text-[#5a5f6e]">
+                    {esBorrador
+                      ? "Se guarda a medio cargar: no entra a producción hasta que la completen."
+                      : "Sin tildar entra a producción."}
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+            </div>
           </div>
-        </FilaFicha>
+        </section>
       </div>
     )
   }
@@ -931,29 +895,31 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
       case 1:
         return pasoGeneral()
 
-      // ── Step 2: Extrusión — 3 secciones: film / bobinas / producción ───
+      // ── Step 2: Extrusión ─────────────────────────────────────────────
+      // Con la cara de la ficha que después sale impresa (ver `.ficha` en
+      // globals.css): el operario llena los mismos recuadros que va a leer en
+      // el papel, y nada cambia de lugar al imprimir.
       case 2:
         return (
-          <div>
-            {/* ① El film: qué material se extruye.
-                SIN «Tratamiento»: en esta planta siempre es Con, así que
-                elegirlo era una decisión que nunca se decide. Se sigue
-                guardando "Con" (el valor por omisión del formulario).
-                SIN «Formulación / Lámina»: la trae sola la ficha del producto
-                y nadie la corrige a mano. Se sigue guardando lo que venga del
-                producto, sólo que ya no se tipea. */}
-            <FilaFicha titulo="El film">
-              <div className="flex flex-col gap-6">
-                <div className="grid grid-cols-1 gap-x-7 gap-y-5 sm:grid-cols-3">
-                  <CampoFicha label="Ancho (mm)">
+          <div className="ficha">
+
+            {/* ① El film */}
+            <section className="ficha-seccion">
+              <header>El film</header>
+              <div className="ficha-cuerpo">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                  <label>
+                    <span className="ficha-rotulo">Ancho (mm)</span>
                     <Input type="number" step="0.01" placeholder="0,00" value={form.extrusion_ancho ?? ""}
-                      onChange={(e) => set("extrusion_ancho", num(e.target.value))} className={CAMPO_SUBRAYADO} />
-                  </CampoFicha>
-                  <CampoFicha label="Micronaje (µ)">
+                      onChange={(e) => set("extrusion_ancho", num(e.target.value))} className="ficha-campo" />
+                  </label>
+                  <label>
+                    <span className="ficha-rotulo">Micronaje (µ)</span>
                     <Input type="number" step="1" placeholder="60" value={form.extrusion_espesor ?? ""}
-                      onChange={(e) => set("extrusion_espesor", num(e.target.value))} className={CAMPO_SUBRAYADO} />
-                  </CampoFicha>
-                  <CampoFicha label="Color">
+                      onChange={(e) => set("extrusion_espesor", num(e.target.value))} className="ficha-campo" />
+                  </label>
+                  <div>
+                    <span className="ficha-rotulo">Color</span>
                     <Selector
                       etiqueta="Color"
                       valor={form.extrusion_color ?? "Blanco"}
@@ -962,214 +928,213 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                         { valor: "Blanco", label: "Blanco" },
                         { valor: "Cristal", label: "Cristal" },
                       ]}
+                      className="ficha-selector"
                     />
-                  </CampoFicha>
+                  </div>
                 </div>
 
-                {/* Venus: los metros salen de la cuenta del paso anterior y acá
-                    es donde hacen falta. Se muestran, no se tipean. */}
+                {/* El total de metros: el dato que el operario se lleva a la
+                    máquina, así que va en su propio recuadro destacado. */}
                 {(() => {
                   const metros = calcularMetrosExtrusion(form.cantidad, form.troquelado_alto)
                   if (metros == null) {
                     return (
-                      <p className="text-[15px] font-medium text-muted-foreground">
+                      <p className="mt-5 border-t border-[#e0e2ed] pt-4 text-[14px] font-semibold text-[#5a5f6e]">
                         Falta la cantidad de etiquetas o el alto: se cargan en el paso General.
                       </p>
                     )
                   }
                   return (
-                    <div>
-                      <p className="text-[12.5px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                        Hay que extrudir
-                      </p>
-                      <p className="mt-1 flex flex-wrap items-baseline gap-x-3.5">
-                        <span className="text-[40px] font-bold leading-none tracking-[-0.03em] text-gold tabular-nums">
-                          {formatoAr(metros)}
-                        </span>
-                        <span className="text-[18px] font-semibold text-secondary-foreground">m de film</span>
-                      </p>
-                      <p className="mt-2 text-[14px] font-medium text-muted-foreground">
+                    <div className="mt-5 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-[#e0e2ed] pt-4">
+                      <span className="ficha-rotulo !mb-0">Hay que extrudir</span>
+                      <span className="text-[34px] font-extrabold leading-none tracking-[-0.02em] text-[#0f0c44] tabular-nums">
+                        {formatoAr(metros)}
+                      </span>
+                      <span className="text-[16px] font-bold text-[#555]">m de film</span>
+                      <span className="w-full text-[13px] font-semibold text-[#5a5f6e]">
                         {formatoAr(form.cantidad ?? 0, 0)} etiquetas × {formatoAr(altoEnMetros(form.troquelado_alto), 4)} m
                         {" "}+ {formatoAr(MARGEN_METROS)} de margen ={" "}
                         {formatoAr(metrosCrudos(form.cantidad, form.troquelado_alto) ?? 0)} m
-                      </p>
+                      </span>
                     </div>
                   )
                 })()}
               </div>
-            </FilaFicha>
+            </section>
 
-            {/* ② Las bobinas: cuántas y sus medidas */}
-            <FilaFicha titulo="Las bobinas">
-              <div className="flex flex-col gap-6">
-                <CampoFicha label="Cantidad de bobinas" className="sm:max-w-[200px]">
-                  <Input type="number" placeholder="0" value={form.extrusion_cant_bob ?? ""}
-                    onChange={(e) => set("extrusion_cant_bob", num(e.target.value))} className={CAMPO_SUBRAYADO} />
-                </CampoFicha>
+            {/* Las bobinas y la producción NO se cargan acá: salen impresas en
+                blanco y las llena a mano el que está en la máquina. La ficha de
+                papel ya trae la tabla con seis filas vacías y los recuadros de
+                máquina, operador y observaciones.
 
-                <div>
-                  <p className="text-[13px] font-medium text-muted-foreground">Metros y kilos de cada bobina</p>
-                  <table className="mt-2 w-full border-collapse">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="w-9 py-2 text-left text-[12.5px] font-medium text-muted-foreground">#</th>
-                        <th className="py-2 pr-5 text-left text-[12.5px] font-medium text-muted-foreground">Metros</th>
-                        <th className="py-2 pr-5 text-left text-[12.5px] font-medium text-muted-foreground">KG/Bob</th>
-                        <th className="py-2 pr-5 text-left text-[12.5px] font-medium text-muted-foreground">N° Lote</th>
-                        <th className="w-11" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.bobinas.map((b, i) => (
-                        <tr key={i}>
-                          {/* La línea de cada campo ya separa las filas: una
-                              división más sería ruido sobre ruido. */}
-                          <td className="py-2.5 align-bottom pb-4 text-[15px] font-semibold text-muted-foreground tabular-nums">{i + 1}</td>
-                          <td className="py-2.5 pr-5">
-                            <Input type="number" step="0.01" placeholder="0,00" value={b.metros ?? ""}
-                              onChange={(e) => updateBobina(i, "metros", e.target.value)} className={CAMPO_SUBRAYADO} />
-                          </td>
-                          <td className="py-2.5 pr-5">
-                            <Input type="number" step="0.001" placeholder="0,000" value={b.kg_bob ?? ""}
-                              onChange={(e) => updateBobina(i, "kg_bob", e.target.value)} className={CAMPO_SUBRAYADO} />
-                          </td>
-                          <td className="py-2.5 pr-5">
-                            <Input placeholder="Opcional" value={(b as BobinaForm).numero_lote ?? ""}
-                              onChange={(e) => updateBobina(i, "numero_lote", e.target.value)} className={CAMPO_SUBRAYADO} />
-                          </td>
-                          <td className="py-2.5 align-bottom pb-2.5">
-                            {form.bobinas.length > 1 && (
-                              <button type="button" onClick={() => removeBobina(i)}
-                                aria-label={`Eliminar fila de bobina ${i + 1}`}
-                                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-                                <Trash2 className="h-[18px] w-[18px]" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <button type="button" onClick={addBobina}
-                    className="mt-4 inline-flex items-center gap-1.5 text-[15px] font-semibold text-muted-foreground transition-colors hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-                    <Plus className="h-[18px] w-[18px]" /> Agregar bobina
-                  </button>
-                </div>
-              </div>
-            </FilaFicha>
-
-            {/* ③ La producción: quién y en qué máquina */}
-            <FilaFicha titulo="La producción">
-              <div className="flex flex-col gap-5">
-                <div className="grid grid-cols-1 gap-x-7 gap-y-5 sm:grid-cols-2">
-                  <CampoFicha label="Máquina">
-                    <Input placeholder="Ej: EXT-01" value={form.extrusion_maquina ?? ""}
-                      onChange={(e) => set("extrusion_maquina", e.target.value)} className={CAMPO_SUBRAYADO} />
-                  </CampoFicha>
-                  <CampoFicha label="Operador">
-                    <Input placeholder="Nombre del operador" value={form.operador_extrusion ?? ""}
-                      onChange={(e) => set("operador_extrusion", e.target.value)} className={CAMPO_SUBRAYADO} />
-                  </CampoFicha>
-                </div>
-                <CampoFicha label="Observaciones">
-                  <textarea value={form.extrusion_observaciones ?? ""} placeholder="Notas de extrusión"
-                    onChange={(e) => set("extrusion_observaciones", e.target.value)} rows={2}
-                    className={CAMPO_SUBRAYADO + " w-full resize-none"} />
-                </CampoFicha>
-              </div>
-            </FilaFicha>
+                Los datos siguen existiendo y guardándose: una orden vieja que
+                los tenga cargados no los pierde al editarla, y el agente de voz
+                los puede seguir completando. */}
           </div>
         )
-
       // ── Step 3: Impresión ───────────────────────────────────────────────
+      // En pantalla queda SÓLO lo que el sistema ya sabe: la máquina (la eligió
+      // el paso 0) y el cilindro (viene cargado en la ficha del producto).
+      //
+      // ...más el RETROVERSO, que lo carga la oficina y no el operario, aunque
+      // sea la excepción: sólo uno o dos clientes imprimen atrás, todo el resto
+      // es impresión de frente.
+      //
+      // Lo demás de este paso lo escribe a mano el que está en la máquina
+      // —colores, operario, fecha y observaciones—, así que sale impreso en
+      // blanco en la ficha de papel en vez de pedirlo acá. Un campo que nadie
+      // completa igual hay que leerlo en cada orden.
       case 3:
         return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Frente">
-                <textarea value={form.impresion_frente ?? ""} placeholder="Descripción del frente"
-                  onChange={(e) => set("impresion_frente", e.target.value)} rows={3}
-                  className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
-              </Field>
-              <Field label="Observaciones">
-                <textarea value={form.impresion_observaciones ?? ""} placeholder="Observaciones de impresión"
-                  onChange={(e) => set("impresion_observaciones", e.target.value)} rows={3}
-                  className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
-              </Field>
-            </div>
+          <div className="ficha">
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Máquina">
-                {/* En el alta la elige el paso 0 y llega acá ya resuelta; se
-                    muestra igual para que el operario vea con qué va a imprimir. */}
-                <Input placeholder="Ej: Venus" value={impresionMaquina ?? form.impresion_maquina ?? ""}
-                  readOnly={!!impresionMaquina}
-                  onChange={(e) => set("impresion_maquina", e.target.value)} className="h-9 text-sm" />
-              </Field>
-              <Field label="Cilindro (mm)">
-                <Input type="number" step="0.01" placeholder="0.00" value={form.impresion_cilindro ?? ""}
-                  onChange={(e) => set("impresion_cilindro", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-              <Field label="Operador">
-                <Input placeholder="Nombre del operador" value={form.operador_impresion ?? ""}
-                  onChange={(e) => set("operador_impresion", e.target.value)} className="h-9 text-sm" />
-              </Field>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Colores (hasta 6)</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {form.impresion_colores.map((color, i) => (
-                  <div key={i} className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">{i + 1}.</span>
-                    <Input value={color} onChange={(e) => updateColor(i, e.target.value)}
-                      placeholder={COLORES_PRESET[i] ?? `Color ${i + 1}`}
-                      className="h-9 text-sm pl-7" list={`colores-preset-${i}`} />
-                    <datalist id={`colores-preset-${i}`}>
-                      {COLORES_PRESET.map((c) => <option key={c} value={c} />)}
-                    </datalist>
-                  </div>
-                ))}
+            {/* ① Con qué se imprime */}
+            <section className="ficha-seccion">
+              <header>Con qué se imprime</header>
+              <div className="ficha-cuerpo">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <label>
+                    <span className="ficha-rotulo">Máquina</span>
+                    {/* En el alta la elige el paso 0 y llega acá ya resuelta; se
+                        muestra igual para que el operario vea con qué va a imprimir. */}
+                    <Input placeholder="Ej: Venus" value={impresionMaquina ?? form.impresion_maquina ?? ""}
+                      readOnly={!!impresionMaquina}
+                      onChange={(e) => set("impresion_maquina", e.target.value)} className="ficha-campo" />
+                  </label>
+                  {/* Sale de la ficha del producto, pero hoy sólo 158 de 1.211
+                      lo tienen cargado: por eso el rótulo avisa cuando falta. */}
+                  <label>
+                    <span className="ficha-rotulo">
+                      Cilindro (mm){origenDelProducto(form.impresion_cilindro)}
+                    </span>
+                    <Input type="number" step="0.01" placeholder="0,00" value={form.impresion_cilindro ?? ""}
+                      onChange={(e) => set("impresion_cilindro", num(e.target.value))} className="ficha-campo" />
+                  </label>
+                </div>
               </div>
-            </div>
+            </section>
+
+            {/* ② Retroverso: la excepción. Va en su propio recuadro y no mezclado
+                con los campos de arriba, justamente para que se lea como lo que
+                es: algo que la mayoría de las órdenes deja vacío. */}
+            <section className="ficha-seccion">
+              <header>Retroverso</header>
+              <div className="ficha-cuerpo">
+                <label className="block">
+                  <span className="ficha-rotulo">Qué se imprime atrás · opcional</span>
+                  <textarea
+                    value={form.impresion_retroverso ?? ""}
+                    onChange={(e) => set("impresion_retroverso", e.target.value)}
+                    rows={2}
+                    placeholder="Dejalo vacío si la etiqueta se imprime sólo de frente"
+                    className="ficha-campo resize-none"
+                  />
+                </label>
+                <p className="mt-2 text-[13.5px] font-semibold text-[#5a5f6e]">
+                  Lo llevan uno o dos clientes: casi todas las órdenes van sólo de frente.
+                </p>
+              </div>
+            </section>
+
+            {/* ③ Lo que se llena a mano: no son campos, es el aviso de qué
+                recuadros van a salir vacíos en el papel. Si no se dice, el que
+                carga la orden cree que falta algo. */}
+            <section className="ficha-seccion">
+              <header>Lo llena el operario en la máquina</header>
+              <div className="ficha-cuerpo">
+                <p className="text-[15px] font-semibold leading-relaxed text-[#111]">
+                  Colores · Operario · Fecha · Observaciones
+                </p>
+                <p className="mt-2 text-[13.5px] font-semibold text-[#5a5f6e]">
+                  Salen impresos en blanco en la ficha para completar a mano.
+                </p>
+              </div>
+            </section>
           </div>
         )
 
       // ── Step 4: Troquelado ──────────────────────────────────────────────
+      // En pantalla queda lo que el sistema ya sabe o la oficina tiene que
+      // decidir: las medidas de la etiqueta y el envase. La máquina y las
+      // observaciones las escribe el que troquela, así que salen impresas en
+      // blanco igual que en Extrusión e Impresión.
       case 4:
         return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Ancho (mm)">
-                <Input type="number" step="0.01" placeholder="0.00" value={form.troquelado_ancho ?? ""}
-                  onChange={(e) => set("troquelado_ancho", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-              {/* Centímetros, no milímetros: es el MISMO alto que usa la
-                  cuenta de metros de extrusión, y los altos de la ficha de
-                  producto (4 a 20) son centímetros de etiqueta. */}
-              <Field label="Alto (cm)">
-                <Input type="number" step="0.01" placeholder="0.00" value={form.troquelado_alto ?? ""}
-                  onChange={(e) => set("troquelado_alto", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-              {/* El envase vive acá, que es el paso donde se troquela, y no en
-                  el paso General: ahí sólo va el pedido (marca, producto y
-                  cuánto se hace). Vale para todas las impresoras. */}
-              <Field label="Envase" icon={Boxes}>
-                <EnvaseSelector catalogo={envases} value={form.troquelado_envase ?? ""}
-                  onChange={(v) => set("troquelado_envase", v)} />
-              </Field>
-            </div>
+          <div className="ficha">
 
-            <Field label="Máquina">
-              <Input placeholder="Ej: TRQ-01" value={form.troquelado_maquina ?? ""}
-                onChange={(e) => set("troquelado_maquina", e.target.value)} className="h-9 text-sm" />
-            </Field>
+            {/* ① Las medidas: las dos vienen de la ficha del producto. */}
+            <section className="ficha-seccion">
+              <header>La etiqueta</header>
+              <div className="ficha-cuerpo">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  {/* CIERRE, no «Ancho»: es el diámetro de la tapa del envase
+                      (13,4 · 24,9 · 27,6…) y la ficha del producto lo tiene en
+                      1.143 de 1.211. El ancho se tipeaba a mano y no lo
+                      completaba nadie. */}
+                  <label>
+                    <span className="ficha-rotulo">
+                      Cierre{origenDelProducto(form.troquelado_cierre)}
+                    </span>
+                    <Input type="number" step="0.01" placeholder="0,00" value={form.troquelado_cierre ?? ""}
+                      onChange={(e) => set("troquelado_cierre", num(e.target.value))} className="ficha-campo" />
+                  </label>
+                  {/* Centímetros, no milímetros: es el MISMO alto que usa la
+                      cuenta de metros de extrusión, y los altos de la ficha de
+                      producto (4 a 20) son centímetros de etiqueta. */}
+                  <label>
+                    <span className="ficha-rotulo">
+                      Alto (cm){origenDelProducto(form.troquelado_alto)}
+                    </span>
+                    <Input type="number" step="0.01" placeholder="0,00" value={form.troquelado_alto ?? ""}
+                      onChange={(e) => set("troquelado_alto", num(e.target.value))} className="ficha-campo" />
+                  </label>
+                </div>
+              </div>
+            </section>
 
-            <Field label="Observaciones">
-              <textarea value={form.troquelado_observaciones ?? ""} placeholder="Notas de troquelado"
-                onChange={(e) => set("troquelado_observaciones", e.target.value)} rows={2}
-                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
-            </Field>
+            {/* ② El envase vive acá, que es el paso donde se troquela, y no en
+                el paso General: ahí sólo va el pedido (marca, producto y cuánto
+                se hace). Vale para todas las impresoras. */}
+            <section className="ficha-seccion">
+              <header>El envase</header>
+              <div className="ficha-cuerpo">
+                <div className="max-w-[420px]">
+                  <span className="ficha-rotulo">Cuál</span>
+                  <EnvaseSelector catalogo={envases} value={form.troquelado_envase ?? ""}
+                    onChange={(v) => set("troquelado_envase", v)} className="ficha-selector" />
+                </div>
+                {/* Código y ubicación salen de la ficha del producto: el que va a
+                    buscar el envase al depósito necesita saber DÓNDE está. Sólo
+                    aparecen si están cargados, que hoy es la minoría. */}
+                {(() => {
+                  const p = clienteProductos.find((x) => x.id === form.cliente_producto_id)
+                  const partes = [
+                    p?.envase_codificado ? `Código ${p.envase_codificado}` : null,
+                    p?.ubicacion ? `Ubicación ${p.ubicacion}` : null,
+                  ].filter(Boolean)
+                  if (partes.length === 0) return null
+                  return (
+                    <p className="mt-3 text-[14px] font-semibold text-[#111]">
+                      {partes.join(" · ")}
+                    </p>
+                  )
+                })()}
+              </div>
+            </section>
+
+            {/* ③ Lo que sale en blanco en el papel. Si no se dice, el que carga
+                la orden cree que le falta completar algo. */}
+            <section className="ficha-seccion">
+              <header>Lo llena el operario en la máquina</header>
+              <div className="ficha-cuerpo">
+                <p className="text-[15px] font-semibold leading-relaxed text-[#111]">
+                  Máquina · Operario · Fecha · Observaciones
+                </p>
+                <p className="mt-2 text-[13.5px] font-semibold text-[#5a5f6e]">
+                  Salen impresos en blanco en la ficha para completar a mano.
+                </p>
+              </div>
+            </section>
           </div>
         )
 

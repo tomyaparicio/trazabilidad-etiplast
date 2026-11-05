@@ -345,9 +345,12 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
           )}
 
           {/* Troquelado */}
-          {(orden.troquelado_ancho != null || orden.troquelado_alto != null || orden.troquelado_envase || orden.troquelado_maquina || orden.operador_troquelado || orden.troquelado_observaciones) && (
+          {(orden.troquelado_cierre != null || orden.troquelado_ancho != null || orden.troquelado_alto != null || orden.troquelado_envase || orden.troquelado_maquina || orden.operador_troquelado || orden.troquelado_observaciones) && (
             <Section title="Troquelado">
-              <Field label="Ancho" value={orden.troquelado_ancho != null ? `${orden.troquelado_ancho} mm` : null} />
+              <Field label="Cierre" value={orden.troquelado_cierre != null ? String(orden.troquelado_cierre) : null} />
+            {/* Las órdenes viejas tienen ancho y no cierre: el dato ya cargado
+                se sigue mostrando en vez de desaparecer del historial. */}
+            <Field label="Ancho" value={orden.troquelado_ancho != null ? `${orden.troquelado_ancho} mm` : null} />
               <Field label="Alto" value={orden.troquelado_alto != null ? `${orden.troquelado_alto} mm` : null} />
               <Field label="Envase" value={orden.troquelado_envase} />
               <Field label="Máquina" value={orden.troquelado_maquina} />

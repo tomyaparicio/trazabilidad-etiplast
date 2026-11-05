@@ -22,6 +22,7 @@ export type OrderPrefill = {
   extrusion_cant_bob?: number
   troquelado_alto?: number
   troquelado_ancho?: number
+  troquelado_cierre?: number
   troquelado_envase?: string
   impresion_colores?: string[]
   cantidad?: number

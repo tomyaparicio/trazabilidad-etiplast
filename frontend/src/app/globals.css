@@ -327,39 +327,189 @@
 /* El chevron del Select debe leerse sobre blanco */
 .ot-wizard [data-slot="select"] + svg { color: #6a7090; }
 
-/* ── Excepción: los campos del paso General de VENUS van SIN caja ──
-   Ese paso se rediseñó sin tarjetas ni recuadros: el único elemento destacado
-   es el total de metros de film, que es lo que el operario se lleva a la
-   máquina. Un campo blanco al lado le compite y arruina esa jerarquía.
+/* ── La orden de trabajo en pantalla, con la cara del papel ─────────────────
+   El operario llena la misma ficha que después sale de la impresora, así que
+   la pantalla usa el lenguaje de `app/print/ordenes/[id]/print.css`: hoja
+   blanca, secciones con marco, cabecera navy y campos subrayados.
 
-   EL CONTRASTE NO BAJA: el valor queda en #f3f4fc sobre #0b0d1e, más de 14:1
-   (el mínimo accesible es 4.5:1). Lo que cambia es la FORMA de marcar el campo:
-   una línea abajo en vez de un recuadro relleno. */
-/* El selector va ESPEJADO al de la regla de arriba (mismo `:not()` doble) a
-   propósito: los dos llevan !important, así que entre ellos decide la
-   especificidad, y `.ot-wizard input:not(...):not(...)` es (0,3,1). Un
-   `.ot-wizard .campo-subrayado` a secas es (0,2,0) y PIERDE — los campos
-   seguían saliendo blancos. Con la clase sumada queda (0,4,1) y gana. */
-.ot-wizard input.campo-subrayado:not([type="checkbox"]):not([type="radio"]),
-.ot-wizard select.campo-subrayado,
-.ot-wizard textarea.campo-subrayado {
-  min-height: 0;
-  font-size: 19px;
+   ES CLARA A PROPÓSITO, dentro de un ERP oscuro: no es un descuido. La hoja
+   ES el documento; el marco oscuro alrededor es la aplicación. Y lo que se ve
+   llenando es lo que se ve impreso, sin sorpresas al apretar imprimir.
+
+   Los valores salen de print.css: si cambia uno, cambian los dos. */
+.ficha {
+  background: #ffffff;
+  color: #111;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ficha-seccion {
+  border: 1.5px solid #d0d3e0;
+  border-radius: 6px;
+  /* SIN `overflow: hidden`, aunque el papel lo use: en pantalla recortaría los
+     desplegables que se abren dentro de la sección (el buscador de marca
+     quedaba cortado contra la banda de la sección siguiente). Las esquinas de
+     la cabecera se redondean abajo, que es para lo único que servía. */
+}
+
+.ficha-seccion > header {
+  background: #0f0c44;
+  border-radius: 4.5px 4.5px 0 0;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.ficha-cuerpo { padding: 14px; }
+
+/* Más grande y más oscuro que en el papel A PROPÓSITO: #888 sobre blanco da
+   3,54:1 y el mínimo accesible para texto chico es 4,5:1. En papel la tinta se
+   lee igual; en pantalla, y con los usuarios grandes de la planta, no. #5a5f6e
+   da 6,37:1. */
+.ficha-rotulo {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #5a5f6e;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+/* El campo editable con la misma pinta que el valor impreso: una línea abajo.
+
+   EL SELECTOR VA ESPEJADO al de `.ot-wizard` (mismo `:not()` doble) a propósito:
+   esa regla pinta los campos de blanco con esquinas de 12 px y 46 px de alto, y
+   con un `.ficha .ficha-campo` a secas (0,2,0) le PIERDE a (0,3,1) — los campos
+   quedaban como cajas redondeadas al lado de desplegables planos. Con la clase
+   sumada queda (0,4,1) y gana. */
+.ficha input.ficha-campo:not([type="checkbox"]):not([type="radio"]),
+.ficha select.ficha-campo,
+.ficha textarea.ficha-campo {
+  width: 100%;
+  min-height: 30px !important;
+  font-size: 15px !important;
   font-weight: 600;
-  border-radius: 0;
+  color: #111 !important;
   background: transparent !important;
-  color: var(--foreground) !important;
-  border-color: var(--input) !important;
+  border: 0 !important;
+  border-bottom: 1.5px solid #c0c4d8 !important;
+  border-radius: 0 !important;
+  padding: 0 2px 3px;
 }
-.ot-wizard input.campo-subrayado:not([type="checkbox"]):not([type="radio"]):focus-visible,
-.ot-wizard select.campo-subrayado:focus-visible,
-.ot-wizard textarea.campo-subrayado:focus-visible {
-  border-color: var(--gold) !important;
+.ficha input.ficha-campo:not([type="checkbox"]):not([type="radio"]):focus-visible,
+.ficha select.ficha-campo:focus-visible,
+.ficha textarea.ficha-campo:focus-visible {
+  border-bottom-color: #0f0c44 !important;
   box-shadow: none !important;
+  outline: none;
 }
-.ot-wizard input.campo-subrayado::placeholder { color: var(--muted-foreground); font-weight: 400; }
-/* El chevron del Select subrayado se lee sobre el fondo oscuro, no sobre blanco */
-.ot-wizard [data-slot="select"].campo-subrayado + svg { color: var(--muted-foreground); }
+.ficha input.ficha-campo::placeholder,
+.ficha textarea.ficha-campo::placeholder { color: #6b7185; font-weight: 400; }
+
+/* El desplegable propio, vestido para la hoja clara: sus colores salen de los
+   tokens del tema OSCURO, así que sobre papel blanco el texto quedaría blanco
+   sobre blanco. */
+.ficha-selector > button {
+  border-bottom-color: #c0c4d8 !important;
+  padding-bottom: 3px;
+  min-height: 30px;
+}
+.ficha-selector > button:hover { border-bottom-color: #0f0c44; }
+.ficha-selector > button > span { font-size: 15px; color: #111; }
+.ficha-selector > button > svg { color: #888; }
+.ficha-selector ul {
+  background: #ffffff;
+  border-color: #d0d3e0;
+  box-shadow: 0 18px 40px -16px rgba(15, 12, 68, 0.35);
+}
+.ficha-selector li { color: #333; font-size: 15px; padding: 10px 14px; }
+.ficha-selector li[aria-selected="true"] { color: #0f0c44; font-weight: 700; }
+/* El tilde de la opción elegida, en azul de marca.
+   `.ficha` adelante NO es decorativo: el panel del desplegable también lleva
+   `.absolute`, así que `.ficha .absolute svg { color:#5a5f6e }` —de abajo, para
+   el buscador de marca— le ganaba por especificidad (0,2,1 contra 0,1,2) y
+   dejaba gris justo el único elemento cuyo trabajo es destacarse.
+   Con `.ficha` adelante queda (0,2,2) y gana. */
+.ficha .ficha-selector li svg { color: #0f0c44; }
+
+/* El buscador de marca: su panel usa los tokens del tema oscuro, que sobre la
+   hoja blanca no se leen. */
+.ficha .relative > div[class*="border-b"] {
+  border-bottom-color: #c0c4d8 !important;
+  min-height: 30px;   /* a la misma altura que el resto de los campos */
+}
+.ficha .relative > div[class*="border-b"] span { color: #111; font-size: 15px; }
+.ficha .relative > div[class*="border-b"] svg { color: #888; }
+.ficha .absolute {
+  background: #ffffff;
+  border-color: #d0d3e0;
+  color: #111;
+  box-shadow: 0 18px 40px -16px rgba(15, 12, 68, 0.35);
+}
+.ficha .absolute input {
+  background: #f8f9fc !important;
+  color: #111 !important;
+  border-color: #d0d3e0 !important;
+}
+
+/* El CONTENIDO del panel usa tokens del tema oscuro, varios con transparencia
+   —`bg-muted/30`, `text-muted-foreground/60`—. Sobre la hoja blanca eso se
+   compone como bandas grises y texto lavado: justo lo que no se leía. Acá se
+   reemplaza cada uno por su equivalente opaco y con contraste medido. */
+.ficha .absolute [class*="border-b"] { border-bottom-color: #d0d3e0 !important; }
+.ficha .absolute svg { color: #5a5f6e; }
+
+/* Banda con la razón social que agrupa las marcas */
+.ficha .absolute div[class*="uppercase"] {
+  background: #eceef5 !important;
+  color: #5a5f6e !important;
+  font-size: 11px;
+}
+
+/* Cada marca del listado */
+.ficha .absolute button { color: #111; }
+.ficha .absolute button:hover { background: #eef1f8 !important; }
+.ficha .absolute button[class*="bg-primary"] { background: #e9ecfa !important; }
+.ficha .absolute button svg { color: #0f0c44; }
+.ficha .absolute button p { color: #111 !important; font-size: 15px; }
+/* El renglón de abajo («3 productos»): secundario, pero legible. */
+.ficha .absolute button p + p { color: #6b7185 !important; font-size: 12px; }
+
+/* «Sin resultados», «Escribí para buscar», «Buscando…» */
+.ficha .absolute div[class*="text-center"],
+.ficha .absolute div[class*="justify-center"] {
+  color: #5a5f6e !important;
+  font-size: 13.5px;
+}
+
+/* Tabla de bobinas: celdas con marco, como la del papel. */
+.ficha-tabla { border-collapse: collapse; width: 100%; }
+.ficha-tabla th {
+  background: #eceef5;
+  border: 1px solid #d0d3e0;
+  padding: 6px 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #444;
+  text-align: left;
+}
+.ficha-tabla td {
+  border: 1px solid #e0e2ed;
+  padding: 2px 8px;
+  color: #222;
+}
+/* Dentro de una celda el campo no lleva línea: ya la pone el borde. */
+.ficha-tabla .ficha-campo { border-bottom: 0 !important; min-height: 28px; }
 
 /* ── Login: swirl de fondo girando lento ── */
 @keyframes eti-spin-slow { to { transform: rotate(360deg); } }
