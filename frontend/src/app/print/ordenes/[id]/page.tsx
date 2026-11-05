@@ -3,11 +3,60 @@
  */
 import { apiFetchServer } from "@/lib/api/server"
 import type { OrdenTrabajo } from "@/lib/api/types"
+import { headers } from "next/headers"
 import { notFound } from "next/navigation"
+import QRCode from "qrcode"
 import { PrintButtons } from "./print-buttons"
 import "./print.css"
 
 interface Props { params: Promise<{ id: string }> }
+
+/**
+ * De dónde sale la URL que lleva el QR.
+ *
+ * Se arma con los headers del request y no con una variable de entorno: así
+ * funciona igual en localhost, en los previews de Vercel y en producción, sin
+ * que nadie tenga que acordarse de configurar nada. Un QR impreso con la URL
+ * equivocada es papel tirado.
+ */
+async function origenDelSitio(): Promise<string> {
+  const h = await headers()
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")
+  return `${proto}://${host}`
+}
+
+/**
+ * Un campo de la ficha: rótulo arriba, valor sobre una raya.
+ *
+ * Fuera del componente a propósito. Declarado adentro se redefine en cada
+ * render y React lo trata como un componente nuevo cada vez (`react-hooks/
+ * static-components`): no usa nada del closure, así que acá no cuesta nada.
+ */
+/**
+ * Recuadro de observaciones.
+ *
+ * Una raya sola no alcanza: acá el de la máquina escribe una o dos frases a
+ * mano, y necesita caja, no renglón. Si la orden ya trae algo cargado (de la
+ * oficina o del agente de voz) se imprime adentro del mismo recuadro.
+ */
+function Observaciones({ value }: { value?: string | null }) {
+  return (
+    <div className="ot-obs ot-field--full">
+      <span className="ot-label">Observaciones</span>
+      <div className="ot-obs-area">{value ?? ""}</div>
+    </div>
+  )
+}
+
+function Field({ label, value, full }: { label: string; value?: string | null; full?: boolean }) {
+  return (
+    <div className={`ot-field${full ? " ot-field--full" : ""}`}>
+      <span className="ot-label">{label}</span>
+      <span className={`ot-value${!value ? " ot-value--empty" : ""}`}>{value ?? "\u00A0"}</span>
+    </div>
+  )
+}
 
 export default async function PrintOrdenPage({ params }: Props) {
   const { id } = await params
@@ -18,6 +67,21 @@ export default async function PrintOrdenPage({ params }: Props) {
   } catch {
     return notFound()
   }
+
+  // UN solo QR para toda la orden. Tres (uno por sección) era ensuciar la hoja
+  // para ahorrarle un toque al operario: la pantalla le pregunta qué paso va a
+  // hacer y listo.
+  //
+  // Lleva el ID de la orden, NO el lote: el papel se imprime antes de que nadie
+  // escanee y el lote recién nace con el primer escaneo. El ID existe desde que
+  // la orden se crea.
+  const base = await origenDelSitio()
+  const qrOrden = await QRCode.toString(`${base}/escanear/${orden.id}`, {
+    type: "svg",
+    margin: 0,
+    errorCorrectionLevel: "M",
+    color: { dark: "#0f0c44", light: "#ffffff" },
+  })
 
   const colores   = Array.from({ length: 6 }, (_, i) => orden.impresion_colores?.[i] ?? "")
   const bobinas   = orden.bobinas ?? []
@@ -31,22 +95,14 @@ export default async function PrintOrdenPage({ params }: Props) {
     ? new Date(orden.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
     : "—"
 
-  const fmt = (v: number | null | undefined, dec = 2) => v != null ? Number(v).toFixed(dec) : ""
+  // Separador decimal argentino: «240,00», no «240.00». El resto de la app
+  // ya formatea con es-AR (la cantidad sale «20.000»); la ficha era la
+  // única que mezclaba los dos criterios en la misma hoja.
+  const fmt = (v: number | null | undefined, dec = 2) =>
+    v != null
+      ? Number(v).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec })
+      : ""
 
-  const estadoLabel: Record<string, string> = {
-    borrador: "Borrador", pendiente: "Pendiente",
-    en_proceso: "En Proceso", completada: "Completada", cancelada: "Cancelada",
-  }
-
-  /* ── Helpers de campo ── */
-  function Field({ label, value, full }: { label: string; value?: string | null; full?: boolean }) {
-    return (
-      <div className={`ot-field${full ? " ot-field--full" : ""}`}>
-        <span className="ot-label">{label}</span>
-        <span className={`ot-value${!value ? " ot-value--empty" : ""}`}>{value ?? "\u00A0"}</span>
-      </div>
-    )
-  }
 
   return (
     <html lang="es">
@@ -64,10 +120,6 @@ export default async function PrintOrdenPage({ params }: Props) {
             <div className="ot-logo-block">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logoSOLO.png" alt="Etiplast" className="ot-logo" />
-              <div className="ot-empresa">
-                <span className="ot-empresa-nombre">ETIPLAST</span>
-                <span className="ot-empresa-sub">Industria del Packaging</span>
-              </div>
             </div>
 
             {/* Número central */}
@@ -76,25 +128,58 @@ export default async function PrintOrdenPage({ params }: Props) {
               <span className="ot-numero">{orden.numero}</span>
             </div>
 
-            {/* Fecha + Estado */}
-            <div className="ot-meta-block">
-              <div className="ot-meta-item">
-                <span className="ot-meta-label">Fecha</span>
-                <span className="ot-meta-value">{fechaStr}</span>
-              </div>
-              <div className="ot-meta-item">
-                <span className="ot-meta-label">Estado</span>
-                <span className="ot-meta-estado">{estadoLabel[orden.estado] ?? orden.estado}</span>
-              </div>
+            {/* El QR de la orden, en la cabecera: es de toda la ficha, no de un
+                paso. El operario lo escanea y la pantalla le pregunta qué va a
+                hacer. Probé ponerlo abajo para que entrara más grande y rompía
+                el bloque de Totales, así que va acá y gana tamaño comiéndose el
+                relleno propio, sin tocar ni una letra del resto de la hoja. */}
+            <div className="ot-qr">
+              {/* SVG generado por nosotros en el servidor, no entra nada del usuario. */}
+              <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
+              <span className="ot-qr-label">Escaneá antes de empezar</span>
+              {orden.lote && <span className="ot-qr-lote">{orden.lote}</span>}
             </div>
           </div>
 
           {/* ── Banda cliente ── */}
+          {/* El formulario de papel pide CLIENTE N° y PRODUCTO, no sólo la
+              razón social. El número es el que usa la empresa (`numero_visible`),
+              no el id interno de la base. */}
           <div className="ot-cliente-band">
             <span className="ot-cliente-label">Cliente</span>
+            {orden.cliente_numero != null && (
+              <span className="ot-cliente-numero">N° {orden.cliente_numero}</span>
+            )}
             <span className="ot-cliente-nombre">
               {orden.cliente_nombre ?? `Cliente #${orden.cliente_id}`}
             </span>
+            {orden.producto_nombre && (
+              <>
+                <span className="ot-cliente-label">Producto</span>
+                <span className="ot-cliente-producto">{orden.producto_nombre}</span>
+              </>
+            )}
+            {/* La muestra del producto. NOOK significa que está rechazada:
+                imprimir 20.000 etiquetas así es tirar el trabajo, así que grita
+                en rojo. OK va discreto, sólo para confirmar que se revisó. */}
+            {/* La fecha, acá y no en la cabecera: la banda tiene lugar de sobra
+                a la derecha y no suma alto a la hoja, que es el recurso escaso.
+                El estado se fue del todo: es dato de oficina, no de planta. */}
+            <span className="ot-cliente-fecha">
+              <span className="ot-cliente-label">Fecha</span>
+              <b>{fechaStr}</b>
+            </span>
+            {orden.producto_muestra && (
+              <span
+                className={`ot-muestra${
+                  orden.producto_muestra.toUpperCase() === "OK" ? "" : " ot-muestra--mal"
+                }`}
+              >
+                {orden.producto_muestra.toUpperCase() === "OK"
+                  ? "Muestra OK"
+                  : `Muestra ${orden.producto_muestra}`}
+              </span>
+            )}
           </div>
 
           {/* ══════════════════ CUERPO ══════════════════ */}
@@ -102,8 +187,18 @@ export default async function PrintOrdenPage({ params }: Props) {
 
             {/* ─── EXTRUSIÓN ─── */}
             <div className="ot-section">
+              {/* Los metros van en el encabezado, igual que el
+                  «EXTRUSION ______ MTS» del formulario de papel: es el número
+                  que el operario se lleva a la máquina. Sale de la cuenta
+                  cantidad × alto + 400 de margen; si la orden es vieja y no lo
+                  tiene calculado, no se muestra nada. */}
               <div className="ot-section-header">
                 <span className="ot-section-title">Extrusión</span>
+                {orden.extrusion_metros != null && (
+                  <span className="ot-section-dato">
+                    {fmt(orden.extrusion_metros, 0)} <small>m de film</small>
+                  </span>
+                )}
               </div>
               <div className="ot-section-body">
                 <div className="ot-ext-grid">
@@ -131,30 +226,59 @@ export default async function PrintOrdenPage({ params }: Props) {
                     </table>
                   </div>
 
-                  {/* Campos */}
+                  {/* Campos, en dos filas con sentido:
+                      — arriba lo que el sistema ya sabe (sale de la lámina del
+                        producto y del paso 2),
+                      — abajo lo que se escribe a mano en la máquina.
+                      Tres columnas y no dos: con dos quedaban huecos sueltos al
+                      lado de «Cant. Bobinas» y de «Operador». */}
                   <div className="ot-ext-fields">
                     <Field label="Ancho" value={orden.extrusion_ancho != null ? `${fmt(orden.extrusion_ancho)} mm` : ""} />
                     <Field label="Color" value={orden.extrusion_color} />
-                    <Field label="Tratamiento" value={orden.extrusion_trat} />
                     <Field label="Micronaje (µ)" value={orden.extrusion_espesor != null ? `${fmt(orden.extrusion_espesor, 0)} µ` : "60 µ"} />
-                    <Field label="Cant. Bobinas" value={orden.extrusion_cant_bob?.toString()} />
                     <Field label="Formulación" value={orden.extrusion_formulacion} full />
-                  </div>
 
+                    {/* A mano: tratamiento, cantidad de bobinas y quién la hizo. */}
+                    <Field label="Tratamiento" value={null} />
+                    <Field label="Cant. Bobinas" value={null} />
+                    <Field label="Operador" value={null} />
+                    <Observaciones />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* ─── IMPRESIÓN ─── */}
             <div className="ot-section">
+              {/* Con qué impresora se hace. La elige el paso 0 y la confirma
+                  el escaneo del QR; es la única etapa que distingue máquina, y
+                  hasta ahora el papel no lo decía en ningún lado. */}
               <div className="ot-section-header">
                 <span className="ot-section-title">Impresión</span>
+                {orden.impresion_maquina && (
+                  <span className="ot-section-dato">{orden.impresion_maquina}</span>
+                )}
               </div>
+              {/* Frente, observación, colores, operario y fecha NO se cargan en
+                  pantalla y NUNCA se imprimen, aunque la base los tenga: los
+                  escribe a mano el que está en la máquina. El escaneo del QR sí
+                  los guarda —para el tablero y la trazabilidad—, pero el papel
+                  conserva la raya en blanco.
+
+                  Dos excepciones que SÍ salen impresas con su dato: el CILINDRO,
+                  que ya viene en la ficha del producto, y el RETROVERSO, que lo
+                  carga la oficina en el paso de Impresión — raro, pero cuando va,
+                  va escrito. */}
               <div className="ot-imp-grid">
 
                 <div className="ot-imp-col">
                   <div className="ot-imp-col-title">Frente</div>
                   <div className="ot-imp-text">{orden.impresion_frente ?? ""}</div>
+                </div>
+
+                <div className="ot-imp-col">
+                  <div className="ot-imp-col-title">Retroversión</div>
+                  <div className="ot-imp-text">{orden.impresion_retroverso ?? ""}</div>
                 </div>
 
                 <div className="ot-imp-col">
@@ -178,6 +302,12 @@ export default async function PrintOrdenPage({ params }: Props) {
                 </div>
 
               </div>
+
+              <div className="ot-imp-pie">
+                {/* En blanco a propósito: operario y fecha se llenan con lapicera. */}
+                <Field label="Operario" value={null} />
+                <Field label="Fecha" value={null} />
+              </div>
             </div>
 
             {/* ─── TROQUELADO ─── */}
@@ -186,15 +316,45 @@ export default async function PrintOrdenPage({ params }: Props) {
                 <span className="ot-section-title">Troquelado</span>
               </div>
               <div className="ot-section-body">
+                {/* CIERRE, no «Ancho»: es el diámetro de la tapa del envase y
+                    viene de la ficha del producto. El ancho se tipeaba a mano y
+                    no lo completaba nadie — sigue en la base para las órdenes
+                    viejas, pero ya no se imprime.
+
+                    El alto va en CENTÍMETROS: es el mismo que usa la cuenta de
+                    metros de extrusión, y los altos de la ficha de producto
+                    (4 a 20) son centímetros de etiqueta. Antes decía «mm». */}
                 <div className="ot-troq-grid">
-                  <Field label="Ancho" value={orden.troquelado_ancho != null ? `${fmt(orden.troquelado_ancho)} mm` : ""} />
-                  <Field label="Alto" value={orden.troquelado_alto != null ? `${fmt(orden.troquelado_alto)} mm` : ""} />
+                  <Field label="Cierre" value={orden.troquelado_cierre != null ? fmt(orden.troquelado_cierre) : ""} />
+                  <Field label="Alto" value={orden.troquelado_alto != null ? `${fmt(orden.troquelado_alto)} cm` : ""} />
                   <Field label="Envase" value={orden.troquelado_envase} />
+                  {/* Código y ubicación: el formulario de papel los pide y el
+                      que va al depósito los necesita para encontrar el envase.
+                      Salen de la ficha del producto. */}
+                  <Field label="Código envase" value={orden.envase_codificado} />
+                  <Field label="Ubicación" value={orden.envase_ubicacion} />
+                </div>
+                {/* Sin campo MÁQUINA: en troquelado las máquinas son
+                    intercambiables, no se elige ninguna ni al cargar la orden
+                    ni al escanear el QR. Una raya que nadie completa nunca es
+                    un campo de menos, no de más.
+
+                    Operario y fecha sí van, en blanco: los escribe a mano el
+                    que troquela. */}
+                <div className="ot-troq-pie">
+                  {/* En blanco a propósito: operario y fecha se llenan con lapicera. */}
+                  <Field label="Operario" value={null} />
+                  <Field label="Fecha" value={null} />
+                  <Observaciones value={orden.troquelado_observaciones} />
                 </div>
               </div>
             </div>
 
-            {/* ─── TOTALES + FIRMAS ─── */}
+            {/* ─── TOTALES ───
+                Sin bloque de firmas: las «Autorizaciones» (Producción, Control
+                de Calidad, Gerencia) eran un invento del rediseño, el
+                formulario de papel de la empresa no las tiene y nadie las
+                firmaba. */}
             <div className="ot-bottom-grid">
 
               {/* Totales */}
@@ -218,34 +378,17 @@ export default async function PrintOrdenPage({ params }: Props) {
                     </span>
                   </div>
                 </div>
+                {/* El mismo recuadro que las otras dos secciones. Antes tenía
+                    un `style={{minHeight:32}}` inline que le ganaba al CSS y
+                    quedaba más chico que sus hermanas. */}
                 <div className="ot-obs-box">
-                  <span className="ot-label">Observaciones</span>
-                  <span className="ot-value" style={{ minHeight: 32 }}>{orden.observaciones ?? ""}</span>
-                </div>
-              </div>
-
-              {/* Firmas */}
-              <div className="ot-firmas-section">
-                <span className="ot-firmas-title">Autorizaciones</span>
-                <div className="ot-firmas-row">
-                  {["Producción", "Control de Calidad", "Gerencia"].map((label) => (
-                    <div key={label} className="ot-firma">
-                      <div className="ot-firma-line" />
-                      <span className="ot-firma-label">{label}</span>
-                    </div>
-                  ))}
+                  <Observaciones value={orden.observaciones} />
                 </div>
               </div>
 
             </div>
 
           </div>{/* /ot-body-grid */}
-
-          {/* ══════════════════ FOOTER ══════════════════ */}
-          <div className="ot-footer">
-            <span className="ot-footer-text">Etiplast · Industria del Packaging</span>
-            <span className="ot-footer-num">{orden.numero}</span>
-          </div>
 
         </div>{/* /ot-page */}
 
