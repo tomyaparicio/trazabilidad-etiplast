@@ -1278,18 +1278,15 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
             <section className="ficha-seccion">
               <header>Totales</header>
               <div className="ficha-cuerpo flex flex-col gap-5">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <label>
-                    <span className="ficha-rotulo">Cantidad de etiquetas</span>
-                    <CampoCantidad value={form.cantidad ?? null} onChange={(v) => set("cantidad", v)}
-                      placeholder="Ej: 100.000" className="ficha-campo" />
-                  </label>
-                  <label>
-                    <span className="ficha-rotulo">Total final ($)</span>
-                    <Input type="number" step="0.01" placeholder="0,00" value={form.total_final ?? ""}
-                      onChange={(e) => set("total_final", num(e.target.value))} className="ficha-campo" />
-                  </label>
-                </div>
+                {/* El total en pesos se fue: la orden de trabajo es un papel de
+                    planta y el precio no se decide acá. La columna sigue en la
+                    base y el formulario reenvía lo que ya tenga cargado, así que
+                    editar una orden vieja no le borra el total. */}
+                <label className="block max-w-[420px]">
+                  <span className="ficha-rotulo">Cantidad de etiquetas</span>
+                  <CampoCantidad value={form.cantidad ?? null} onChange={(v) => set("cantidad", v)}
+                    placeholder="Ej: 100.000" className="ficha-campo" />
+                </label>
                 <label className="block">
                   <span className="ficha-rotulo">Observaciones generales · opcional</span>
                   <Input placeholder="Notas adicionales" value={form.observaciones ?? ""}
