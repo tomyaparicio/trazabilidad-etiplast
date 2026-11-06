@@ -74,11 +74,14 @@
   background: #0f0c44;
   color: #fff;
   margin: -13mm -12mm 0;
-  padding: 9mm 12mm 7mm;
+  /* SIN relleno arriba ni a la derecha: el QR tiene que llegar al filo de la
+     hoja y ocupar la esquina entera, no quedar como una estampilla pegada
+     adentro de la banda. El alto de la banda lo manda él. */
+  padding: 0 0 0 12mm;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 /* El archivo del logo YA es blanco sobre transparente: está hecho
@@ -136,17 +139,26 @@
 }
 
 /* Número, fecha y QR, a la derecha. */
+/* El QR ocupa la esquina superior derecha entera: es lo que el operario
+   apunta con el celular antes de arrancar cada etapa, muchas veces con la
+   hoja en la mano y a contraluz. Cuanto más grande, menos intentos.
+
+   `align-self: stretch` lo hace tan alto como la banda; el número y la fecha
+   quedan a su izquierda, centrados contra él. */
 .ot-header-der {
+  align-self: stretch;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: stretch;
+  gap: 16px;
 }
 
 .ot-header-num {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  justify-content: center;
+  gap: 5px;
+  padding: 4mm 0;
 }
 
 .ot-numero {
@@ -173,7 +185,8 @@
   line-height: 1.25;
   text-align: right;
   color: rgba(255,255,255,.75);
-  max-width: 62px;
+  max-width: 78px;
+  margin-top: 2px;
 }
 
 .ot-qr-lote {
@@ -186,14 +199,23 @@
 /* El QR SIEMPRE negro sobre blanco, aunque esté sobre la banda
    azul: el margen blanco de alrededor no es decoración, sin él el
    lector no engancha el código aunque en pantalla se vea perfecto. */
+/* Sin tarjeta, sin borde, sin esquinas redondeadas: el bloque blanco del QR
+   ES la esquina de la hoja.
+   Puede ir a sangre contra el azul porque la zona tranquila —los 4 módulos de
+   blanco del borde— ya viene DENTRO del SVG (ver `margin: 4` al generarlo).
+   Ese blanco es parte del símbolo: es lo que separa el código del fondo azul
+   y lo que el lector usa para encontrar dónde empieza la grilla. */
 .ot-qr-img {
   background: #fff;
-  padding: 4px;
-  border-radius: 2px;
+  padding: 0;
   line-height: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.ot-qr-img svg { width: 64px; height: 64px; display: block; }
+.ot-qr-img svg { width: 46mm; height: 46mm; display: block; }
 
 /* ══ CLIENTE Y PRODUCTO ══════════════════════════════════════
    Dos renglones con raya hasta el borde, como en el papel. */
@@ -341,9 +363,12 @@
   text-transform: uppercase;
   text-align: center;
   padding: 0 6px 3px;
-  white-space: nowrap;
+  /* SIN `nowrap` + ellipsis: un rótulo recortado en «TRATAMIEN...» es peor que
+     uno en dos renglones, y encima se corta en silencio —no hay forma de que
+     nadie se entere hasta que la hoja está impresa. Los `flex` de cada columna
+     están puestos para que no llegue a partirse; esto es la red de abajo. */
   overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.15;
 }
 
 .ot-caja-val {
@@ -402,7 +427,7 @@
 
 .ot-bobinas-tabla td {
   border-bottom: 1.2px solid #000;
-  height: 21px;
+  height: 22px;
   padding: 0 4px;
   font-size: 14px;
   font-weight: 700;

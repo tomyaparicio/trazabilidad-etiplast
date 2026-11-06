@@ -150,7 +150,15 @@ export default async function PrintOrdenPage({ params }: Props) {
   const base = await origenDelSitio()
   const qrOrden = await QRCode.toString(`${base}/escanear/${orden.id}`, {
     type: "svg",
-    margin: 0,
+    // ZONA TRANQUILA: 4 módulos de blanco alrededor del código, que es lo que
+    // pide el estándar. No es decoración — es parte del símbolo: sin ella el
+    // lector no encuentra dónde empieza la grilla y el escaneo falla aunque en
+    // pantalla se vea impecable.
+    //
+    // Va acá y no como `padding` en el CSS a propósito: así el blanco escala
+    // junto con el código. Con el padding en píxeles, cada vez que alguien
+    // agranda el QR la zona tranquila se achica en módulos sin que se note.
+    margin: 4,
     errorCorrectionLevel: "M",
     // Negro, como el resto de la hoja: el azul de marca sale gris en una
     // impresora en blanco y negro y al lector le cuesta más engancharlo.
@@ -299,14 +307,17 @@ export default async function PrintOrdenPage({ params }: Props) {
                       /* «Tratamiento» es el rótulo más largo de la fila y con
                          el cuerpo subido no entraba: se le da más ancho en vez
                          de abreviarlo, que en planta se lee peor. */
-                      { label: "Tratamiento", value: null, flex: 1.3 },
-                      { label: "Bobinas", value: null, flex: 0.8 },
+                      { label: "Tratamiento", value: null, flex: 1.5 },
+                      { label: "Bobinas", value: null, flex: 1.1 },
                     ]}
                   />
                 </div>
 
                 {/* La grilla de bobinas, como el «KG/BOB.» del papel. */}
-                <div className="ot-bobinas" style={{ width: 168 }}>
+                {/* Más ancha que antes: son seis renglones que se llenan a mano
+                    con lapicera, parado al lado de la extrusora. Una raya corta
+                    se llena con la letra apretada y después no se lee. */}
+                <div className="ot-bobinas" style={{ width: 236 }}>
                   <span className="ot-bobinas-rot">Kg / Bob.</span>
                   <table className="ot-bobinas-tabla">
                     <thead>
