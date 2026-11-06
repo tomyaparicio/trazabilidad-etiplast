@@ -125,16 +125,25 @@
 .ot-maquina {
   display: inline-flex;
   align-items: baseline;
-  gap: 8px;
-  margin-top: 3px;
-  padding: 3px 20px;
-  border-radius: 999px;
-  background: #f5eb4a;
-  color: #12142e;
-  font-size: 26px;
-  font-weight: 900;
-  line-height: 1.2;
-  letter-spacing: 0.12em;
+  gap: 10px;
+  margin-top: 6px;
+  /* Recuadro, no pastilla. Un bloque amarillo macizo arriba de todo le ganaba
+     la mirada al número de orden y en el papel es un manchón de tóner. El
+     contorno dice lo mismo —esta hoja es de ESTA máquina— con el mismo tono de
+     marca y sin pelearle al resto de la cabecera. */
+  padding: 3px 15px;
+  border: 1.5px solid #f5eb4a;
+  border-radius: 3px;
+  background: transparent;
+  color: #f5eb4a;
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.25;
+  /* El mismo tracking que los títulos de sección. `text-indent` compensa el
+     espacio que el tracking deja colgando después de la última letra: sin él
+     la palabra queda corrida a la izquierda dentro del recuadro. */
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
   text-transform: uppercase;
 }
 
@@ -142,7 +151,8 @@
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.16em;
-  opacity: 0.65;
+  text-indent: 0;
+  opacity: 0.75;
 }
 
 /* Meta (fecha, estado) */
