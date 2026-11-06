@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Selector } from "@/components/ui/selector"
 import {
   Loader2, Search, ChevronDown, Check, ChevronLeft, ChevronRight,
-  ClipboardList, Layers, Printer, Scissors, PackageCheck, ShieldCheck, CalendarDays, Calculator,
+  ClipboardList, Layers, Printer, Scissors, PackageCheck, CalendarDays, Calculator,
   type LucideIcon,
 } from "lucide-react"
 import type { OrderPrefill } from "@/lib/voice/types"
@@ -30,24 +30,34 @@ const STEPS: { id: number; label: string; icon: LucideIcon }[] = [
   { id: 5, label: "Finalización", icon: PackageCheck  },
 ]
 
-function SubSection({ title, icon: Icon }: { title: string; icon?: LucideIcon }) {
+/**
+ * Un dato ya cargado, de sólo lectura, para el resumen del último paso.
+ *
+ * Cuando el dato falta dice «—» en gris en vez de dejar el renglón vacío: un
+ * hueco en blanco se lee como «eso está bien así», y no es lo mismo que «esto
+ * quedó sin cargar». El que firma la orden tiene que poder distinguirlos.
+ */
+function DatoResumen({ label, valor, sufijo }: { label: string; valor?: string | number | null; sufijo?: string }) {
+  const vacio = valor == null || valor === ""
   return (
-    <div className="flex items-center gap-3 mb-4 mt-6 first:mt-0">
-      {Icon && <Icon className="h-4 w-4 shrink-0 text-gold" strokeWidth={2.2} />}
-      <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.16em] text-gold shrink-0">{title}</h3>
-      <div className="flex-1 h-px bg-border" />
+    <div className="min-w-0">
+      <span className="ficha-rotulo">{label}</span>
+      <p className={`break-words text-[17px] font-bold leading-tight ${vacio ? "text-[#8a8fa6]" : "text-[#111]"}`}>
+        {vacio ? "—" : valor}
+        {!vacio && sufijo && <span className="ml-1 text-[13.5px] font-semibold text-[#5a5f6e]">{sufijo}</span>}
+      </p>
     </div>
   )
 }
 
-function Field({ label, icon: Icon, children, className = "" }: { label: string; icon?: LucideIcon; children: React.ReactNode; className?: string }) {
+/** Un paso del alta dentro del resumen: su título y los datos que se cargaron ahí. */
+function BloqueResumen({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      <label className="flex items-center gap-1.5 text-[12.5px] font-bold text-muted-foreground uppercase tracking-wider">
-        {Icon && <Icon className="h-[15px] w-[15px] shrink-0 text-gold/90" strokeWidth={2.4} />}
-        {label}
-      </label>
-      {children}
+    <div>
+      <p className="mb-3 border-b border-[#e0e2ed] pb-1.5 text-[12px] font-extrabold uppercase tracking-[0.22em] text-[#0f0c44]">
+        {titulo}
+      </p>
+      <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-4">{children}</div>
     </div>
   )
 }
@@ -1139,57 +1149,157 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
         )
 
       // ── Step 5: Finalización ─────────────────────────────────────────────
-      case 5:
-        return (
-          <div className="space-y-4">
-            <SubSection title="Control de Calidad" icon={ShieldCheck} />
-            <Field label="Observaciones">
-              <textarea value={form.control_calidad ?? ""} placeholder="Notas de control de calidad..."
-                onChange={(e) => set("control_calidad", e.target.value)} rows={3}
-                className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
-            </Field>
+      // Arranca con el resumen de los cuatro pasos anteriores. El alta son cinco
+      // pantallas y la última es la que se firma: antes de guardar hay que poder
+      // releer TODO lo cargado sin volver atrás paso por paso.
+      //
+      // Es de sólo lectura a propósito. Si acá también se pudiera editar habría
+      // dos lugares para el mismo dato y ninguno sería el bueno; para corregir
+      // algo se vuelve al paso donde vive, que además lo muestra con su contexto.
+      case 5: {
+        const producto    = clienteProductos.find((x) => x.id === form.cliente_producto_id)
+        const responsable = opcionesResponsable.find((u) => u.id === form.responsable_id)
+        // LOS MISMOS metros que muestran General y Extrusión, y los mismos que se
+        // guardan al enviar (ver `handleSubmit`). Antes acá había otra cuenta
+        // —`cantidad × alto × 1,20`— que para 200.000 etiquetas daba 1.440.000 m
+        // contra los 1.600 reales: tres números distintos para el mismo dato en
+        // el mismo formulario. Hay UNA sola fuente, `calcularMetrosExtrusion`.
+        const metros      = calcularMetrosExtrusion(form.cantidad, form.troquelado_alto)
+        const maquina     = impresionMaquina ?? form.impresion_maquina
+        const envaseExtra = [
+          producto?.envase_codificado ? `Cód. ${producto.envase_codificado}` : null,
+          producto?.ubicacion ? `Ubic. ${producto.ubicacion}` : null,
+        ].filter(Boolean).join(" · ")
 
-            {/* Las fechas por etapa se fueron del formulario: las seis se cargaban
-                a mano y ninguna se llenaba. Extrusión, impresión y troquelado las
-                escribe el escaneo del QR —fecha real de cuándo pasó por la
-                máquina, no la que alguien recuerda al cerrar la orden— y las
+        return (
+          <div className="ficha">
+
+            {/* ① El resumen de todo lo anterior */}
+            <section className="ficha-seccion">
+              <header>Lo que cargaste</header>
+              <div className="ficha-cuerpo flex flex-col gap-6">
+
+                <BloqueResumen titulo="El pedido">
+                  <DatoResumen label="Marca" valor={clienteName} />
+                  <DatoResumen label="Producto" valor={producto ? etiquetaDeProducto(producto) : null} />
+                  <DatoResumen
+                    label="Cantidad"
+                    valor={form.cantidad != null ? formatoAr(form.cantidad, 0) : null}
+                    sufijo="etiquetas"
+                  />
+                  <DatoResumen label="Fecha" valor={fechaLegible(form.fecha)} />
+                  <DatoResumen
+                    label="Responsable"
+                    valor={responsable ? (responsable.nombre_completo || responsable.email) : null}
+                  />
+                  <DatoResumen
+                    label="Estado"
+                    valor={form.estado === "borrador" ? "Borrador" : "Entra a producción"}
+                  />
+                </BloqueResumen>
+
+                <BloqueResumen titulo="Extrusión">
+                  <DatoResumen
+                    label="Ancho"
+                    valor={form.extrusion_ancho != null ? formatoAr(form.extrusion_ancho) : null}
+                    sufijo="mm"
+                  />
+                  <DatoResumen
+                    label="Micronaje"
+                    valor={form.extrusion_espesor != null ? formatoAr(form.extrusion_espesor, 0) : null}
+                    sufijo="µ"
+                  />
+                  <DatoResumen label="Color" valor={form.extrusion_color} />
+                  <DatoResumen
+                    label="Hay que extrudir"
+                    valor={metros != null ? formatoAr(metros) : null}
+                    sufijo="m de film"
+                  />
+                </BloqueResumen>
+
+                <BloqueResumen titulo="Impresión">
+                  <DatoResumen label="Máquina" valor={maquina} />
+                  <DatoResumen
+                    label="Cilindro"
+                    valor={form.impresion_cilindro != null ? formatoAr(form.impresion_cilindro) : null}
+                    sufijo="mm"
+                  />
+                  <DatoResumen
+                    label="Retroverso"
+                    valor={form.impresion_retroverso?.trim() || "Sólo frente"}
+                  />
+                </BloqueResumen>
+
+                <BloqueResumen titulo="Troquelado">
+                  <DatoResumen
+                    label="Cierre"
+                    valor={form.troquelado_cierre != null ? formatoAr(form.troquelado_cierre) : null}
+                  />
+                  <DatoResumen
+                    label="Alto"
+                    valor={form.troquelado_alto != null ? formatoAr(form.troquelado_alto) : null}
+                    sufijo="cm"
+                  />
+                  <DatoResumen label="Envase" valor={form.troquelado_envase} />
+                  <DatoResumen label="Dónde está" valor={envaseExtra || null} />
+                </BloqueResumen>
+
+                {/* Lo que NO está acá tampoco se cargó en pantalla: sale impreso
+                    en blanco y lo llena el que está en la máquina. Decirlo evita
+                    que el que firma crea que el resumen le está escondiendo algo. */}
+                <p className="border-t border-[#e0e2ed] pt-3 text-[13.5px] font-semibold leading-relaxed text-[#5a5f6e]">
+                  Bobinas, colores, operarios y observaciones de máquina no van acá:
+                  salen impresos en blanco en la ficha y los completa la planta.
+                </p>
+              </div>
+            </section>
+
+            {/* ② Control de calidad */}
+            <section className="ficha-seccion">
+              <header>Control de calidad</header>
+              <div className="ficha-cuerpo">
+                <label className="block">
+                  <span className="ficha-rotulo">Observaciones · opcional</span>
+                  <textarea value={form.control_calidad ?? ""} rows={3}
+                    placeholder="Notas de control de calidad…"
+                    onChange={(e) => set("control_calidad", e.target.value)}
+                    className="ficha-campo resize-none" />
+                </label>
+              </div>
+            </section>
+
+            {/* ③ Totales.
+                Las fechas por etapa se fueron del formulario: las seis se
+                cargaban a mano y ninguna se llenaba. Extrusión, impresión y
+                troquelado las escribe el escaneo del QR —fecha real del paso por
+                la máquina, no la que alguien recuerda al cerrar la orden— y las
                 columnas siguen en la base: el formulario reenvía lo que ya
                 tienen, así que editar una orden no pisa lo que marcó la planta. */}
-            <SubSection title="Totales" icon={Calculator} />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Cantidad">
-                <Input type="number" placeholder="0" value={form.cantidad ?? ""}
-                  onChange={(e) => set("cantidad", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-              <Field label="Total Final">
-                <Input type="number" step="0.01" placeholder="0.00" value={form.total_final ?? ""}
-                  onChange={(e) => set("total_final", num(e.target.value))} className="h-9 text-sm" />
-              </Field>
-            </div>
-            {(() => {
-              const metros = (form.cantidad != null && form.troquelado_alto != null) ? form.cantidad * form.troquelado_alto * 1.20 : null
-              const kilos  = (form.extrusion_ancho != null && metros != null) ? form.extrusion_ancho * metros * 0.6 * 0.92 : null
-              return (
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Metros (calc.)">
-                    <div className="h-9 flex items-center px-3 border border-input rounded-lg bg-muted/40 text-sm font-medium">
-                      {metros != null ? metros.toFixed(2) : <span className="text-muted-foreground">—</span>}
-                    </div>
-                  </Field>
-                  <Field label="Kilos (calc.)">
-                    <div className="h-9 flex items-center px-3 border border-input rounded-lg bg-muted/40 text-sm font-medium">
-                      {kilos != null ? kilos.toFixed(3) : <span className="text-muted-foreground">—</span>}
-                    </div>
-                  </Field>
+            <section className="ficha-seccion">
+              <header>Totales</header>
+              <div className="ficha-cuerpo flex flex-col gap-5">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <label>
+                    <span className="ficha-rotulo">Cantidad de etiquetas</span>
+                    <CampoCantidad value={form.cantidad ?? null} onChange={(v) => set("cantidad", v)}
+                      placeholder="Ej: 100.000" className="ficha-campo" />
+                  </label>
+                  <label>
+                    <span className="ficha-rotulo">Total final ($)</span>
+                    <Input type="number" step="0.01" placeholder="0,00" value={form.total_final ?? ""}
+                      onChange={(e) => set("total_final", num(e.target.value))} className="ficha-campo" />
+                  </label>
                 </div>
-              )
-            })()}
-            <Field label="Observaciones generales">
-              <Input placeholder="Notas adicionales" value={form.observaciones ?? ""}
-                onChange={(e) => set("observaciones", e.target.value)} className="h-9 text-sm" />
-            </Field>
+                <label className="block">
+                  <span className="ficha-rotulo">Observaciones generales · opcional</span>
+                  <Input placeholder="Notas adicionales" value={form.observaciones ?? ""}
+                    onChange={(e) => set("observaciones", e.target.value)} className="ficha-campo" />
+                </label>
+              </div>
+            </section>
           </div>
         )
+      }
     }
   }
 
