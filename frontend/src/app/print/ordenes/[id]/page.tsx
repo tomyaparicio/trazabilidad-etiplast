@@ -34,26 +34,68 @@ async function origenDelSitio(): Promise<string> {
  * static-components`): no usa nada del closure, así que acá no cuesta nada.
  */
 /**
- * Recuadro de observaciones.
+ * Un recuadro de datos, con el rótulo ARRIBA del recuadro y afuera.
  *
- * Una raya sola no alcanza: acá el de la máquina escribe una o dos frases a
- * mano, y necesita caja, no renglón. Si la orden ya trae algo cargado (de la
- * oficina o del agente de voz) se imprime adentro del mismo recuadro.
+ * Es el «ANCHO · COLOR · ESPESOR» del formulario de papel: las celdas se tocan
+ * entre sí y forman una sola caja con líneas negras finas. El rótulo va afuera
+ * y arriba, no adentro, porque adentro le robaría alto a lo que se escribe.
+ *
+ * `texto` es para las celdas que llevan una frase y no un número: se alinean a
+ * la izquierda y con cuerpo más chico.
  */
-function Observaciones({ value }: { value?: string | null }) {
+function Caja({ campos }: {
+  campos: { label: string; value?: string | null; flex?: number; texto?: boolean }[]
+}) {
   return (
-    <div className="ot-obs ot-field--full">
-      <span className="ot-label">Observaciones</span>
-      <div className="ot-obs-area">{value ?? ""}</div>
+    <div className="ot-caja">
+      {campos.map((c, i) => (
+        <div
+          key={i}
+          className={`ot-caja-col${c.texto ? " ot-caja-col--texto" : ""}`}
+          style={{ flex: c.flex ?? 1 }}
+        >
+          <span className="ot-caja-rot">{c.label}</span>
+          <span className="ot-caja-val">{c.value || "\u00A0"}</span>
+        </div>
+      ))}
     </div>
   )
 }
 
-function Field({ label, value, full, ancho }: { label: string; value?: string | null; full?: boolean; ancho?: 2 }) {
+/** Rótulo + raya punteada: lo que se completa con lapicera en la máquina. */
+function Mano({ label, ancho }: { label: string; ancho?: number }) {
   return (
-    <div className={`ot-field${full ? " ot-field--full" : ""}${ancho === 2 ? " ot-field--2col" : ""}`}>
-      <span className="ot-label">{label}</span>
-      <span className={`ot-value${!value ? " ot-value--empty" : ""}`}>{value ?? "\u00A0"}</span>
+    <span className="ot-mano">
+      <span className="ot-mano-rotulo">{label}</span>
+      <span className="ot-mano-raya" style={ancho ? { minWidth: ancho } : undefined} />
+    </span>
+  )
+}
+
+/** `FECHA EXT __ / __ / ____`, igual que el papel. */
+function FechaVacia({ label }: { label: string }) {
+  return (
+    <span className="ot-mano">
+      <span className="ot-mano-rotulo">{label}</span>
+      <span className="ot-fecha-vacia">
+        <i /><span>/</span><i /><span>/</span><i />
+      </span>
+    </span>
+  )
+}
+
+/**
+ * Recuadro de observaciones.
+ *
+ * El papel tiene una raya sola, pero acá el de la máquina escribe una o dos
+ * frases a mano y necesita caja, no renglón. Si la orden ya trae algo cargado
+ * (de la oficina o del agente de voz) se imprime adentro del mismo recuadro.
+ */
+function Observaciones({ value }: { value?: string | null }) {
+  return (
+    <div className="ot-obs">
+      <span className="ot-obs-rotulo">Observaciones</span>
+      <div className="ot-obs-area">{value ?? ""}</div>
     </div>
   )
 }
@@ -110,7 +152,9 @@ export default async function PrintOrdenPage({ params }: Props) {
     type: "svg",
     margin: 0,
     errorCorrectionLevel: "M",
-    color: { dark: "#0f0c44", light: "#ffffff" },
+    // Negro, como el resto de la hoja: el azul de marca sale gris en una
+    // impresora en blanco y negro y al lector le cuesta más engancharlo.
+    color: { dark: "#000000", light: "#ffffff" },
   })
 
   const colores   = Array.from({ length: 6 }, (_, i) => orden.impresion_colores?.[i] ?? "")
@@ -150,6 +194,9 @@ export default async function PrintOrdenPage({ params }: Props) {
       : ""
 
 
+  const muestra = orden.producto_muestra?.trim().toUpperCase() ?? ""
+  const muestraMal = muestra !== "" && muestra !== "OK"
+
   return (
     <html lang="es">
       <head>
@@ -160,18 +207,16 @@ export default async function PrintOrdenPage({ params }: Props) {
       <body className="ot-body">
         <div className="ot-page">
 
-          {/* ══════════════════ HEADER ══════════════════ */}
+          {/* ══════════════════ CABECERA ══════════════════
+              Logo · ORDEN DE TRABAJO / MÁQUINA · número, fecha y QR.
+              Mismo reparto que el papel, con el QR ocupando el lugar donde
+              el formulario impreso tiene el __/__/__ escrito a mano. */}
           <div className="ot-header">
-            {/* Logo + empresa */}
-            <div className="ot-logo-block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logoSOLO.png" alt="Etiplast" className="ot-logo" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logoSOLO.png" alt="Etiplast" className="ot-logo" />
 
-            {/* Número central */}
             <div className="ot-titulo-block">
               <span className="ot-titulo">Orden de Trabajo</span>
-              <span className="ot-numero">{orden.numero}</span>
               {maquinaNombre && (
                 <span className="ot-maquina">
                   {maquinaCodigo && <small>{maquinaCodigo}</small>}
@@ -180,290 +225,215 @@ export default async function PrintOrdenPage({ params }: Props) {
               )}
             </div>
 
-            {/* El QR de la orden, en la cabecera: es de toda la ficha, no de un
-                paso. El operario lo escanea y la pantalla le pregunta qué va a
-                hacer. Probé ponerlo abajo para que entrara más grande y rompía
-                el bloque de Totales, así que va acá y gana tamaño comiéndose el
-                relleno propio, sin tocar ni una letra del resto de la hoja. */}
-            <div className="ot-qr">
-              {/* SVG generado por nosotros en el servidor, no entra nada del usuario. */}
-              <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
-              <span className="ot-qr-label">Escaneá antes de empezar</span>
-              {orden.lote && <span className="ot-qr-lote">{orden.lote}</span>}
+            <div className="ot-header-der">
+              <span className="ot-numero">{orden.numero}</span>
+              <span className="ot-fecha">{fechaStr}</span>
+              {/* UN solo QR para toda la orden. El operario lo escanea y la
+                  pantalla le pregunta qué paso va a hacer. */}
+              <div className="ot-qr">
+                <div className="ot-qr-texto">
+                  <span className="ot-qr-label">Escaneá antes de empezar</span>
+                  {orden.lote && <span className="ot-qr-lote">{orden.lote}</span>}
+                </div>
+                {/* SVG generado en el servidor, no entra nada del usuario. */}
+                <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
+              </div>
             </div>
           </div>
 
-          {/* ── Banda cliente ── */}
-          {/* El formulario de papel pide CLIENTE N° y PRODUCTO, no sólo la
-              razón social. El número es el que usa la empresa (`numero_visible`),
-              no el id interno de la base. */}
-          <div className="ot-cliente-band">
-            <span className="ot-cliente-label">Cliente</span>
-            {orden.cliente_numero != null && (
-              <span className="ot-cliente-numero">N° {orden.cliente_numero}</span>
-            )}
-            <span className="ot-cliente-nombre">
-              {orden.cliente_nombre ?? `Cliente #${orden.cliente_id}`}
-            </span>
-            {orden.producto_nombre && (
-              <>
-                <span className="ot-cliente-label">Producto</span>
-                <span className="ot-cliente-producto">{orden.producto_nombre}</span>
-              </>
-            )}
-            {/* La muestra del producto. NOOK significa que está rechazada:
-                imprimir 20.000 etiquetas así es tirar el trabajo, así que grita
-                en rojo. OK va discreto, sólo para confirmar que se revisó. */}
-            {/* La fecha, acá y no en la cabecera: la banda tiene lugar de sobra
-                a la derecha y no suma alto a la hoja, que es el recurso escaso.
-                El estado se fue del todo: es dato de oficina, no de planta. */}
-            <span className="ot-cliente-fecha">
-              <span className="ot-cliente-label">Fecha</span>
-              <b>{fechaStr}</b>
-            </span>
-            {orden.producto_muestra && (
-              <span
-                className={`ot-muestra${
-                  orden.producto_muestra.toUpperCase() === "OK" ? "" : " ot-muestra--mal"
-                }`}
-              >
-                {orden.producto_muestra.toUpperCase() === "OK"
-                  ? "Muestra OK"
-                  : `Muestra ${orden.producto_muestra}`}
+          {/* ── CLIENTE N° y PRODUCTO, con raya hasta el margen ── */}
+          <div className="ot-encabezado">
+            <div className="ot-renglon">
+              <span className="ot-renglon-rotulo">Cliente N°</span>
+              <span className="ot-renglon-valor">
+                {orden.cliente_numero != null ? `${orden.cliente_numero} · ` : ""}
+                {orden.cliente_nombre ?? `#${orden.cliente_id}`}
               </span>
-            )}
+            </div>
+            <div className="ot-renglon">
+              <span className="ot-renglon-rotulo">Producto</span>
+              <span className="ot-renglon-valor">
+                {orden.producto_nombre ?? ""}
+                {/* La muestra del producto. NOOK significa que está rechazada:
+                    imprimir 20.000 etiquetas así es tirar el trabajo. */}
+                {muestra && (
+                  <b style={{ marginLeft: 12 }}>
+                    {muestraMal ? `· MUESTRA ${muestra} ·` : "· Muestra OK"}
+                  </b>
+                )}
+              </span>
+            </div>
           </div>
 
-          {/* ══════════════════ CUERPO ══════════════════ */}
-          <div className="ot-body-grid">
+          <div className="ot-sep" />
 
-            {/* ─── EXTRUSIÓN ─── */}
-            <div className="ot-section">
-              {/* Los metros van en el encabezado, igual que el
+          <div className="ot-cuerpo">
+
+            {/* ═══ ① EXTRUSIÓN ═══ */}
+            <div className="ot-etapa">
+              {/* Los metros pegados al título, igual que el
                   «EXTRUSION ______ MTS» del formulario de papel: es el número
-                  que el operario se lleva a la máquina. Sale de la cuenta
-                  cantidad × alto + 400 de margen; si la orden es vieja y no lo
-                  tiene calculado, no se muestra nada. */}
-              <div className="ot-section-header">
-                <span className="ot-section-title">Extrusión</span>
+                  que el operario se lleva a la máquina. */}
+              <div className="ot-etapa-head">
+                <span className="ot-paso-num">1</span>
+                <span className="ot-paso-title">Extrusión</span>
+                <span className="ot-paso-dato">
+                  {orden.extrusion_metros != null ? fmt(orden.extrusion_metros, 0) : "\u00A0"}
+                </span>
+                <span className="ot-paso-unidad">mts</span>
               </div>
-              <div className="ot-section-body">
-                <div className="ot-ext-grid">
 
-                  {/* Tabla MTS / KG/BOB */}
-                  <div className="ot-bobinas-wrap">
-                    <div className="ot-bobinas-title">MTS · KG / BOB</div>
-                    <table className="ot-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: 28 }}>#</th>
-                          <th>Metros</th>
-                          <th>KG / Bob</th>
+              <div style={{ display: "flex", gap: 22, alignItems: "flex-start" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
+                  {/* En blanco a propósito: lo llena el que está en la máquina. */}
+                  <Mano label="Operario" />
+                  <FechaVacia label="Fecha ext" />
+                  <Caja
+                    campos={[
+                      { label: "Ancho", value: orden.extrusion_ancho != null ? `${fmt(orden.extrusion_ancho)} mm` : "" },
+                      { label: "Color", value: orden.extrusion_color },
+                      { label: "Espesor", value: orden.extrusion_espesor != null ? `${fmt(orden.extrusion_espesor, 0)} µ` : "60 µ" },
+                      /* La formulación sólo cuando dice algo que el color y el
+                         ancho no digan ya: ver `formulacionAporta`. */
+                      ...(formulacionAporta(orden.extrusion_formulacion, orden.extrusion_ancho)
+                        ? [{ label: "Formulación", value: orden.extrusion_formulacion, flex: 1.4 }]
+                        : []),
+                      { label: "Tratamiento", value: null },
+                      { label: "Bobinas", value: null },
+                    ]}
+                  />
+                </div>
+
+                {/* La grilla de bobinas, como el «KG/BOB.» del papel. */}
+                <div className="ot-bobinas" style={{ width: 168 }}>
+                  <span className="ot-bobinas-rot">Kg / Bob.</span>
+                  <table className="ot-bobinas-tabla">
+                    <thead>
+                      <tr><th /><th>Metros</th><th>Kg</th></tr>
+                    </thead>
+                    <tbody>
+                      {filasBob.map((b, i) => (
+                        <tr key={i}>
+                          <td>{i + 1}</td>
+                          <td>{b.metros ?? ""}</td>
+                          <td>{b.kg_bob ?? ""}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {filasBob.map((b, i) => (
-                          <tr key={i}>
-                            <td className="ot-td-num">{i + 1}</td>
-                            <td>{b.metros != null ? b.metros : ""}</td>
-                            <td>{b.kg_bob != null ? b.kg_bob : ""}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-                  {/* Campos, en dos filas con sentido:
-                      — arriba lo que el sistema ya sabe (sale de la lámina del
-                        producto y del paso 2),
-                      — abajo lo que se escribe a mano en la máquina.
-                      Tres columnas y no dos: con dos quedaban huecos sueltos al
-                      lado de «Cant. Bobinas» y de «Operador». */}
-                  <div className="ot-ext-fields">
-                    <Field label="Ancho" value={orden.extrusion_ancho != null ? `${fmt(orden.extrusion_ancho)} mm` : ""} />
-                    <Field label="Color" value={orden.extrusion_color} />
-                    <Field label="Micronaje (µ)" value={orden.extrusion_espesor != null ? `${fmt(orden.extrusion_espesor, 0)} µ` : "60 µ"} />
-                    {/* Formulación ocupa dos de las tres columnas para que los
-                        metros entren en la MISMA fila: la hoja está en 297 mm
-                        clavados y un renglón nuevo la pasa de página.
+              <Observaciones value={orden.extrusion_observaciones} />
+            </div>
 
-                        Y aparece sólo cuando dice algo que el color y el ancho
-                        de arriba no digan ya: ver `formulacionAporta`. */}
-                    {formulacionAporta(orden.extrusion_formulacion, orden.extrusion_ancho) && (
-                      <Field label="Formulación" value={orden.extrusion_formulacion} ancho={2} />
-                    )}
-                    <div className="ot-field ot-field--metros">
-                      <span className="ot-label">Metros de film</span>
-                      <span className="ot-value">
-                        {orden.extrusion_metros != null ? `${fmt(orden.extrusion_metros, 0)} m` : "\u00A0"}
+            <div className="ot-sep" />
+
+            {/* ═══ ② IMPRESIÓN ═══ */}
+            <div className="ot-etapa">
+              <div className="ot-etapa-head">
+                <span className="ot-paso-num">2</span>
+                <span className="ot-paso-title">Impresión</span>
+              </div>
+
+              {/* Operario, fecha y colores NO se cargan en pantalla y nunca se
+                  imprimen con dato: los escribe a mano el que está en la
+                  máquina. El escaneo del QR sí los guarda —para el tablero y la
+                  trazabilidad—, pero el papel conserva la raya en blanco.
+
+                  Dos excepciones que SÍ salen impresas: el CILINDRO, que ya
+                  viene en la ficha del producto, y el RETROVERSO, que lo carga
+                  la oficina — raro, pero cuando va, va escrito. */}
+              <Caja
+                campos={[
+                  { label: "Cilindro Ø", value: orden.impresion_cilindro != null ? `${fmt(orden.impresion_cilindro)} mm` : "", flex: 0.8 },
+                  { label: "Frente", value: orden.impresion_frente, flex: 2, texto: true },
+                  { label: "Retrov.", value: orden.impresion_retroverso, flex: 1.4, texto: true },
+                ]}
+              />
+
+              <div style={{ display: "flex", gap: 22, alignItems: "flex-start" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9, width: 190 }}>
+                  <Mano label="Operario" />
+                  <FechaVacia label="Fecha imp" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <span className="ot-mano-rotulo" style={{ display: "block", marginBottom: 5 }}>Colores</span>
+                  <div className="ot-colores">
+                    {colores.map((c, i) => (
+                      <span key={i} className="ot-color">
+                        <span className="ot-color-num">{i + 1}.</span>
+                        <span className="ot-color-raya">{c}</span>
                       </span>
-                    </div>
-
-                    {/* A mano: tratamiento, cantidad de bobinas y quién la hizo. */}
-                    <Field label="Tratamiento" value={null} />
-                    <Field label="Cant. Bobinas" value={null} />
-                    <Field label="Operador" value={null} />
-                    <Observaciones />
+                    ))}
                   </div>
                 </div>
               </div>
+
+              <Observaciones value={orden.impresion_observaciones} />
             </div>
 
-            {/* ─── IMPRESIÓN ─── */}
-            <div className="ot-section">
-              {/* Con qué impresora se hace. La elige el paso 0 y la confirma
-                  el escaneo del QR; es la única etapa que distingue máquina, y
-                  hasta ahora el papel no lo decía en ningún lado. */}
-              <div className="ot-section-header">
-                <span className="ot-section-title">Impresión</span>
-                {orden.impresion_maquina && (
-                  <span className="ot-section-dato">{orden.impresion_maquina}</span>
+            <div className="ot-sep" />
+
+            {/* ═══ ③ TROQUELADO ═══ */}
+            <div className="ot-etapa">
+              {/* Sin campo MÁQUINA: en troquelado son intercambiables, no se
+                  elige ninguna ni al cargar la orden ni al escanear el QR. Una
+                  raya que nadie completa nunca es un campo de menos, no de más. */}
+              <div className="ot-etapa-head">
+                <span className="ot-paso-num">3</span>
+                <span className="ot-paso-title">Troquelado</span>
+                <span className="ot-etapa-head-der">
+                  <Mano label="Operario" ancho={92} />
+                  <FechaVacia label="Fecha troq" />
+                </span>
+              </div>
+
+              {/* CIERRE es el diámetro de la tapa del envase; el ALTO va en
+                  CENTÍMETROS, que es el mismo que usa la cuenta de metros.
+                  Código y ubicación salen de la ficha del producto: el que va
+                  al depósito necesita saber DÓNDE está el envase. */}
+              <Caja
+                campos={[
+                  { label: "Alto", value: orden.troquelado_alto != null ? `${fmt(orden.troquelado_alto)} cm` : "", flex: 0.8 },
+                  { label: "Cierre", value: orden.troquelado_cierre != null ? fmt(orden.troquelado_cierre) : "", flex: 0.8 },
+                  { label: "Envase", value: orden.troquelado_envase, flex: 1.4 },
+                  { label: "Código envase", value: orden.envase_codificado, flex: 1.2 },
+                  { label: "Ubicación", value: orden.envase_ubicacion, flex: 1.2 },
+                ]}
+              />
+
+              <Observaciones value={orden.troquelado_observaciones} />
+            </div>
+
+            {/* ═══ PIE ═══
+                «CANTIDAD ___ · TOTAL FINAL ___» en el papel. El total en pesos
+                no va: el precio no se decide en un papel de máquina. En su
+                lugar, LA CUENTA que hace la planta — cuántos metros de film
+                salen de esa cantidad— con el detalle abajo para verificarla. */}
+            <div className="ot-pie">
+              <span className="ot-pie-dato">
+                <span className="ot-pie-rotulo">Cantidad</span>
+                <span className="ot-pie-valor">
+                  {orden.cantidad != null ? fmt(orden.cantidad, 0) : "\u00A0"}
+                </span>
+              </span>
+              <div>
+                <span className="ot-pie-dato">
+                  <span className="ot-pie-rotulo">Metros de film</span>
+                  <span className="ot-pie-valor">
+                    {orden.extrusion_metros != null ? `${fmt(orden.extrusion_metros, 0)} m` : "\u00A0"}
+                  </span>
+                </span>
+                {orden.extrusion_metros != null && orden.cantidad != null && orden.troquelado_alto != null && (
+                  <div className="ot-pie-cuenta">
+                    {fmt(orden.cantidad, 0)} × {fmt(Number(orden.troquelado_alto) / 100, 2)} m + 400 de margen
+                  </div>
                 )}
               </div>
-              {/* Frente, observación, colores, operario y fecha NO se cargan en
-                  pantalla y NUNCA se imprimen, aunque la base los tenga: los
-                  escribe a mano el que está en la máquina. El escaneo del QR sí
-                  los guarda —para el tablero y la trazabilidad—, pero el papel
-                  conserva la raya en blanco.
-
-                  Dos excepciones que SÍ salen impresas con su dato: el CILINDRO,
-                  que ya viene en la ficha del producto, y el RETROVERSO, que lo
-                  carga la oficina en el paso de Impresión — raro, pero cuando va,
-                  va escrito. */}
-              <div className="ot-imp-grid">
-
-                <div className="ot-imp-col">
-                  <div className="ot-imp-col-title">Frente</div>
-                  <div className="ot-imp-text">{orden.impresion_frente ?? ""}</div>
-                </div>
-
-                <div className="ot-imp-col">
-                  <div className="ot-imp-col-title">Retroversión</div>
-                  <div className="ot-imp-text">{orden.impresion_retroverso ?? ""}</div>
-                </div>
-
-                <div className="ot-imp-col">
-                  <div className="ot-imp-col-title">Observación</div>
-                  <div className="ot-imp-text">{orden.impresion_observaciones ?? ""}</div>
-                </div>
-
-                <div className="ot-imp-col ot-imp-right">
-                  <Field label="Cilindro" value={orden.impresion_cilindro != null ? `${fmt(orden.impresion_cilindro)} mm` : ""} />
-                  <div className="ot-field">
-                    <span className="ot-label">Colores</span>
-                    <div className="ot-colores-grid">
-                      {colores.map((c, i) => (
-                        <div key={i} className="ot-color-item">
-                          <span className="ot-color-num">{i + 1}.</span>
-                          <span className="ot-color-val">{c}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="ot-imp-pie">
-                {/* En blanco a propósito: operario y fecha se llenan con lapicera. */}
-                <Field label="Operario" value={null} />
-                <Field label="Fecha" value={null} />
-              </div>
             </div>
 
-            {/* ─── TROQUELADO ─── */}
-            <div className="ot-section">
-              <div className="ot-section-header">
-                <span className="ot-section-title">Troquelado</span>
-              </div>
-              <div className="ot-section-body">
-                {/* CIERRE, no «Ancho»: es el diámetro de la tapa del envase y
-                    viene de la ficha del producto. El ancho se tipeaba a mano y
-                    no lo completaba nadie — sigue en la base para las órdenes
-                    viejas, pero ya no se imprime.
-
-                    El alto va en CENTÍMETROS: es el mismo que usa la cuenta de
-                    metros de extrusión, y los altos de la ficha de producto
-                    (4 a 20) son centímetros de etiqueta. Antes decía «mm». */}
-                <div className="ot-troq-grid">
-                  <Field label="Cierre" value={orden.troquelado_cierre != null ? fmt(orden.troquelado_cierre) : ""} />
-                  <Field label="Alto" value={orden.troquelado_alto != null ? `${fmt(orden.troquelado_alto)} cm` : ""} />
-                  <Field label="Envase" value={orden.troquelado_envase} />
-                  {/* Código y ubicación: el formulario de papel los pide y el
-                      que va al depósito los necesita para encontrar el envase.
-                      Salen de la ficha del producto. */}
-                  <Field label="Código envase" value={orden.envase_codificado} />
-                  <Field label="Ubicación" value={orden.envase_ubicacion} />
-                </div>
-                {/* Sin campo MÁQUINA: en troquelado las máquinas son
-                    intercambiables, no se elige ninguna ni al cargar la orden
-                    ni al escanear el QR. Una raya que nadie completa nunca es
-                    un campo de menos, no de más.
-
-                    Operario y fecha sí van, en blanco: los escribe a mano el
-                    que troquela. */}
-                <div className="ot-troq-pie">
-                  {/* En blanco a propósito: operario y fecha se llenan con lapicera. */}
-                  <Field label="Operario" value={null} />
-                  <Field label="Fecha" value={null} />
-                  <Observaciones value={orden.troquelado_observaciones} />
-                </div>
-              </div>
-            </div>
-
-            {/* ─── TOTALES ───
-                Sin bloque de firmas: las «Autorizaciones» (Producción, Control
-                de Calidad, Gerencia) eran un invento del rediseño, el
-                formulario de papel de la empresa no las tiene y nadie las
-                firmaba. */}
-            <div className="ot-bottom-grid">
-
-              {/* Totales */}
-              <div className="ot-totales-section">
-                <div className="ot-section-header">
-                  <span className="ot-section-title">Totales</span>
-                </div>
-                <div className="ot-totales-inner">
-                  <div className="ot-total-box">
-                    <span className="ot-label">Cantidad</span>
-                    <span className="ot-total-amount">
-                      {orden.cantidad != null ? orden.cantidad.toLocaleString("es-AR") : ""}
-                    </span>
-                  </div>
-                  {/* En vez del total en pesos va LA CUENTA que hace la planta:
-                      cuántos metros de film salen de esa cantidad. El precio no
-                      se decide en un papel de máquina; los metros sí son lo que
-                      el operario necesita del total de la orden.
-
-                      Es el mismo número que el encabezado de Extrusión, a
-                      propósito: ahí dice con qué arranca la primera etapa, acá
-                      cuánto film consume la orden entera. Sale de la columna
-                      `extrusion_metros`, que se calcula al guardar. */}
-                  <div className="ot-total-box">
-                    <span className="ot-label">Metros de film</span>
-                    <span className="ot-total-amount">
-                      {orden.extrusion_metros != null
-                        ? `${fmt(orden.extrusion_metros, 0)} m`
-                        : ""}
-                    </span>
-                    {orden.extrusion_metros != null && orden.cantidad != null && orden.troquelado_alto != null && (
-                      <span className="ot-total-cuenta">
-                        {fmt(orden.cantidad, 0)} × {fmt(Number(orden.troquelado_alto) / 100, 2)} m + 400 de margen
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {/* El mismo recuadro que las otras dos secciones. Antes tenía
-                    un `style={{minHeight:32}}` inline que le ganaba al CSS y
-                    quedaba más chico que sus hermanas. */}
-                <div className="ot-obs-box">
-                  <Observaciones value={orden.observaciones} />
-                </div>
-              </div>
-
-            </div>
-
-          </div>{/* /ot-body-grid */}
+          </div>{/* /ot-cuerpo */}
 
         </div>{/* /ot-page */}
 

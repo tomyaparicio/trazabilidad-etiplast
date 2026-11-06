@@ -1,722 +1,504 @@
 /* ═══════════════════════════════════════════════════════════════
-   Orden de Trabajo — Etiplast  |  Diseño v2 — Grande & Bold
+   Orden de Trabajo — Etiplast
    A4: 210 × 297 mm
+
+   DISEÑO v3 — calcado del formulario de papel que usa la planta.
+
+   Hasta la v2 esto era una ficha «de sistema»: bandas azules, cajas
+   grises, títulos chiquitos con mucho tracking. Se veía bien en
+   pantalla y no se parecía en nada al papel que el operario tiene
+   plastificado al lado de la máquina desde hace años.
+
+   Ahora copia ese papel: TINTA NEGRA SOBRE BLANCO y nada más, pasos
+   numerados en un círculo, títulos grandes en caja alta, los datos
+   dentro de recuadros con el rótulo ARRIBA del recuadro, rayas para
+   lo que se escribe a mano y líneas punteadas separando las tres
+   etapas.
+
+   Dos cosas que esto arregla de paso:
+   · El color. Las bandas azules macizas son tóner en cada hoja y en
+     una impresora en blanco y negro salen como manchones grises que
+     se comen el texto.
+   · El reconocimiento. El que agarra la hoja no tiene que aprender
+     un formato nuevo: es el mismo que viene llenando siempre.
    ═══════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── Reset body ── */
+/* OJO: la clase `.ot-body` NO llega al <body>.
+   Esta página renderiza su propio <html>/<body>, pero el layout raíz de Next
+   también, y gana el del layout: el <body> real termina con las clases de la
+   app (`font-sans antialiased`) y el tema oscuro del dashboard. Por eso la
+   tipografía y el color de la ficha viven en `.ot-page`, que sí existe.
+   Dejarlos acá hacía que el texto se imprimiera casi blanco sobre blanco. */
 .ot-body {
   background: #d1d5db;
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 13px;
-  color: #111;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
-/* ══ PÁGINA A4 ════════════════════════════════════════════════ */
-/* La hoja tiene que entrar en UNA página. Como su alto depende de cuánto texto
-   traiga la orden (el frente, las observaciones), los bloques que crecen con el
-   contenido llevan tope: es preferible recortar una observación larga —que
-   igual está en el sistema— antes que mandar media ficha a una segunda hoja
-   que nadie va a llevar a la máquina. */
-.ot-imp-text { max-height: 23mm; overflow: hidden; }
-.ot-obs-area { max-height: 20mm; overflow: hidden; }
-
+/* ══ LA HOJA ═════════════════════════════════════════════════
+   Tiene que entrar en UNA página. Como su alto depende de cuánto
+   texto traiga la orden, los bloques que crecen con el contenido
+   llevan tope: es preferible recortar una observación larga —que
+   igual queda guardada en el sistema— antes que mandar media ficha
+   a una segunda hoja que nadie se lleva a la máquina. */
 .ot-page {
   background: #fff;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  color: #000;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
   width: 210mm;
   min-height: 297mm;
   margin: 24px auto;
-  padding: 0;
-  border: none;
+  padding: 13mm 12mm 10mm;
   box-shadow: 0 8px 40px rgba(0,0,0,.25);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* ══ HEADER ══════════════════════════════════════════════════ */
+/* ══ CABECERA ════════════════════════════════════════════════
+   Tres columnas, como el papel: logo · título · (QR + fecha).
+   Si acá hay menos columnas que bloques, el último se cae a una
+   segunda fila y la cabecera duplica su alto. */
 .ot-header {
-  background: #0f0c44;
-  padding: 0;
   display: grid;
-  /* Tres bloques: logo · título · QR. Si acá hay menos columnas que bloques,
-     el último se cae a una segunda fila y la cabecera duplica su alto. */
   grid-template-columns: auto 1fr auto;
-  align-items: stretch;
-  min-height: 80px;
-}
-
-/* Logo + empresa */
-.ot-logo-block {
-  display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px 20px 16px 20px;
-  border-right: 1px solid rgba(255,255,255,.15);
+  gap: 10px;
+  padding-bottom: 9px;
 }
 
-.ot-logo {
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
-  background: rgba(255,255,255,.12);
-  border-radius: 10px;
-  padding: 6px;
-}
+/* El archivo del logo es BLANCO sobre transparente —está hecho para la
+   cabecera azul de la app— y en papel blanco no se ve. `invert` lo pasa a
+   negro sin necesidad de un segundo archivo. */
+.ot-logo { height: 46px; width: auto; display: block; filter: invert(1); }
 
-.ot-empresa {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ot-empresa-nombre {
-  font-size: 22px;
-  font-weight: 900;
-  color: #fff;
-  letter-spacing: 0.12em;
-  line-height: 1;
-}
-
-.ot-empresa-sub {
-  font-size: 9px;
-  color: rgba(255,255,255,.55);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-/* Título central */
 .ot-titulo-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 16px;
-  gap: 4px;
-}
-
-.ot-titulo {
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba(255,255,255,.5);
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-}
-
-.ot-numero {
-  font-size: 32px;
-  font-weight: 900;
-  color: #fff;
-  letter-spacing: 0.08em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-/* La impresora, en la cabecera y bien grande. El formulario de papel que
-   reemplaza esta hoja se llamaba literalmente «VENUS»: el operario necesita
-   saber de un vistazo, parado al lado de la máquina, si la orden es suya.
-   Amarillo de marca sobre el azul de la cabecera: es el único contraste
-   fuerte de la hoja, así que gana la mirada sin agrandar nada más. */
-.ot-maquina {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-top: 5px;
-  /* Sin caja. El formulario de papel que esta hoja reemplaza se llamaba
-     directamente «VENUS», y así se lee: la palabra sola, no un cartel pegado
-     encima. El amarillo de marca alcanza para que el operario sepa de un
-     vistazo si la orden es para SU máquina, y sin relleno no le gana la mirada
-     al número de orden ni se come tóner en cada impresión. */
-  color: #f5eb4a;
-  font-size: 24px;
-  font-weight: 900;
-  line-height: 1.2;
-  /* `text-indent` compensa el espacio que el tracking deja colgando después de
-     la última letra: sin él la palabra queda corrida a la izquierda. */
-  letter-spacing: 0.34em;
-  text-indent: 0.34em;
-  text-transform: uppercase;
-}
-
-/* El código de la impresora, cuando el nombre lo trae («IMP-001 (Venus)»).
-   Chico y apagado: lo que se lee de lejos es el nombre. */
-.ot-maquina small {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-indent: 0;
-  opacity: 0.7;
-}
-
-/* Meta (fecha, estado) */
-.ot-meta-block {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 16px 20px;
-  border-left: 1px solid rgba(255,255,255,.15);
-  gap: 10px;
-}
-
-.ot-meta-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
   gap: 2px;
 }
 
-.ot-meta-label {
-  font-size: 8.5px;
-  font-weight: 700;
-  color: rgba(255,255,255,.45);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-.ot-meta-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
-}
-
-
-/* ── Banda de cliente ── */
-.ot-cliente-band {
-  background: #f3f4f8;
-  border-bottom: 2px solid #e2e4ec;
-  padding: 7px 20px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.ot-cliente-label {
-  font-size: 10px;
+/* «ORDEN DE TRABAJO» con su raya abajo, igual que el papel. */
+.ot-titulo {
+  font-size: 23px;
   font-weight: 800;
-  color: #888;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  white-space: nowrap;
+  border-bottom: 2px solid #000;
+  padding: 0 4px 2px;
+  line-height: 1.1;
 }
 
-.ot-cliente-nombre {
-  font-size: 16px;
-  font-weight: 800;
-  color: #0f0c44;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+/* La máquina, debajo del título y subrayada: en el papel el
+   formulario se llama directamente «VENUS». Es lo primero que mira
+   el operario para saber si la hoja es suya.
 
-/* El N° de cliente que usa la empresa, tal como lo pide el papel. */
-.ot-cliente-numero {
-  font-size: 14px;
-  font-weight: 800;
-  color: #0f0c44;
-  font-variant-numeric: tabular-nums;
-  background: #e2e4ec;
-  border-radius: 4px;
-  padding: 1px 7px;
-}
-
-/* Empuja la fecha —y lo que venga después— al extremo derecho de la banda. */
-.ot-cliente-fecha {
-  margin-left: auto;
-  display: flex;
+   `text-indent` compensa el espacio que el tracking deja colgando
+   después de la última letra; sin él la palabra queda corrida. */
+.ot-maquina {
+  display: inline-flex;
   align-items: baseline;
-  gap: 7px;
-  white-space: nowrap;
-}
-
-.ot-cliente-fecha b {
-  font-size: 15px;
-  font-weight: 800;
-  color: #0f0c44;
-  font-variant-numeric: tabular-nums;
-}
-
-.ot-cliente-producto {
-  font-size: 15px;
-  font-weight: 700;
-  color: #111;
-}
-
-/* ══ CUERPO DEL FORMULARIO ═══════════════════════════════════ */
-/* Relleno ajustado: con las cajas de observaciones grandes, la hoja se iba a
-   313mm y A4 son 297 — se imprimía en dos páginas. Los milímetros salen de
-   acá, no de achicar lo que se lee. */
-.ot-body-grid {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 6px 20px;
-  gap: 6px;
-}
-
-/* ── Sección genérica ── */
-.ot-section {
-  border: 1.5px solid #d0d3e0;
-  border-radius: 6px;
-  overflow: hidden;
-  page-break-inside: avoid;
-}
-
-.ot-section-header {
-  background: #0f0c44;
-  /* 3 y no 4 de alto: los metros de film sumaron un dato al cuerpo y la hoja
-     se pasaba a 297,8 mm. Las cuatro bandas de sección aportan 2 px cada una
-     y la hoja vuelve a entrar sin tocar ni un dato. */
-  padding: 3px 14px;
-  display: flex;
-  align-items: center;
   gap: 8px;
-}
-
-.ot-section-title {
-  font-size: 11px;
+  font-size: 19px;
   font-weight: 800;
-  color: #fff;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
   text-transform: uppercase;
+  border-bottom: 2px solid #000;
+  padding: 0 4px 2px;
+  line-height: 1.15;
 }
 
-/* Un dato que el sistema ya sabe y va en el encabezado de la sección: los
-   metros a extrudir, la impresora. Alineado a la derecha para que no compita
-   con el título. */
-.ot-section-dato {
-  margin-left: auto;
-  font-size: 14px;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.ot-section-dato small {
+/* El código de la impresora, cuando el nombre lo trae
+   («IMP-001 (Venus)»). Chico: lo que se lee de lejos es el nombre. */
+.ot-maquina small {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,.6);
-}
-
-/* Muestra del producto: OK discreto, NOOK en rojo y bien visible. */
-.ot-muestra {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #4a7c59;
-  border: 1.5px solid #4a7c59;
-  border-radius: 4px;
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-
-.ot-muestra--mal {
-  color: #fff;
-  background: #c0392b;
-  border-color: #c0392b;
-}
-
-.ot-section-body {
-  padding: 7px 14px;
-}
-
-/* ── Campos ── */
-.ot-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.ot-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #888;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.ot-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #111;
-  border-bottom: 1.5px solid #c0c4d8;
-  min-height: 20px;
-  padding-bottom: 2px;
-  line-height: 1.4;
-}
-
-.ot-value--empty {
-  color: transparent; /* Mantiene el espacio pero invisible */
-}
-
-/* ── Observaciones: recuadro, no renglón ──
-   Acá se escribe a mano una o dos frases. Una raya sola invita a poner tres
-   palabras; una caja dice «tenés lugar». */
-.ot-obs {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ot-obs-area {
-  border: 1.5px solid #c0c4d8;
-  border-radius: 5px;
-  background: #fbfbfe;
-  /* ≈14mm: dos renglones escritos a mano. No más, porque hay tres cajas
-     iguales en la hoja y entre las tres definen si la ficha entra en A4. */
-  min-height: 50px;
-  padding: 8px 10px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: #222;
-  line-height: 1.45;
-  white-space: pre-wrap;
-}
-
-/* ══ EXTRUSIÓN ═══════════════════════════════════════════════ */
-.ot-ext-grid {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 14px;
-  align-items: start;
-}
-
-/* Tabla de bobinas */
-.ot-bobinas-wrap {
-  background: #f8f9fc;
-  border: 1.5px solid #d0d3e0;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.ot-bobinas-title {
-  background: #e8eaf2;
-  padding: 3px 10px;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: #555;
-  border-bottom: 1px solid #d0d3e0;
-}
-
-.ot-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.ot-table th {
-  background: #eceef5;
-  border: 1px solid #d0d3e0;
-  padding: 5px 10px;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #444;
-  text-align: center;
+  text-indent: 0;
+  opacity: 0.6;
 }
 
-.ot-table td {
-  border: 1px solid #e0e2ed;
-  padding: 4px 10px;
-  font-size: 13.5px;
-  font-weight: 500;
-  min-height: 19px;
-  height: 19px;
-  color: #222;
-}
-
-.ot-td-num {
-  text-align: center;
-  color: #aaa;
-  font-size: 10px;
-  width: 28px;
-  background: #f5f6fa;
-}
-
-/* Campos lado derecho de extrusión */
-/* Tres columnas: con dos quedaban huecos sueltos después de sacar el campo
-   Máquina. Cada fila cierra completa. */
-.ot-ext-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px 16px;
-  align-content: start;
-}
-
-.ot-ext-fields .ot-field--full {
-  grid-column: 1 / -1;
-}
-
-/* Dos de las tres columnas: lo usa Formulación para dejarle la tercera a los
-   metros de film. */
-.ot-ext-fields .ot-field--2col {
-  grid-column: span 2;
-}
-
-/* Los metros de film: el número que el operario se lleva a la máquina. Vivía
-   en la banda azul del encabezado y pasó al cuerpo, con los otros datos del
-   film. Más grande que un valor común porque es el único que se usa para
-   pedir material, no para verificar una medida. */
-/* Clavados en la tercera columna: cuando la formulación no se imprime —que es
-   lo normal— los metros no se corren a la izquierda. El operario los busca
-   siempre en el mismo lugar de la hoja. */
-.ot-ext-fields .ot-field--metros {
-  grid-column: 3;
-}
-
-.ot-field--metros .ot-value {
-  font-size: 16px;
-  font-weight: 900;
-  color: #0f0c44;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ══ IMPRESIÓN ═══════════════════════════════════════════════ */
-.ot-imp-grid {
-  display: grid;
-  /* Cuatro columnas: Frente · Retroversión · Observación · Cilindro + Colores.
-     La retroversión casi nunca se usa, así que lleva la columna más angosta. */
-  grid-template-columns: 1fr 0.8fr 1.1fr 180px;
-  gap: 0;
-}
-
-/* Operario y fecha: los firma a mano el que imprimió. */
-.ot-imp-pie {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 14px;
-  border-top: 1.5px solid #d0d3e0;
-  padding: 8px 12px;
-}
-
-.ot-imp-col {
-  border-right: 1.5px solid #d0d3e0;
+/* El número de orden, arriba a la derecha donde el papel tiene el
+   __/__/__ escrito a mano, y la fecha debajo. */
+.ot-header-der {
   display: flex;
   flex-direction: column;
-  padding: 0;
-}
-
-.ot-imp-col:last-child {
-  border-right: none;
-}
-
-.ot-imp-col-title {
-  background: #f3f4f8;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: #666;
-  padding: 5px 10px;
-  border-bottom: 1px solid #d0d3e0;
-}
-
-.ot-imp-text {
-  flex: 1;
-  padding: 8px 10px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: #222;
-  min-height: 40px;
-  white-space: pre-wrap;
-  line-height: 1.5;
-}
-
-/* Cilindro + Colores */
-.ot-imp-right {
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.ot-colores-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px 8px;
-}
-
-.ot-color-item {
-  display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 4px;
 }
 
-.ot-color-num {
-  font-size: 10px;
-  font-weight: 800;
-  color: #999;
-  width: 14px;
-  shrink: 0;
-}
-
-.ot-color-val {
-  font-size: 12.5px;
-  font-weight: 600;
-  border-bottom: 1px solid #c0c4d8;
-  flex: 1;
-  min-height: 17px;
-  color: #222;
-}
-
-/* ══ TROQUELADO ══════════════════════════════════════════════ */
-/* Cinco columnas, igual que el formulario de papel:
-   CIERRE · ALTO · ENVASE · CÓDIGO ENVASE · UBICACIÓN.
-   Van en la misma fila, así que no cuestan alto de hoja. */
-.ot-troq-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1.4fr 1.4fr 1fr;
-  gap: 8px 16px;
-}
-
-/* Máquina, operario, fecha y observaciones: los llena a mano el que troquela. */
-/* Dos columnas, no tres: se fue el campo MÁQUINA (en troquelado no se elige
-   ninguna), quedan Operario y Fecha. */
-.ot-troq-pie {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 20px;
-  margin-top: 12px;
-  border-top: 1.5px solid #d0d3e0;
-  padding-top: 10px;
-}
-
-.ot-troq-pie .ot-field--full {
-  grid-column: 1 / -1;
-}
-
-/* ══ TOTALES ═════════════════════════════════════════════════
-   Una sola columna: ya no comparte fila con el bloque de firmas, que se fue
-   porque el formulario de papel de la empresa no lo tiene. */
-.ot-bottom-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-.ot-totales-section {
-  border: 1.5px solid #d0d3e0;
-  border-radius: 6px;
-  overflow: hidden;
-  page-break-inside: avoid;
-}
-
-.ot-totales-inner {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-}
-
-.ot-total-box {
-  /* 7 y no 9 de alto: la cuenta de los metros agregó un renglón y la hoja se
-     iba a 297,8 mm — 0,8 mm de más en un A4 es una segunda página con una
-     franja en blanco. */
-  padding: 7px 14px;
-  border-right: 1.5px solid #d0d3e0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ot-total-box:last-child {
-  border-right: none;
-  background: #f0f2ff;
-}
-
-.ot-total-amount {
+.ot-numero {
   font-size: 22px;
   font-weight: 900;
-  color: #0f0c44;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
-/* La cuenta de los metros, abajo del número grande. Chica porque no es el dato
-   sino de dónde sale: el operario que quiere verificar el total la lee ahí
-   mismo en vez de rehacerla a mano. */
-.ot-total-cuenta {
-  font-size: 10px;
+.ot-fecha {
+  font-size: 12.5px;
   font-weight: 700;
-  color: #5a5f6e;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-}
-
-.ot-obs-box {
-  border-top: 1.5px solid #d0d3e0;
-  padding: 7px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* ══ QR DE LA ORDEN ═════════════════════════════════════════════════════
-   Uno solo para toda la ficha: el operario lo escanea y la pantalla le
-   pregunta qué paso va a hacer. */
-.ot-qr {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 3px 18px;
-  border-left: 1px solid rgba(255,255,255,.15);
-}
-
-/* El relleno blanco es la ZONA DE SILENCIO del QR: el margen en blanco que el
-   lector necesita para encontrar los bordes del código. Sin ella un QR impreso
-   falla aunque se vea perfecto. No es decoración. */
-.ot-qr-img {
-  background: #fff;
-  border-radius: 5px;
-  padding: 10px;
-}
-
-/* 120px ≈ 32mm. Con una URL de producción el QR da 33×33 módulos, así que cada
-   módulo queda en casi 1mm: se lee de lejos, con polvo y con mala luz, que es
-   como se escanea en una planta. */
-/* 96px ≈ 25mm de código, dentro de una tarjeta blanca de 30mm con la zona de
-   silencio incluida. Con la URL de producción son 33×33 módulos: cada módulo
-   queda en 0,77mm, que un celular lee de lejos y con mala luz. */
-/* El alto va SÓLO en el SVG. Si se le fija también a la tarjeta, el relleno
-   de la zona de silencio empuja el código afuera de la caja y se superpone
-   con la leyenda de abajo. La tarjeta se mide sola: código + relleno. */
-.ot-qr-img svg {
-  width: 96px;
-  height: 96px;
-  display: block;
-}
-
-.ot-qr-label {
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,.6);
-  text-align: center;
-  line-height: 1.3;
-}
-
-/* El lote en texto: si el celular no lo lee, se tipea a mano en el buscador. */
-.ot-qr-lote {
-  font-size: 10px;
-  font-weight: 700;
-  color: #8a8fa6;
-  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
 
-/* ══ BOTONES (solo pantalla) ═════════════════════════════════ */
+/* El QR, pegado a la cabecera. El margen blanco de alrededor no es
+   decoración: sin él el lector no engancha el código aunque en
+   pantalla se vea perfecto. */
+.ot-qr { display: flex; align-items: center; gap: 8px; }
+
+.ot-qr-img {
+  background: #fff;
+  padding: 3px;
+  border: 1.3px solid #000;
+  line-height: 0;
+}
+
+.ot-qr-img svg { width: 62px; height: 62px; display: block; }
+
+.ot-qr-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 62px;
+}
+
+.ot-qr-label {
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.ot-qr-lote {
+  font-size: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ══ CLIENTE Y PRODUCTO ══════════════════════════════════════
+   Dos renglones con raya hasta el borde, como en el papel. */
+.ot-encabezado { display: flex; flex-direction: column; gap: 7px; padding-top: 4px; }
+
+.ot-renglon {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.ot-renglon-rotulo {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* La raya se come todo el ancho sobrante: si el dato es corto, la
+   raya sigue hasta el margen. Igual que el formulario impreso. */
+.ot-renglon-valor {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 1.4px solid #000;
+  padding: 0 4px 2px;
+  font-size: 15px;
+  font-weight: 700;
+  min-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ══ SEPARADOR PUNTEADO ══════════════════════════════════════ */
+.ot-sep {
+  border-top: 2px dotted #000;
+  margin: 14px 0 12px;
+}
+
+/* ══ ETAPAS ══════════════════════════════════════════════════ */
+.ot-cuerpo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.ot-etapa { display: flex; flex-direction: column; gap: 11px; }
+
+.ot-etapa-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* El número del paso en un círculo, como el ①②③ del papel. */
+.ot-paso-num {
+  width: 23px;
+  height: 23px;
+  flex: none;
+  border: 1.8px solid #000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.ot-paso-title {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* El dato que va pegado al título: los METROS en extrusión, igual
+   que el «EXTRUSION ______ MTS» del papel. */
+.ot-paso-dato {
+  min-width: 86px;
+  border-bottom: 1.6px solid #000;
+  padding: 0 6px 1px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.ot-paso-unidad {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Lo que va a la derecha del título: operario y fecha en troquelado. */
+.ot-etapa-head-der { margin-left: auto; display: flex; align-items: baseline; gap: 18px; }
+
+/* ══ LO QUE SE ESCRIBE A MANO ════════════════════════════════
+   Rótulo y raya en la misma línea. La raya es de puntos cortos
+   —como el papel— para que se lea «esto lo completás vos» y no
+   «acá falta un dato del sistema». */
+.ot-mano { display: flex; align-items: baseline; gap: 8px; }
+
+.ot-mano-rotulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ot-mano-raya {
+  border-bottom: 1.6px dashed #000;
+  min-width: 108px;
+  height: 14px;
+}
+
+/* La fecha en blanco: __ / __ / ____ */
+.ot-fecha-vacia { display: flex; align-items: baseline; gap: 4px; }
+.ot-fecha-vacia i {
+  border-bottom: 1.6px dashed #000;
+  width: 26px;
+  height: 13px;
+  display: inline-block;
+}
+.ot-fecha-vacia i:last-child { width: 38px; }
+.ot-fecha-vacia span { font-size: 12px; font-weight: 800; }
+
+/* ══ RECUADROS DE DATOS ══════════════════════════════════════
+   El rótulo va ARRIBA del recuadro, afuera; los recuadros se tocan
+   entre sí y forman una sola caja. Es exactamente el ANCHO · COLOR ·
+   ESPESOR del formulario de papel. */
+.ot-caja { display: flex; align-items: flex-end; }
+
+.ot-caja-col { display: flex; flex-direction: column; min-width: 0; }
+
+.ot-caja-rot {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0 6px 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ot-caja-val {
+  border: 1.4px solid #000;
+  border-right: none;
+  padding: 4px 7px;
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow: hidden;
+}
+
+.ot-caja-col:last-child .ot-caja-val { border-right: 1.4px solid #000; }
+
+/* Las celdas con texto de verdad (el frente de impresión) se leen
+   mejor alineadas a la izquierda y con cuerpo más chico. */
+.ot-caja-col--texto .ot-caja-val {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  max-height: 16mm;
+}
+
+/* ══ BOBINAS ═════════════════════════════════════════════════
+   El papel tiene una grilla de rayas sueltas bajo «KG/BOB.». Acá va
+   con encabezado porque son DOS datos por bobina y sin rótulo no se
+   sabe cuál va en cuál, pero sin cajas ni fondos grises: sólo
+   rayas, como el resto de la hoja. */
+.ot-bobinas { display: flex; flex-direction: column; gap: 3px; }
+
+.ot-bobinas-rot {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.ot-bobinas-tabla { border-collapse: collapse; width: 100%; }
+
+.ot-bobinas-tabla th {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 4px 2px;
+  border-bottom: 1.4px solid #000;
+}
+
+.ot-bobinas-tabla td {
+  border-bottom: 1.2px solid #000;
+  height: 21px;
+  padding: 0 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ot-bobinas-tabla td:first-child {
+  width: 20px;
+  font-size: 10px;
+  font-weight: 800;
+  border-bottom-color: transparent;
+  text-align: right;
+}
+
+/* ══ COLORES ═════════════════════════════════════════════════
+   1.____ 2.____ 3.____ / 4.____ 5.____ 6.____ */
+.ot-colores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px 16px; }
+
+.ot-color { display: flex; align-items: baseline; gap: 4px; }
+
+.ot-color-num { font-size: 11.5px; font-weight: 800; }
+
+.ot-color-raya {
+  flex: 1;
+  border-bottom: 1.4px solid #000;
+  min-height: 15px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 0 3px 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ══ OBSERVACIONES ═══════════════════════════════════════════
+   El papel tiene una raya sola. Acá va recuadro: el de la máquina
+   escribe una o dos frases y necesita caja, no renglón. */
+.ot-obs { display: flex; align-items: flex-start; gap: 9px; }
+
+.ot-obs-rotulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding-top: 5px;
+}
+
+.ot-obs-area {
+  flex: 1;
+  border: 1.4px solid #000;
+  min-height: 58px;
+  max-height: 24mm;
+  padding: 4px 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+/* ══ PIE ═════════════════════════════════════════════════════
+   CANTIDAD y METROS DE FILM, como el «CANTIDAD ___ TOTAL FINAL ___»
+   del papel. El total en pesos no va: el precio no se decide en un
+   papel de máquina. */
+.ot-pie {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.ot-pie-dato { display: flex; align-items: baseline; gap: 10px; }
+
+.ot-pie-rotulo {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ot-pie-valor {
+  min-width: 112px;
+  border-bottom: 1.8px solid #000;
+  padding: 0 6px 1px;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* La cuenta de los metros, abajo del número y chica: no es el dato
+   sino de dónde sale. El que quiere verificar el total la lee ahí
+   mismo en vez de rehacerla a mano. */
+.ot-pie-cuenta {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-align: right;
+  padding-top: 3px;
+  letter-spacing: 0.01em;
+}
+
+/* ══ BOTONES (sólo pantalla) ═════════════════════════════════ */
 .ot-print-btn-wrapper {
   width: 210mm;
   margin: 20px auto;
@@ -740,7 +522,7 @@
   transition: background .15s;
 }
 
-.ot-print-btn:hover { background: var(--primary-500); }
+.ot-print-btn:hover { background: #2a2580; }
 
 .ot-close-btn {
   background: transparent;
@@ -756,13 +538,15 @@
 
 .ot-close-btn:hover { background: #f3f4f6; }
 
-/* ══ PRINT ═══════════════════════════════════════════════════ */
+/* ══ IMPRESIÓN ═══════════════════════════════════════════════ */
 @media print {
   @page { size: A4 portrait; margin: 0; }
   .ot-body { background: #fff; }
   .ot-page {
-    width: 100%; min-height: 100vh;
-    margin: 0; box-shadow: none;
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    box-shadow: none;
   }
   .no-print { display: none !important; }
 }
