@@ -296,8 +296,11 @@ export default async function PrintOrdenPage({ params }: Props) {
                       ...(formulacionAporta(orden.extrusion_formulacion, orden.extrusion_ancho)
                         ? [{ label: "Formulación", value: orden.extrusion_formulacion, flex: 1.4 }]
                         : []),
-                      { label: "Tratamiento", value: null },
-                      { label: "Bobinas", value: null },
+                      /* «Tratamiento» es el rótulo más largo de la fila y con
+                         el cuerpo subido no entraba: se le da más ancho en vez
+                         de abreviarlo, que en planta se lee peor. */
+                      { label: "Tratamiento", value: null, flex: 1.3 },
+                      { label: "Bobinas", value: null, flex: 0.8 },
                     ]}
                   />
                 </div>
