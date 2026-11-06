@@ -58,6 +58,36 @@ function Field({ label, value, full, ancho }: { label: string; value?: string | 
   )
 }
 
+/**
+ * ¿La formulación dice algo que la hoja no muestre ya?
+ *
+ * `extrusion_formulacion` es la lámina del producto tal cual («Cristal 48»), y
+ * de ESA misma lámina salen el color y el ancho que se imprimen justo arriba.
+ * En producción 1.098 de las 1.138 láminas cargadas son exactamente eso: color
+ * + ancho. Para ésas, imprimir «Formulación · Cristal 48» es repetirle al
+ * operario dos campos que ya tiene a la vista.
+ *
+ * Las otras 40 sí aportan y por eso no se borró el campo: «Cristal R 31» (R de
+ * retroverso), «Cristal Esfumado 24», «Cristal R 54 T47», y las formulaciones
+ * de verdad tipo «2045/208». Ahí se imprime.
+ *
+ * Se le saca el color y el número que YA es el ancho; si no queda nada más que
+ * separadores, la formulación no agregaba nada.
+ */
+function formulacionAporta(
+  formulacion?: string | null,
+  ancho?: number | string | null,
+): boolean {
+  const texto = (formulacion ?? "").trim()
+  if (!texto) return false
+  const resto = texto
+    .replace(/crist(al)?|bl(co|anc[oa])/gi, "")
+    .replace(/\d+(?:[.,]\d+)?/g, (n) =>
+      ancho != null && Number(n.replace(",", ".")) === Number(ancho) ? "" : n)
+    .replace(/[\s.,·\-/]+/g, "")
+  return resto !== ""
+}
+
 export default async function PrintOrdenPage({ params }: Props) {
   const { id } = await params
 
@@ -105,12 +135,18 @@ export default async function PrintOrdenPage({ params }: Props) {
   const maquinaCodigo = maquinaPartes ? maquinaPartes[1] : ""
   const maquinaNombre = maquinaPartes ? maquinaPartes[2] : maquinaRaw
 
-  // Separador decimal argentino: «240,00», no «240.00». El resto de la app
-  // ya formatea con es-AR (la cantidad sale «20.000»); la ficha era la
-  // única que mezclaba los dos criterios en la misma hoja.
+  // Separador decimal argentino: «240,5», no «240.5». El resto de la app ya
+  // formatea con es-AR (la cantidad sale «20.000»); la ficha era la única que
+  // mezclaba los dos criterios en la misma hoja.
+  //
+  // LOS DECIMALES SÓLO CUANDO EXISTEN: antes todo salía con dos («48,00 mm»,
+  // «24,00 mm») y eran ceros de adorno. No se redondea, que es distinto: el
+  // CIERRE son diámetros de tapa y 1.039 de los 1.087 cargados tienen decimal
+  // de verdad —9,75 no es 10—, así que ése sigue saliendo completo. El
+  // cilindro, en cambio, no tiene decimales en ninguno de los 1.119.
   const fmt = (v: number | null | undefined, dec = 2) =>
     v != null
-      ? Number(v).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec })
+      ? Number(v).toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: dec })
       : ""
 
 
@@ -247,10 +283,15 @@ export default async function PrintOrdenPage({ params }: Props) {
                     <Field label="Ancho" value={orden.extrusion_ancho != null ? `${fmt(orden.extrusion_ancho)} mm` : ""} />
                     <Field label="Color" value={orden.extrusion_color} />
                     <Field label="Micronaje (µ)" value={orden.extrusion_espesor != null ? `${fmt(orden.extrusion_espesor, 0)} µ` : "60 µ"} />
-                    {/* Formulación pierde una columna de las tres para que los
+                    {/* Formulación ocupa dos de las tres columnas para que los
                         metros entren en la MISMA fila: la hoja está en 297 mm
-                        clavados y un renglón nuevo la pasa de página. */}
-                    <Field label="Formulación" value={orden.extrusion_formulacion} ancho={2} />
+                        clavados y un renglón nuevo la pasa de página.
+
+                        Y aparece sólo cuando dice algo que el color y el ancho
+                        de arriba no digan ya: ver `formulacionAporta`. */}
+                    {formulacionAporta(orden.extrusion_formulacion, orden.extrusion_ancho) && (
+                      <Field label="Formulación" value={orden.extrusion_formulacion} ancho={2} />
+                    )}
                     <div className="ot-field ot-field--metros">
                       <span className="ot-label">Metros de film</span>
                       <span className="ot-value">

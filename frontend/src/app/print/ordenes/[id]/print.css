@@ -467,6 +467,13 @@
    en la banda azul del encabezado y pasó al cuerpo, con los otros datos del
    film. Más grande que un valor común porque es el único que se usa para
    pedir material, no para verificar una medida. */
+/* Clavados en la tercera columna: cuando la formulación no se imprime —que es
+   lo normal— los metros no se corren a la izquierda. El operario los busca
+   siempre en el mismo lugar de la hoja. */
+.ot-ext-fields .ot-field--metros {
+  grid-column: 3;
+}
+
 .ot-field--metros .ot-value {
   font-size: 16px;
   font-weight: 900;
