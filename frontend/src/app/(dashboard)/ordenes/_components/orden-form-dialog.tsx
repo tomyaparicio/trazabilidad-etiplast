@@ -1149,23 +1149,12 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                 className="w-full border border-input rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
             </Field>
 
-            <SubSection title="Fechas por Etapa" icon={CalendarDays} />
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {([
-                ["fecha_diseno",     "Diseño"],
-                ["fecha_preprensa",  "Preprensa"],
-                ["fecha_extrusion",  "Extrusión"],
-                ["fecha_impresion",  "Impresión"],
-                ["fecha_troquelado", "Troquelado"],
-                ["fecha_entrega",    "Entrega"],
-              ] as [keyof ReturnType<typeof emptyForm>, string][]).map(([key, label]) => (
-                <Field key={key} label={label}>
-                  <Input type="date" value={(form[key] as string) ?? ""}
-                    onChange={(e) => set(key, e.target.value)} className="h-9 text-sm" />
-                </Field>
-              ))}
-            </div>
-
+            {/* Las fechas por etapa se fueron del formulario: las seis se cargaban
+                a mano y ninguna se llenaba. Extrusión, impresión y troquelado las
+                escribe el escaneo del QR —fecha real de cuándo pasó por la
+                máquina, no la que alguien recuerda al cerrar la orden— y las
+                columnas siguen en la base: el formulario reenvía lo que ya
+                tienen, así que editar una orden no pisa lo que marcó la planta. */}
             <SubSection title="Totales" icon={Calculator} />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Cantidad">
