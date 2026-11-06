@@ -112,6 +112,8 @@ export type OrdenTrabajo = {
   cliente_nombre: string | null
   cliente_numero: number | null
   cliente_producto_id: number | null
+  /** Lote de trazabilidad (L-YYYYMMDD-NNNN). Nace con el primer escaneo. */
+  lote: string | null
   /** Nombre del producto: lo que el operario necesita saber que está haciendo */
   producto_nombre: string | null
   /** Estado de la muestra del producto: "OK" | "NOOK" | null */

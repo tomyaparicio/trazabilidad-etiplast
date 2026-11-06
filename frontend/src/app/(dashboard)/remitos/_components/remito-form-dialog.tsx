@@ -12,9 +12,6 @@ import type { RemitoX } from "./remitos-table"
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────
 
-/** OT con lote (el tipo base aún no lo expone) */
-type OrdenConLote = OrdenTrabajo & { lote?: string | null }
-
 type ItemForm = {
   orden_trabajo_id: number | null
   descripcion: string
@@ -153,13 +150,13 @@ export function RemitoFormDialog({ open, onOpenChange, remito, onSaved }: Props)
   const [domicilio, setDomicilio] = useState("")
   const [observaciones, setObservaciones] = useState("")
   const [items, setItems] = useState<ItemForm[]>([emptyItem()])
-  const [ordenes, setOrdenes] = useState<OrdenConLote[]>([])
+  const [ordenes, setOrdenes] = useState<OrdenTrabajo[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
   const fetchOrdenes = (cid: number) => {
     api.ordenes.list({ cliente_id: cid, estado: "completada", per_page: 100 })
-      .then((res) => setOrdenes(res.data as OrdenConLote[]))
+      .then((res) => setOrdenes(res.data as OrdenTrabajo[]))
       .catch(() => {
         setOrdenes([])
         toast.error("No se pudieron cargar las órdenes del cliente")
