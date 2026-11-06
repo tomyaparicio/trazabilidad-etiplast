@@ -126,33 +126,31 @@
   display: inline-flex;
   align-items: baseline;
   gap: 10px;
-  margin-top: 6px;
-  /* Recuadro, no pastilla. Un bloque amarillo macizo arriba de todo le ganaba
-     la mirada al número de orden y en el papel es un manchón de tóner. El
-     contorno dice lo mismo —esta hoja es de ESTA máquina— con el mismo tono de
-     marca y sin pelearle al resto de la cabecera. */
-  padding: 3px 15px;
-  border: 1.5px solid #f5eb4a;
-  border-radius: 3px;
-  background: transparent;
+  margin-top: 5px;
+  /* Sin caja. El formulario de papel que esta hoja reemplaza se llamaba
+     directamente «VENUS», y así se lee: la palabra sola, no un cartel pegado
+     encima. El amarillo de marca alcanza para que el operario sepa de un
+     vistazo si la orden es para SU máquina, y sin relleno no le gana la mirada
+     al número de orden ni se come tóner en cada impresión. */
   color: #f5eb4a;
-  font-size: 21px;
-  font-weight: 800;
-  line-height: 1.25;
-  /* El mismo tracking que los títulos de sección. `text-indent` compensa el
-     espacio que el tracking deja colgando después de la última letra: sin él
-     la palabra queda corrida a la izquierda dentro del recuadro. */
-  letter-spacing: 0.28em;
-  text-indent: 0.28em;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.2;
+  /* `text-indent` compensa el espacio que el tracking deja colgando después de
+     la última letra: sin él la palabra queda corrida a la izquierda. */
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
   text-transform: uppercase;
 }
 
+/* El código de la impresora, cuando el nombre lo trae («IMP-001 (Venus)»).
+   Chico y apagado: lo que se lee de lejos es el nombre. */
 .ot-maquina small {
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-indent: 0;
-  opacity: 0.75;
+  opacity: 0.7;
 }
 
 /* Meta (fecha, estado) */
