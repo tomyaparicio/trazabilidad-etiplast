@@ -117,6 +117,34 @@
   line-height: 1;
 }
 
+/* La impresora, en la cabecera y bien grande. El formulario de papel que
+   reemplaza esta hoja se llamaba literalmente «VENUS»: el operario necesita
+   saber de un vistazo, parado al lado de la máquina, si la orden es suya.
+   Amarillo de marca sobre el azul de la cabecera: es el único contraste
+   fuerte de la hoja, así que gana la mirada sin agrandar nada más. */
+.ot-maquina {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 3px;
+  padding: 3px 20px;
+  border-radius: 999px;
+  background: #f5eb4a;
+  color: #12142e;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ot-maquina small {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  opacity: 0.65;
+}
+
 /* Meta (fecha, estado) */
 .ot-meta-block {
   display: flex;

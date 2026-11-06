@@ -95,6 +95,16 @@ export default async function PrintOrdenPage({ params }: Props) {
     ? new Date(orden.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
     : "—"
 
+  // La máquina de impresión, arriba y grande. El formulario de papel que esta
+  // hoja reemplaza se llamaba directamente «VENUS»: el operario lo primero que
+  // mira es si la orden es para SU máquina. En producción las impresoras se
+  // llaman «IMP-001 (Venus)», así que el código va chico y el nombre grande —
+  // que es lo que se lee de lejos, parado al lado de la máquina.
+  const maquinaRaw    = orden.impresion_maquina?.trim() ?? ""
+  const maquinaPartes = maquinaRaw.match(/^(.*?)\s*\(([^)]+)\)\s*$/)
+  const maquinaCodigo = maquinaPartes ? maquinaPartes[1] : ""
+  const maquinaNombre = maquinaPartes ? maquinaPartes[2] : maquinaRaw
+
   // Separador decimal argentino: «240,00», no «240.00». El resto de la app
   // ya formatea con es-AR (la cantidad sale «20.000»); la ficha era la
   // única que mezclaba los dos criterios en la misma hoja.
@@ -126,6 +136,12 @@ export default async function PrintOrdenPage({ params }: Props) {
             <div className="ot-titulo-block">
               <span className="ot-titulo">Orden de Trabajo</span>
               <span className="ot-numero">{orden.numero}</span>
+              {maquinaNombre && (
+                <span className="ot-maquina">
+                  {maquinaCodigo && <small>{maquinaCodigo}</small>}
+                  {maquinaNombre}
+                </span>
+              )}
             </div>
 
             {/* El QR de la orden, en la cabecera: es de toda la ficha, no de un
