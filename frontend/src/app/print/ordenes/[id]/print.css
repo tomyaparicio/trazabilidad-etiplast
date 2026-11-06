@@ -260,7 +260,10 @@
 
 .ot-section-header {
   background: #0f0c44;
-  padding: 4px 14px;
+  /* 3 y no 4 de alto: los metros de film sumaron un dato al cuerpo y la hoja
+     se pasaba a 297,8 mm. Las cuatro bandas de sección aportan 2 px cada una
+     y la hoja vuelve a entrar sin tocar ni un dato. */
+  padding: 3px 14px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -444,6 +447,23 @@
 
 .ot-ext-fields .ot-field--full {
   grid-column: 1 / -1;
+}
+
+/* Dos de las tres columnas: lo usa Formulación para dejarle la tercera a los
+   metros de film. */
+.ot-ext-fields .ot-field--2col {
+  grid-column: span 2;
+}
+
+/* Los metros de film: el número que el operario se lleva a la máquina. Vivía
+   en la banda azul del encabezado y pasó al cuerpo, con los otros datos del
+   film. Más grande que un valor común porque es el único que se usa para
+   pedir material, no para verificar una medida. */
+.ot-field--metros .ot-value {
+  font-size: 16px;
+  font-weight: 900;
+  color: #0f0c44;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ══ IMPRESIÓN ═══════════════════════════════════════════════ */

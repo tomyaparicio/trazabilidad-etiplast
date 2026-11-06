@@ -49,9 +49,9 @@ function Observaciones({ value }: { value?: string | null }) {
   )
 }
 
-function Field({ label, value, full }: { label: string; value?: string | null; full?: boolean }) {
+function Field({ label, value, full, ancho }: { label: string; value?: string | null; full?: boolean; ancho?: 2 }) {
   return (
-    <div className={`ot-field${full ? " ot-field--full" : ""}`}>
+    <div className={`ot-field${full ? " ot-field--full" : ""}${ancho === 2 ? " ot-field--2col" : ""}`}>
       <span className="ot-label">{label}</span>
       <span className={`ot-value${!value ? " ot-value--empty" : ""}`}>{value ?? "\u00A0"}</span>
     </div>
@@ -210,11 +210,6 @@ export default async function PrintOrdenPage({ params }: Props) {
                   tiene calculado, no se muestra nada. */}
               <div className="ot-section-header">
                 <span className="ot-section-title">Extrusión</span>
-                {orden.extrusion_metros != null && (
-                  <span className="ot-section-dato">
-                    {fmt(orden.extrusion_metros, 0)} <small>m de film</small>
-                  </span>
-                )}
               </div>
               <div className="ot-section-body">
                 <div className="ot-ext-grid">
@@ -252,7 +247,16 @@ export default async function PrintOrdenPage({ params }: Props) {
                     <Field label="Ancho" value={orden.extrusion_ancho != null ? `${fmt(orden.extrusion_ancho)} mm` : ""} />
                     <Field label="Color" value={orden.extrusion_color} />
                     <Field label="Micronaje (µ)" value={orden.extrusion_espesor != null ? `${fmt(orden.extrusion_espesor, 0)} µ` : "60 µ"} />
-                    <Field label="Formulación" value={orden.extrusion_formulacion} full />
+                    {/* Formulación pierde una columna de las tres para que los
+                        metros entren en la MISMA fila: la hoja está en 297 mm
+                        clavados y un renglón nuevo la pasa de página. */}
+                    <Field label="Formulación" value={orden.extrusion_formulacion} ancho={2} />
+                    <div className="ot-field ot-field--metros">
+                      <span className="ot-label">Metros de film</span>
+                      <span className="ot-value">
+                        {orden.extrusion_metros != null ? `${fmt(orden.extrusion_metros, 0)} m` : "\u00A0"}
+                      </span>
+                    </div>
 
                     {/* A mano: tratamiento, cantidad de bobinas y quién la hizo. */}
                     <Field label="Tratamiento" value={null} />
