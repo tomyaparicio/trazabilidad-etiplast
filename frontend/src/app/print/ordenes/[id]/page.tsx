@@ -385,13 +385,27 @@ export default async function PrintOrdenPage({ params }: Props) {
                       {orden.cantidad != null ? orden.cantidad.toLocaleString("es-AR") : ""}
                     </span>
                   </div>
+                  {/* En vez del total en pesos va LA CUENTA que hace la planta:
+                      cuántos metros de film salen de esa cantidad. El precio no
+                      se decide en un papel de máquina; los metros sí son lo que
+                      el operario necesita del total de la orden.
+
+                      Es el mismo número que el encabezado de Extrusión, a
+                      propósito: ahí dice con qué arranca la primera etapa, acá
+                      cuánto film consume la orden entera. Sale de la columna
+                      `extrusion_metros`, que se calcula al guardar. */}
                   <div className="ot-total-box">
-                    <span className="ot-label">Total Final</span>
+                    <span className="ot-label">Metros de film</span>
                     <span className="ot-total-amount">
-                      {orden.total_final != null
-                        ? `$\u00A0${Number(orden.total_final).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`
+                      {orden.extrusion_metros != null
+                        ? `${fmt(orden.extrusion_metros, 0)} m`
                         : ""}
                     </span>
+                    {orden.extrusion_metros != null && orden.cantidad != null && orden.troquelado_alto != null && (
+                      <span className="ot-total-cuenta">
+                        {fmt(orden.cantidad, 0)} × {fmt(Number(orden.troquelado_alto) / 100, 2)} m + 400 de margen
+                      </span>
+                    )}
                   </div>
                 </div>
                 {/* El mismo recuadro que las otras dos secciones. Antes tenía

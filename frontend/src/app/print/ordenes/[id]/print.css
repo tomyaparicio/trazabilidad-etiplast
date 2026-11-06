@@ -583,7 +583,10 @@
 }
 
 .ot-total-box {
-  padding: 9px 14px;
+  /* 7 y no 9 de alto: la cuenta de los metros agregó un renglón y la hoja se
+     iba a 297,8 mm — 0,8 mm de más en un A4 es una segunda página con una
+     franja en blanco. */
+  padding: 7px 14px;
   border-right: 1.5px solid #d0d3e0;
   display: flex;
   flex-direction: column;
@@ -601,6 +604,17 @@
   color: #0f0c44;
   letter-spacing: 0.02em;
   line-height: 1;
+}
+
+/* La cuenta de los metros, abajo del número grande. Chica porque no es el dato
+   sino de dónde sale: el operario que quiere verificar el total la lee ahí
+   mismo en vez de rehacerla a mano. */
+.ot-total-cuenta {
+  font-size: 10px;
+  font-weight: 700;
+  color: #5a5f6e;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
 }
 
 .ot-obs-box {
