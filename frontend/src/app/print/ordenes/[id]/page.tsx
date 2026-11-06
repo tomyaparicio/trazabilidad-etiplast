@@ -225,19 +225,17 @@ export default async function PrintOrdenPage({ params }: Props) {
               )}
             </div>
 
+            {/* Número, fecha y QR. UN solo QR para toda la orden: el operario
+                lo escanea y la pantalla le pregunta qué paso va a hacer. */}
             <div className="ot-header-der">
-              <span className="ot-numero">{orden.numero}</span>
-              <span className="ot-fecha">{fechaStr}</span>
-              {/* UN solo QR para toda la orden. El operario lo escanea y la
-                  pantalla le pregunta qué paso va a hacer. */}
-              <div className="ot-qr">
-                <div className="ot-qr-texto">
-                  <span className="ot-qr-label">Escaneá antes de empezar</span>
-                  {orden.lote && <span className="ot-qr-lote">{orden.lote}</span>}
-                </div>
-                {/* SVG generado en el servidor, no entra nada del usuario. */}
-                <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
+              <div className="ot-header-num">
+                <span className="ot-numero">{orden.numero}</span>
+                <span className="ot-fecha">{fechaStr}</span>
+                <span className="ot-qr-label">Escaneá antes de empezar</span>
+                {orden.lote && <span className="ot-qr-lote">{orden.lote}</span>}
               </div>
+              {/* SVG generado en el servidor, no entra nada del usuario. */}
+              <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
             </div>
           </div>
 

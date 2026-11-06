@@ -63,42 +63,51 @@
 }
 
 /* ══ CABECERA ════════════════════════════════════════════════
-   Tres columnas, como el papel: logo · título · (QR + fecha).
-   Si acá hay menos columnas que bloques, el último se cae a una
-   segunda fila y la cabecera duplica su alto. */
+   La ÚNICA parte con color de toda la hoja. El cuerpo es el papel
+   calcado —tinta negra sobre blanco— y la cabecera es la que dice
+   de quién es esta hoja: marca, máquina y número.
+
+   Va de borde a borde, comiéndose el padding de la página con
+   márgenes negativos, así la banda llega al filo como en una hoja
+   membretada de verdad y no como un recuadro pegado adentro. */
 .ot-header {
+  background: #0f0c44;
+  color: #fff;
+  margin: -13mm -12mm 0;
+  padding: 9mm 12mm 7mm;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
-  padding-bottom: 9px;
+  gap: 14px;
 }
 
-/* El archivo del logo es BLANCO sobre transparente —está hecho para la
-   cabecera azul de la app— y en papel blanco no se ve. `invert` lo pasa a
-   negro sin necesidad de un segundo archivo. */
-.ot-logo { height: 46px; width: auto; display: block; filter: invert(1); }
+/* El archivo del logo YA es blanco sobre transparente: está hecho
+   para fondo oscuro. Sobre la banda azul va tal cual. */
+.ot-logo { height: 52px; width: auto; display: block; }
 
 .ot-titulo-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 5px;
 }
 
-/* «ORDEN DE TRABAJO» con su raya abajo, igual que el papel. */
+/* «ORDEN DE TRABAJO» con su raya abajo, igual que el papel — pero
+   la raya en amarillo de marca, que es el único acento de la hoja. */
 .ot-titulo {
   font-size: 23px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  text-indent: 0.12em;
   text-transform: uppercase;
-  border-bottom: 2px solid #000;
-  padding: 0 4px 2px;
+  border-bottom: 2.5px solid #f5eb4a;
+  padding: 0 4px 3px;
   line-height: 1.1;
+  color: #fff;
 }
 
-/* La máquina, debajo del título y subrayada: en el papel el
-   formulario se llama directamente «VENUS». Es lo primero que mira
+/* La máquina: la palabra sola, en amarillo. En el papel el
+   formulario se llama directamente «VENUS» y es lo primero que mira
    el operario para saber si la hoja es suya.
 
    `text-indent` compensa el espacio que el tracking deja colgando
@@ -107,13 +116,12 @@
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-indent: 0.16em;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
   text-transform: uppercase;
-  border-bottom: 2px solid #000;
-  padding: 0 4px 2px;
+  color: #f5eb4a;
   line-height: 1.15;
 }
 
@@ -124,66 +132,68 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-indent: 0;
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
-/* El número de orden, arriba a la derecha donde el papel tiene el
-   __/__/__ escrito a mano, y la fecha debajo. */
+/* Número, fecha y QR, a la derecha. */
 .ot-header-der {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ot-header-num {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 3px;
 }
 
 .ot-numero {
-  font-size: 22px;
+  font-size: 25px;
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  color: #fff;
 }
 
 .ot-fecha {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-/* El QR, pegado a la cabecera. El margen blanco de alrededor no es
-   decoración: sin él el lector no engancha el código aunque en
-   pantalla se vea perfecto. */
-.ot-qr { display: flex; align-items: center; gap: 8px; }
-
-.ot-qr-img {
-  background: #fff;
-  padding: 3px;
-  border: 1.3px solid #000;
-  line-height: 0;
-}
-
-.ot-qr-img svg { width: 62px; height: 62px; display: block; }
-
-.ot-qr-texto {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-width: 62px;
+  color: rgba(255,255,255,.75);
 }
 
 .ot-qr-label {
   font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  line-height: 1.2;
+  line-height: 1.25;
+  text-align: right;
+  color: rgba(255,255,255,.75);
+  max-width: 62px;
 }
 
 .ot-qr-lote {
-  font-size: 8px;
-  font-weight: 700;
+  font-size: 8.5px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  color: #f5eb4a;
 }
+
+/* El QR SIEMPRE negro sobre blanco, aunque esté sobre la banda
+   azul: el margen blanco de alrededor no es decoración, sin él el
+   lector no engancha el código aunque en pantalla se vea perfecto. */
+.ot-qr-img {
+  background: #fff;
+  padding: 4px;
+  border-radius: 2px;
+  line-height: 0;
+}
+
+.ot-qr-img svg { width: 64px; height: 64px; display: block; }
 
 /* ══ CLIENTE Y PRODUCTO ══════════════════════════════════════
    Dos renglones con raya hasta el borde, como en el papel. */
