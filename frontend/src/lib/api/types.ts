@@ -526,6 +526,78 @@ export interface EtapaTablero {
   ordenes: OrdenEnMaquina[]
 }
 
+/**
+ * El PRIMER paso del flujo: la orden está emitida y todavía no arrancó.
+ *
+ * Son las órdenes en estado «borrador» o «pendiente»: ya se cargaron en
+ * Órdenes de Trabajo pero nadie escaneó el QR en ninguna máquina, así que no
+ * entraron a la planta. La lista viene con tope (las 20 más recientes), así
+ * que su largo NO es el total: para eso está `resumen.pendientes_total`.
+ */
+export interface OrdenPendiente {
+  id: number
+  numero: string
+  lote: string | null
+  cliente: string | null
+  producto: string | null
+  cantidad: number | null
+  /**
+   * Cuándo se EMITIÓ la orden (`created_at`), no cuándo se editó: de una orden
+   * que todavía no arrancó lo que importa es hace cuánto que está esperando.
+   */
+  fecha: string | null
+}
+
+/**
+ * El último paso del flujo: la orden ya salió de la planta.
+ *
+ * Es el único paso de producción que no sale de un escaneo del QR: una orden
+ * llega acá cuando alguien le pone estado «completada» desde Órdenes de
+ * Trabajo.
+ */
+export interface OrdenFinalizada {
+  id: number
+  numero: string
+  lote: string | null
+  cliente: string | null
+  producto: string | null
+  cantidad: number | null
+  /**
+   * Cuándo se cerró: día suelto («2026-11-08») o momento ISO completo con
+   * offset («2026-11-08T01:00:00+00:00»), que es lo que manda hoy el backend.
+   * El momento viene en UTC: hay que pasarlo a hora local antes de mostrar el
+   * día, o el turno noche aparece con la fecha del día siguiente.
+   */
+  fecha: string | null
+}
+
+/** Una fila del depósito: lo que hay de un producto terminado contra su mínimo */
+export interface StockTableroItem {
+  id: number
+  codigo: string | null
+  nombre: string
+  unidad: string | null
+  stock_actual: number | null
+  stock_minimo: number | null
+  bajo_minimo: boolean
+  cliente_nombre: string | null
+}
+
+/**
+ * El depósito, resumido para el tablero.
+ *
+ * `terminado` viene recortado (los bajo mínimo primero, el resto por nombre),
+ * así que su largo NO es el total: para eso está `total_items`.
+ *
+ * `bajo_minimo` cuenta items de cualquier tipo —materia prima incluida—, no
+ * sólo los de `terminado`: lo que frena la planta es que falte el insumo.
+ */
+export interface StockTablero {
+  terminado: StockTableroItem[]
+  total_items: number
+  bajo_minimo: number
+}
+
 export interface TableroProduccion {
   /** Columnas por máquina — hoy sólo las impresoras */
   maquinas: MaquinaTablero[]
@@ -533,7 +605,32 @@ export interface TableroProduccion {
   etapas: EtapaTablero[]
   /** En producción pero sin escanear: no se sabe dónde están */
   sin_ubicar: OrdenSinUbicar[]
-  resumen: { ocupadas: number; libres: number; en_etapas: number; sin_ubicar: number }
+  /**
+   * Paso 1: las emitidas que todavía no arrancaron (borrador o pendiente), las
+   * 20 más recientes primero. Viene con tope — el total está en
+   * `resumen.pendientes_total`.
+   */
+  pendientes: OrdenPendiente[]
+  /** Paso 5: las completadas, las más recientes primero */
+  finalizadas: OrdenFinalizada[]
+  /** El depósito de producto terminado, después del último paso */
+  stock: StockTablero
+  resumen: {
+    ocupadas: number
+    libres: number
+    en_etapas: number
+    sin_ubicar: number
+    /** Cuántas trae `pendientes` — la lista viene con tope, así que NO es el total */
+    pendientes: number
+    /** Cuántas órdenes sin arrancar hay en total, sin el tope: esto es lo que se muestra */
+    pendientes_total: number
+    /** Cuántas trae `finalizadas` — la lista viene con tope, así que NO es el total */
+    finalizadas: number
+    /** Cuántas órdenes completadas hay en total, sin el tope: esto es lo que se muestra */
+    finalizadas_total: number
+    /** Mismo número que `stock.bajo_minimo` */
+    bajo_minimo: number
+  }
 }
 
 export interface EscaneoEtapaRequest {

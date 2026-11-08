@@ -7,29 +7,19 @@
  * escaneos del QR) y el mismo refresco. Acá se muestra apretado: lo que
  * importa de un vistazo es cuántas máquinas están trabajando y si hay algún
  * pedido que nadie ubicó.
+ *
+ * El dato lo trae `useTablero()`, compartido con `OrdenesPorEtapa`: los dos
+ * bloques se dibujan juntos en la pestaña «Producción» y antes cada uno pedía
+ * el MISMO endpoint cada 15 s por su cuenta — 8 pedidos por minuto y dos cold
+ * starts de Railway, con los dos bloques pudiendo mostrar instantes distintos
+ * de la misma planta.
  */
-import { api } from "@/lib/api"
-import type { TableroProduccion } from "@/lib/api/types"
 import { ArrowRight, CircleSlash, Factory } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
-
-const REFRESCO_MS = 15_000
+import { useTablero } from "@/lib/use-tablero"
 
 export function PlantaEnVivo() {
-  const [datos, setDatos] = useState<TableroProduccion | null>(null)
-  const [falló, setFalló] = useState(false)
-
-  useEffect(() => {
-    let vivo = true
-    const traer = () =>
-      api.produccion.tablero()
-        .then((d) => { if (vivo) { setDatos(d); setFalló(false) } })
-        .catch(() => { if (vivo) setFalló(true) })
-    traer()
-    const t = setInterval(traer, REFRESCO_MS)
-    return () => { vivo = false; clearInterval(t) }
-  }, [])
+  const { datos, falló } = useTablero()
 
   // Si el tablero no responde, el bloque no aparece: es información de apoyo,
   // no vale romperle el dashboard a nadie por esto.

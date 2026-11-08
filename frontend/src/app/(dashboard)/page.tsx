@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { OrdenesPorEtapa } from "./_components/ordenes-por-etapa"
 import { PlantaEnVivo } from "./_components/planta-en-vivo"
 import Image from "next/image"
 import Link from "next/link"
@@ -179,7 +180,14 @@ function smoothPath(p: number[][]) {
 }
 
 /** Facturación mensual como barras legibles: valor arriba de cada barra,
- *  mes abajo, y el mes actual (último) destacado en dorado. */
+ *  mes abajo, y el mes actual (último) destacado en dorado.
+ *
+ *  Va dentro de `.ed-island--brand`, que es `bg-brand` (#292d96) plano, así que
+ *  el texto destacado usa `text-brand-yellow` y no `text-gold`: `text-gold`
+ *  resuelve a `--gold-text`, que en tema claro es oliva (#8a7200) y da 2.35:1
+ *  sobre el navy — abajo del 4.5 de AA. `--etiplast-500` (#f5eb4a) es el mismo
+ *  en los dos temas y da 8.83:1. `bg-gold` (fill) sí puede quedar: usa
+ *  `--gold`, que no cambia entre temas. */
 function FacturacionBars({ data, height = 172, hotMes }: { data: { mes: string; monto: number }[]; height?: number; hotMes?: string }) {
   if (!data.some((d) => d.monto > 0)) {
     return <div className="flex items-center justify-center text-sm text-white/60" style={{ height }}>Aún no hay facturación para graficar.</div>
@@ -210,12 +218,12 @@ function FacturacionBars({ data, height = 172, hotMes }: { data: { mes: string; 
                 }`}
                 style={{ height: `${pct}%`, animationDelay: `${i * 70}ms` }}
               >
-                <span className={`absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[13px] font-bold tabular-nums ${hot ? "text-gold" : "text-white/90"}`}>
+                <span className={`absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[13px] font-bold tabular-nums ${hot ? "text-brand-yellow" : "text-white/90"}`}>
                   {d.monto > 0 ? `$${compacto.format(d.monto)}` : "—"}
                 </span>
               </div>
             </div>
-            <span className={`mt-2 text-[12px] font-bold uppercase tracking-wide ${hot ? "text-gold" : "text-white/60"}`}>{mes}</span>
+            <span className={`mt-2 text-[12px] font-bold uppercase tracking-wide ${hot ? "text-brand-yellow" : "text-white/70"}`}>{mes}</span>
           </div>
         )
       })}
@@ -314,9 +322,23 @@ export default function DashboardPage() {
   const nf = new Intl.NumberFormat("es-AR")
   const money = (v?: number | null) => "$ " + nf.format(Math.round(v ?? 0))
   const est = stats?.ordenes_por_estado ?? {}
-  const draft = est.borrador ?? 0, pending = est.pendiente ?? 0, inProgress = est.en_proceso ?? 0, completed = est.completada ?? 0
-  const totalOrdenes = Object.values(est).reduce((a, b) => a + (b || 0), 0)
-  const stagePct = (v: number) => (totalOrdenes ? Math.round((v / totalOrdenes) * 100) : 0)
+  // Los CINCO estados que manda el backend (ver `ESTADOS` en
+  // `backend/routers/dashboard.py`), en el orden en que recorre una orden.
+  //
+  // El total se calcula sumando ESTA lista y el chip cuenta sus elementos, así
+  // que el número grande y el desglose cierran por construcción. Antes el total
+  // era `Object.values(est)` —los cinco estados, canceladas incluidas— pero el
+  // chip decía «4 estados» y sólo se graficaban cuatro barras: el total no
+  // cerraba con el desglose, y si el backend agregara un sexto estado volvería
+  // a no cerrar sin que nadie se enterara.
+  const porEstado = [
+    { label: "Borr.",  valor: est.borrador  ?? 0 },
+    { label: "Pend.",  valor: est.pendiente ?? 0 },
+    { label: "Prod.",  valor: est.en_proceso ?? 0 },
+    { label: "Listas", valor: est.completada ?? 0 },
+    { label: "Canc.",  valor: est.cancelada ?? 0 },
+  ]
+  const totalOrdenes = porEstado.reduce((a, e) => a + e.valor, 0)
 
   const totalMarcas = stats?.total_clientes ?? 0
   const pctConRs = totalMarcas ? Math.round(((totalMarcas - (stats?.marcas_sin_rs ?? 0)) / totalMarcas) * 100) : 0
@@ -531,50 +553,18 @@ export default function DashboardPage() {
       {/* ═══ PRODUCCIÓN ═══ */}
       {tab === "prod" && (
         <>
-          {/* Dónde está cada pedido ahora mismo. Va primero porque es el único
-              bloque que cambia solo durante el día: lo demás son acumulados. */}
+          {/* Los cinco pasos del recorrido de la orden, en vivo y abribles. Va primero
+              porque es la pregunta que trae a alguien a esta pestaña: dónde
+              está cada trabajo. Antes acá había un bloque inline que decía
+              «etapas» pero graficaba los estados de la orden. */}
+          <OrdenesPorEtapa />
+
+          {/* La misma planta, en lista plana y sin abrir nada: sirve para
+              barrer de un vistazo cuando hay varias máquinas ocupadas. Va
+              después de los pasos porque repite su dato. */}
           <PlantaEnVivo />
 
-          {/* Órdenes por etapa (stepper) — arriba de las cards */}
-          <section className="eti-in relative overflow-hidden rounded-3xl bg-brand p-5 text-white shadow-[0_30px_60px_-34px_rgba(41,45,150,.9)] sm:p-6" style={delay(0)}>
-            <div className="mb-5 flex items-end justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/70">Producción</p>
-                <h2 className="mt-1.5 text-[25px] font-display tracking-tight">Órdenes por etapa</h2>
-              </div>
-              <Link href="/ordenes" className="inline-flex items-center gap-1.5 border-b-2 border-gold pb-0.5 text-[13.5px] font-semibold text-white hover:text-gold">Ver órdenes <ArrowRight className="size-3.5" /></Link>
-            </div>
-            <div className="relative">
-              <div aria-hidden className="pointer-events-none absolute left-[12.5%] right-[12.5%] top-6 hidden h-[3px] rounded-full bg-gold xl:block" />
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { n: draft, label: "Borrador", state: "En preparación", pct: stagePct(draft), img: "/dashboard/kpis/draft-kpi-v2.png", alt: "Orden en borrador con lápiz y etiqueta" },
-                  { n: pending, label: "Pendientes", state: "En espera", pct: stagePct(pending), img: "/dashboard/kpis/pending-kpi-v2.png", alt: "Bobina pendiente junto a un reloj" },
-                  { n: inProgress, label: "En producción", state: "En máquina", pct: stagePct(inProgress), img: "/dashboard/kpis/production-kpi-v2.png", alt: "Cinta de etiquetas entre rodillos", active: true },
-                  { n: completed, label: "Completadas", state: "Producción cerrada", pct: stagePct(completed), img: "/dashboard/kpis/completed-kpi-v2.png", alt: "Bobina terminada con indicador verde" },
-                ].map((s, i) => (
-                  <div key={s.label} className="relative">
-                    <div className="relative z-20 flex justify-center">
-                      <span className="grid size-12 place-items-center rounded-full bg-gold font-display text-lg font-semibold text-brand shadow-[0_0_0_4px_rgba(245,235,74,.15)]">{i + 1}</span>
-                    </div>
-                    <div className="relative mt-4 min-h-[150px] overflow-visible rounded-2xl border border-white/10 bg-white/[0.06] p-5">
-                      <Image src={s.img} alt={s.alt} width={800} height={800} priority={s.active}
-                        className="pointer-events-none absolute -right-7 -top-9 z-10 h-[118px] w-auto select-none object-contain drop-shadow-[0_14px_24px_rgba(0,0,0,.5)]" />
-                      <span className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-white/55">{s.state}</span>
-                      <p className="relative mt-3 font-display text-[40px] font-semibold leading-none tabular-nums">{nf.format(s.n)}</p>
-                      <p className="relative mt-1.5 text-sm font-medium text-white/70">{s.label}</p>
-                      <div className="relative mt-4 flex items-center gap-3">
-                        <div className="h-px flex-1 bg-white/15" />
-                        <span className="text-[11px] font-bold tabular-nums text-gold">{s.pct}%</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* Órdenes activas + por etapa */}
+          {/* Órdenes activas + por estado */}
           <section className="grid gap-4 sm:grid-cols-2">
             <article className="stat-card eti-in flex min-h-[188px] flex-col p-6" style={delay(1)}>
               <div className="flex items-start justify-between gap-2">
@@ -596,14 +586,18 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
                   <span className={`${iconChip} bg-secondary text-primary-700 dark:text-primary-300`}><Workflow className="size-4" /></span>
-                  <p className={kpiLabel}>Órdenes por etapa</p>
+                  <p className={kpiLabel}>Órdenes por estado</p>
                 </div>
-                <span className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">4 etapas</span>
+                <span className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">{porEstado.length} estados</span>
               </div>
               <p className={kpiVal}>{nf.format(totalOrdenes)}</p>
-              <div className="mt-auto pt-3"><MiniBars values={[draft, pending, inProgress, completed]} hot={2} /></div>
-              <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Borr.</span><span>Pend.</span><span className="text-primary-700 dark:text-primary-300">Prod.</span><span>Listas</span>
+              <div className="mt-auto pt-3"><MiniBars values={porEstado.map((e) => e.valor)} hot={2} /></div>
+              <div className="mt-2 grid grid-cols-5 gap-1 text-center text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {porEstado.map((e) => (
+                  <span key={e.label} className={e.label === "Prod." ? "text-primary-700 dark:text-primary-300" : undefined}>
+                    {e.label}
+                  </span>
+                ))}
               </div>
             </article>
           </section>
@@ -685,7 +679,7 @@ export default function DashboardPage() {
               </div>
               <p className="relative mt-3.5 font-display text-[38px] font-bold leading-none tabular-nums">{nf.format(totalMarcas)}</p>
               <p className="relative mt-2 text-xs text-white/70">marcas en cartera</p>
-              <span className="relative mt-auto pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-gold">Etiplast</span>
+              <span className="relative mt-auto pt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-yellow">Etiplast</span>
             </article>
           </section>
 
