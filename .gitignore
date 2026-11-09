@@ -43,3 +43,8 @@ pnpm-debug.log*
 # historial para siempre y, si trae datos de clientes, los publica.
 *.sql
 backend/*.xlsx
+
+# El video de la demo no se versiona: son 14 MB que quedarian en el
+# historial para siempre y se regraban enteros cada vez. Ver
+# docs/tesis/DEMO-DESCRIPCION.md para el enlace de descarga.
+docs/tesis/*.mp4
