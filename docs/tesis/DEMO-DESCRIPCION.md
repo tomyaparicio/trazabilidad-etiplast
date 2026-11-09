@@ -4,9 +4,9 @@ Documento que acompaña al video del Entregable 4. Explica qué se ve en la
 demostración, qué requerimiento satisface cada parte, y cómo levantar el
 prototipo para verificarlo por cuenta propia.
 
-Para **grabar** el video, el guión cronometrado está en
-[`GUION-DEMO.md`](GUION-DEMO.md). Este documento explica el contenido; aquel
-explica la ejecución.
+El video **no lleva narración hablada**: cada escena se explica con un cartel
+en pantalla que enuncia qué se está mostrando y por qué importa. Se puede ver
+sin sonido, en cualquier equipo y sin auriculares.
 
 ### Dónde está el video
 
@@ -16,8 +16,7 @@ cada regrabación. Se publica aparte y se enlaza desde acá:
 
 > **Video de la demostración:** `(pegar acá el enlace de descarga)`
 
-Formato: MP4 (H.264), 1440×900, 5 min 29 s, sin audio. La narración se graba
-encima siguiendo el guión.
+Formato: MP4 (H.264), 1440×900, 5 min 51 s, sin audio.
 
 ---
 
