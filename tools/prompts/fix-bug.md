@@ -19,4 +19,4 @@ Hay un bug en el ERP Etiplast.
 [pegar error]
 ```
 
-Revisá el código relevante y corregí el problema siguiendo las convenciones del proyecto (ver `CLAUDE.md` y `frontend/src/CLAUDE.md`).
+Revisá el código relevante y corregí el problema siguiendo las convenciones del proyecto (ver las convenciones del proyecto en docs/).

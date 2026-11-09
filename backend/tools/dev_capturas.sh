@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Levanta el backend apuntado a la base DESCARTABLE de capturas, sin tocar el
 # backend/.env del entorno de desarrollo. La usa la configuración
-# "backend-capturas" de .claude/launch.json.
+# "backend-capturas" de la configuracion local de arranque.
 #
 #   core/database.py hace load_dotenv() SIN override, así que la variable de
 #   entorno le gana al .env. Por eso alcanza con exportarla acá.
