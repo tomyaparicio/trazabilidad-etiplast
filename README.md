@@ -1,6 +1,7 @@
-# Etiplast ERP
+# Trazabilidad Etiplast
 
-Sistema de trazabilidad y planificación para una fábrica de etiquetas plásticas.
+Sistema de trazabilidad y planificación predictiva para una industria de
+etiquetas plásticas.
 
 Trabajo Final de Grado · Ingeniería en Software · Universidad Siglo 21
 
