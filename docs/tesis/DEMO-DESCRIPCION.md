@@ -46,22 +46,24 @@ cosas. Todo lo demás, aunque funcione, se deja fuera del video.
 
 | # | Escena | Qué demuestra | RF |
 |---|--------|---------------|-----|
-| 1 | El formulario de papel que se usa hoy | El punto de partida: no tiene campo para la fecha comprometida | — |
-| 2 | Alta de la orden; al elegir el producto la especificación se completa sola | La especificación no se vuelve a transcribir a mano | RF-03, RF-04 |
-| 3 | Carga de la **fecha comprometida** | El dato que no existía en ningún soporte | **RF-05** |
-| 4 | Impresión de la ficha: recuadro «Entregar:» y código QR | El plazo llega al operario en la máquina | RF-06 |
-| 5 | Escaneo del QR desde el teléfono: extrusión | El registro del paso por la planta, sin cargar nada a mano | RF-07, RF-10 |
-| 6 | Tablero de planta: la orden aparece ubicada | La oficina ve dónde está el pedido mientras se produce | RF-12 |
-| 7 | Escaneo de impresión, eligiendo máquina | Las impresoras no son intercambiables y la etapa lo refleja | RF-08 |
-| 8 | Escaneo de troquelado | | RF-09 |
-| 9 | Intento de cierre **sin verificar**: el sistema lo rechaza | El control del responsable es una condición, no una sugerencia | **RF-11** |
-| 10 | Verificación y cierre | Queda constancia de quién verificó y cuándo | RF-11, RF-10 |
-| 11 | Búsqueda por número de lote | Reconstrucción del pedido: máquina, operario y fecha de cada etapa | RF-12 |
-| 12 | Reportes · tarjeta «A tiempo» | El porcentaje de cumplimiento, con la muestra sobre la que se calcula | **RF-14** |
-| 13 | Reportes · «Cuándo termina cada orden» | Fecha estimada de fin y atraso proyectado por orden abierta | **RF-13**, RF-14 |
-| 14 | Reportes · «Dónde se acumula el trabajo» | El cuello de botella por etapa, máquina y período | **RF-15** |
-| 15 | Marcar una orden para rehacer, con motivo | El retrabajo queda registrado sin borrar la producción original | **RF-16** |
-| 16 | Roles y permisos · auditoría | Cada puesto ve lo suyo; toda acción queda registrada | RF-20, RF-21 |
+| 1 | Placa de apertura y el enunciado del problema | El circuito se gestiona en papel: cuando la orden entra a la planta, deja de existir para la oficina | — |
+| 2 | **Panel de control · pestaña Producción**: la tira de etapas y «Qué hay en la planta» | En qué paso está parada cada orden y cuáles llevan más tiempo esperando | **RF-12** |
+| 3 | Listado de órdenes de trabajo | Cada pedido con su número, su estado y su etapa | RF-12 |
+| 4 | La **fecha comprometida** en la ficha de la orden | El dato que no registraba ningún formulario del circuito | **RF-05** |
+| 5 | Verificación del responsable antes del cierre | El sistema no da por terminada una orden que nadie revisó; queda quién verificó y cuándo | **RF-11** |
+| 6 | La ficha impresa: recuadro «Entregar:» y código QR | El plazo llega al operario en la máquina, en papel | RF-06 |
+| 7 | Escaneo desde el teléfono: impresión, eligiendo máquina | El paso por la planta se registra sin cargar nada a mano; el operario sale de la sesión | RF-07, RF-08, RF-10 |
+| 8 | Tablero de planta | La oficina ve dónde está el pedido mientras se produce | RF-12 |
+| 9 | Reportes · «A tiempo» | El porcentaje de cumplimiento, junto a la muestra sobre la que está medido | **RF-14** |
+| 10 | Reportes · «Cuándo termina cada orden» | Fecha estimada de fin y atraso proyectado, con los tiempos reales de las cerradas | **RF-13**, RF-14 |
+| 11 | Reportes · «Dónde se traba la planta» | El cuello de botella por etapa, máquina y período | **RF-15** |
+| 12 | Marcar una orden para rehacer, con motivo | El retrabajo abre una orden nueva y conserva la producción original | **RF-16** |
+| 13 | Placa de cierre: el circuito completo | Carga con plazo · seguimiento por QR · verificación · cierre · medición | — |
+
+El video demuestra **once requerimientos**: RF-05 a RF-08, RF-10 a RF-16.
+No es el alcance completo del sistema, sino el núcleo del argumento: el
+circuito de la orden de trabajo de punta a punta. Lo que queda fuera está en
+el apartado siguiente.
 
 Los seis requerimientos en negrita son los que el documento declaraba y el
 prototipo no implementaba hasta esta entrega.
@@ -83,6 +85,20 @@ video porque excede el núcleo y diluiría el argumento en seis minutos:
   cada orden.
 - **Stock** con aviso de mínimo, el ABM completo de clientes y la planificación
   por máquina.
+
+Y estas cuatro, que sí pertenecen al circuito de la orden y están
+implementadas y cubiertas por los tests, pero no se filmaron para no estirar
+el video más allá de los seis minutos:
+
+- **Alta de la orden con la especificación autocompletada** al elegir el
+  producto del cliente (RF-03, RF-04). El video entra con las órdenes ya
+  cargadas.
+- **Escaneo de extrusión y de troquelado** (RF-09). Se filma sólo el de
+  impresión, que es el único que además pide elegir máquina.
+- **El intento de cierre rechazado** por falta de verificación. El video
+  muestra la verificación, no el rechazo.
+- **Roles, permisos y auditoría** (RF-20, RF-21). Se ven de refilón en el menú
+  lateral, pero no hay escena dedicada.
 
 ---
 

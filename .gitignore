@@ -44,7 +44,22 @@ pnpm-debug.log*
 *.sql
 backend/*.xlsx
 
-# El video de la demo no se versiona: son 14 MB que quedarian en el
-# historial para siempre y se regraban enteros cada vez. Ver
-# docs/tesis/DEMO-DESCRIPCION.md para el enlace de descarga.
-docs/tesis/*.mp4
+# ─────────────────────────────────────────────────────────────────────────
+# docs/tesis NO se versiona. Este repositorio esta pensado para ser PUBLICO
+# y ahi adentro hay cosas que no se publican:
+#
+#   · el texto del TFG, que indexado antes de entregarlo hace que el
+#     detector de similitud del campus marque el trabajo propio como copia;
+#   · el relevamiento de la empresa y sus documentos internos;
+#   · el video de la demo, 14 MB de binario que se regraban enteros ante
+#     cualquier correccion (el enlace de descarga va en el instructivo).
+#
+# El historial ya fue purgado de `backend/data.xlsx` —la cartera real de
+# clientes, con CUIT, domicilio y telefono— y de los archivos de tesis que
+# habian quedado commiteados. Si algo de eso vuelve a entrar, vuelve a
+# quedar publico para siempre: no saques esta regla.
+#
+# La unica excepcion es el instructivo de la demostracion, que es parte de
+# lo que se entrega y no tiene datos de nadie.
+docs/tesis/
+!docs/tesis/DEMO-DESCRIPCION.md
