@@ -61,5 +61,5 @@ backend/*.xlsx
 #
 # La unica excepcion es el instructivo de la demostracion, que es parte de
 # lo que se entrega y no tiene datos de nadie.
-docs/tesis/
+docs/tesis/*
 !docs/tesis/DEMO-DESCRIPCION.md
