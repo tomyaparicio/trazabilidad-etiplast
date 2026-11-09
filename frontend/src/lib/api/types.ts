@@ -174,6 +174,24 @@ export type OrdenTrabajo = {
   fecha_troquelado: string | null
   fecha_entrega: string | null
 
+  // Cierre — lo llena el cuarto escaneo, el que saca la orden de la planta
+  /**
+   * Momento del cierre: ISO completo con offset («2026-11-08T01:00:00+00:00»),
+   * NO un día suelto como las `fecha_*` de las etapas. La columna es
+   * TIMESTAMPTZ porque el tablero muestra «hace cuánto» y con un día suelto no
+   * se puede.
+   *
+   * Formatealo con `fechaCorta`/`desdeHace` de `@/lib/fechas`, que lo pasan a
+   * hora local. Cortar el string a mano mostraría el día de Greenwich: una
+   * orden cerrada el viernes a las 22 ART diría sábado.
+   */
+  fecha_cierre: string | null
+  /**
+   * Quién escaneó el cierre. Lo escribe el backend desde el token, nunca algo
+   * que venga en el request — es la garantía que protege ese endpoint.
+   */
+  operador_cierre: string | null
+
   cantidad: number | null
   total_final: number | null
   observaciones: string | null
@@ -480,6 +498,21 @@ export type Trazabilidad = {
 
 export type EtapaProduccion = "extrusion" | "impresion" | "troquelado"
 
+/**
+ * Lo que acepta el escaneo del QR: las tres etapas + el cierre.
+ *
+ * `finalizado` está ACÁ y no dentro de `EtapaProduccion` a propósito, igual que
+ * en el backend (`ETAPAS_PRODUCCION` sigue siendo de tres):
+ *
+ *  - No es una etapa de producción: no ocupa máquina ni tiene columnas
+ *    `fecha_finalizado`/`operador_finalizado` — el cierre escribe
+ *    `fecha_cierre` y `operador_cierre`. Todo lo que resuelve una columna con
+ *    `fecha_${etapa}` se rompería.
+ *  - `OrdenEnMaquina.etapa` y `EtapaTablero.etapa` son lugares donde la orden
+ *    está EN la planta. Una orden finalizada ya salió.
+ */
+export type EtapaEscaneable = EtapaProduccion | "finalizado"
+
 export interface MaquinaTablero {
   id: number
   codigo: string | null
@@ -551,9 +584,10 @@ export interface OrdenPendiente {
 /**
  * El último paso del flujo: la orden ya salió de la planta.
  *
- * Es el único paso de producción que no sale de un escaneo del QR: una orden
- * llega acá cuando alguien le pone estado «completada» desde Órdenes de
- * Trabajo.
+ * Una orden llega acá cuando queda en estado «completada», por dos caminos: el
+ * cuarto escaneo del QR (`etapa: "finalizado"`, que además le escribe
+ * `fecha_cierre` y `operador_cierre`) o la edición a mano desde Órdenes de
+ * Trabajo, que sigue existiendo para la oficina.
  */
 export interface OrdenFinalizada {
   id: number
@@ -567,6 +601,11 @@ export interface OrdenFinalizada {
    * offset («2026-11-08T01:00:00+00:00»), que es lo que manda hoy el backend.
    * El momento viene en UTC: hay que pasarlo a hora local antes de mostrar el
    * día, o el turno noche aparece con la fecha del día siguiente.
+   *
+   * Sale de `fecha_cierre` y, para las órdenes que se cerraron antes de que esa
+   * columna existiera, de `updated_at` — que es la fecha de la última edición,
+   * no la del cierre. Mientras queden órdenes viejas, este dato no es exacto
+   * para todas.
    */
   fecha: string | null
 }
@@ -759,8 +798,9 @@ export interface VersionProduccion {
 }
 
 export interface EscaneoEtapaRequest {
-  etapa: EtapaProduccion
-  /** Obligatoria sólo en impresión; en las otras etapas se ignora */
+  /** Las tres etapas o `finalizado`, que cierra la orden y la saca de la planta */
+  etapa: EtapaEscaneable
+  /** Obligatoria sólo en impresión; en las otras etapas y en el cierre se ignora */
   maquina_id?: number
   /** Sólo para la tablet compartida: quién está realmente en la máquina */
   operario?: string
@@ -771,8 +811,18 @@ export interface EscaneoEtapaResponse {
   numero: string
   lote: string | null
   estado_orden: string
-  etapa: EtapaProduccion
-  /** null en las etapas que no eligen máquina */
+  etapa: EtapaEscaneable
+  /** null en las etapas que no eligen máquina y en el cierre */
   maquina: { id: number; codigo: string | null; nombre: string; tipo: string | null } | null
   operario: string | null
+  /**
+   * Sólo en el cierre, y sólo cuando la orden no tiene NINGÚN pase de planta.
+   *
+   * Significa una de dos cosas y las dos importan: o los operarios nunca
+   * escanearon —y el tablero estuvo mintiendo todo el pedido— o la orden nunca
+   * se produjo. El backend deja cerrar igual (la oficina cierra entregas hechas
+   * con stock) y manda esto para que la pantalla lo diga EN EL MOMENTO, que es
+   * el único en que alguien puede averiguar qué pasó. Null en todo el resto.
+   */
+  advertencia: string | null
 }
