@@ -70,6 +70,23 @@ class OrdenTrabajo(Base):
     # — Control de calidad —
     control_calidad              = Column(Text)
 
+    # — Cierre: el 5to paso del recorrido (escaneo de `finalizado`) —
+    #
+    # TIMESTAMPTZ y no DATE como las `fecha_*` de abajo: el tablero muestra
+    # HACE CUÁNTO se cerró, y con el día solo no se puede.
+    #
+    # Y columna propia y no `updated_at`: esa la corre cualquier edición
+    # posterior, así que corregirle una medida a una orden cerrada el mes
+    # pasado la mostraba como recién cerrada. Esta la escribe el escaneo del
+    # cierre y nada más la vuelve a tocar.
+    #
+    # Nullable porque las órdenes cerradas ANTES de que existiera la columna no
+    # la tienen, y la fecha de su cierre no se puede inventar.
+    fecha_cierre                 = Column(DateTime(timezone=True))
+    # Quién escaneó el cierre. Sale del token, nunca del request (ver
+    # `registrar_etapa` en routers/ordenes.py).
+    operador_cierre              = Column(String(150))
+
     # — Fechas por etapa —
     fecha_diseno                 = Column(Date)
     fecha_preprensa              = Column(Date)
@@ -168,6 +185,9 @@ class OrdenTrabajo(Base):
             "operador_troquelado":       self.operador_troquelado,
             # Control de calidad
             "control_calidad":           self.control_calidad,
+            # Cierre (paso 5): cuándo y quién la dio por terminada
+            "fecha_cierre":              self.fecha_cierre.isoformat()     if self.fecha_cierre     else None,
+            "operador_cierre":           self.operador_cierre,
             # Fechas por etapa
             "fecha_diseno":              self.fecha_diseno.isoformat()     if self.fecha_diseno     else None,
             "fecha_preprensa":           self.fecha_preprensa.isoformat()  if self.fecha_preprensa  else None,
@@ -233,6 +253,25 @@ ESTADOS_PASE = ("planificada", "en_curso", "terminada")
 # distintas, así que el operario elige. En extrusión y troquelado las máquinas
 # son intercambiables — alcanza con saber que la etapa pasó.
 ETAPAS_CON_MAQUINA = ("impresion",)
+
+# El cierre: el 5to paso del recorrido, el escaneo que da la orden por
+# terminada. Se escanea con el MISMO QR —la ficha impresa no cambia, la etapa
+# se elige en la pantalla— pero NO es una etapa de producción:
+#
+#   - no se hace en ninguna máquina,
+#   - no tiene `fecha_finalizado` ni `operador_finalizado` en la ficha: va a
+#     `fecha_cierre` y `operador_cierre`, que son columnas propias,
+#   - y no se le hace control de calidad (`ETAPAS_VALIDAS` en routers/calidad.py).
+ETAPA_CIERRE = "finalizado"
+
+# Lo que el escaneo del QR acepta.
+#
+# Separada de `ETAPAS_PRODUCCION` a propósito, y no es cosmética: esa tupla la
+# consumen el control de calidad y el patrón `operador_{etapa}` /
+# `fecha_{etapa}` de la ficha, que para el cierre NO tienen columna. Ampliarla
+# haría que el cierre pasara por validaciones y por un `setattr` que se irían a
+# atributos inexistentes — el dato se perdería sin un solo error.
+ETAPAS_ESCANEABLES = (*ETAPAS_PRODUCCION, ETAPA_CIERRE)
 
 
 class PlanProduccion(Base):

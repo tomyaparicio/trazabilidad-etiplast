@@ -523,6 +523,147 @@ def test_la_finalizada_sin_marca_de_cierre_queda_al_fondo(api, cliente_id, crear
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# La fecha del cierre: `fecha_cierre`, no la última edición
+#
+# `updated_at` era lo mejor que había sin agregar una columna, pero NO es la
+# fecha de cierre: la mueve cualquier edición posterior. Corregirle una medida
+# a una orden cerrada el mes pasado la mostraba como recién cerrada, arriba de
+# todo, justo en la lista que se mira para saber qué salió hoy.
+#
+# Ahora el cierre tiene su propia marca, que la escribe el escaneo de
+# `finalizado` y nada más vuelve a tocar. `updated_at` queda de respaldo para
+# las órdenes que se cerraron ANTES de que existiera la columna.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _cuando(fila) -> datetime:
+    """La fecha que el tablero muestra, parseada a instante comparable."""
+    return datetime.fromisoformat(fila["fecha"])
+
+
+def test_la_fecha_de_la_finalizada_es_el_cierre_y_no_la_ultima_edicion(
+    api, cliente_id, crear_orden
+):
+    """Una orden cerrada hace tres días y editada hoy sigue diciendo tres días."""
+    cierre = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(days=3)
+    ot = crear_orden(
+        cliente_id, "PYTEST-TB-CI-EDIT",
+        fecha_cierre=cierre,
+        updated_at=datetime.now(timezone.utc),   # la edición de después
+    )
+
+    f = _finalizada(api.get("/api/produccion/tablero").json(), ot)
+    assert _cuando(f) == cierre
+
+
+def test_la_finalizada_de_antes_de_la_columna_conserva_su_fecha(
+    api, cliente_id, crear_orden
+):
+    """Las 3 órdenes que ya están cerradas en producción no tienen
+    `fecha_cierre` y no se la puede inventar: sin el `coalesce` quedarían sin
+    fecha y, en un DESC, los NULOS van PRIMERO — se treparían al tope."""
+    edicion = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(days=5)
+    ot = crear_orden(cliente_id, "PYTEST-TB-CI-VIEJA", updated_at=edicion)
+
+    f = _finalizada(api.get("/api/produccion/tablero").json(), ot)
+    assert _cuando(f) == edicion
+
+
+def test_las_finalizadas_ordenan_por_la_misma_marca_que_muestran(
+    api, cliente_id, crear_orden
+):
+    """La lista no puede estar ordenada por una fecha distinta de la que exhibe.
+
+    El caso está armado para que el orden por `updated_at` —el de antes— y el
+    desempate por `id DESC` den los DOS el resultado equivocado:
+
+      - `reciente`: cerrada hace 1 h. Id MENOR.
+      - `vieja`:    cerrada hace 3 h y editada recién, así que su `updated_at`
+                    es el más alto de las dos. Id MAYOR.
+
+    Por cierre va [reciente, vieja]; por `updated_at` o por id, [vieja, reciente].
+    """
+    ahora = datetime.now(timezone.utc).replace(microsecond=0)
+    reciente = crear_orden(
+        cliente_id, "PYTEST-TB-CI-ORD-R",
+        fecha_cierre=ahora - timedelta(hours=1), updated_at=ahora - timedelta(hours=1),
+    )
+    vieja = crear_orden(
+        cliente_id, "PYTEST-TB-CI-ORD-V",
+        fecha_cierre=ahora - timedelta(hours=3), updated_at=ahora,
+    )
+    assert reciente < vieja, "los ids tienen que contradecir al orden esperado"
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    mias = [f for f in cuerpo["finalizadas"] if f["id"] in (reciente, vieja)]
+    assert [f["id"] for f in mias] == [reciente, vieja]
+    # Y las fechas que muestra bajan: si ordenara por otra marca, la lista
+    # saldría con las fechas desordenadas a la vista.
+    assert [_cuando(f) for f in mias] == sorted(
+        (_cuando(f) for f in mias), reverse=True
+    )
+
+
+def test_el_desde_del_paso_cinco_es_la_misma_marca_que_finalizadas(
+    api, cliente_id, crear_orden
+):
+    """Las dos vistas del paso 5 no pueden discrepar: es el mismo hecho."""
+    cierre = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(days=2)
+    ot = crear_orden(
+        cliente_id, "PYTEST-TB-CI-DESDE",
+        fecha_cierre=cierre, updated_at=datetime.now(timezone.utc),
+    )
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _en_paso(cuerpo, "finalizado", ot)["desde"] == _finalizada(cuerpo, ot)["fecha"]
+    assert _cuando(_finalizada(cuerpo, ot)) == cierre
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# El escaneo de cierre visto desde el tablero
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_la_orden_finalizada_por_escaneo_cae_en_el_paso_cinco(
+    api, cliente_id, maquinas
+):
+    """El paso 5 estaba vacío desde siempre porque nada lo llenaba: no había
+    forma de cerrar una orden que no fuera editarla a mano."""
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+
+    assert api.post(
+        f"/api/ordenes/{ot['id']}/etapa", json={"etapa": "finalizado"}
+    ).status_code == 201
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot["id"]) == ["finalizado"]
+    assert _finalizada(cuerpo, ot["id"])["fecha"]
+    # Y deja de ocupar la impresora: la orden salió de la planta.
+    assert _maquina(cuerpo, maquinas["PYTEST-TB-VENUS"])["orden"] is None
+    assert ot["id"] not in [o["id"] for o in cuerpo["sin_ubicar"]]
+
+
+def test_el_invariante_cierra_despues_de_finalizar_por_escaneo(
+    api, db_session, cliente_id, maquinas
+):
+    """El pase nuevo tiene una etapa que NO está en `ETAPAS_PRODUCCION`, así
+    que es exactamente la clase de fila que puede hacer caer una orden fuera de
+    los cinco pasos. `pasos_total + canceladas` tiene que seguir dando el total.
+    """
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+    cierre = api.post(f"/api/ordenes/{ot['id']}/etapa", json={"etapa": "finalizado"})
+    assert cierre.status_code == 201, cierre.text
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    resumen = cuerpo["resumen"]
+    assert resumen["pasos_total"] + resumen["canceladas"] == _total_ordenes(db_session)
+    assert resumen["pasos_total"] == sum(p["total"] for p in cuerpo["pasos"])
+    assert len(_donde_esta(cuerpo, ot["id"])) == 1
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # El depósito
 # ──────────────────────────────────────────────────────────────────────────────
 

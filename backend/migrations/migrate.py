@@ -1325,6 +1325,33 @@ MIGRATIONS_PLAN_SIN_MAQUINA = [
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# El escaneo de cierre: cuándo y quién dio la orden por terminada
+# ──────────────────────────────────────────────────────────────────────────────
+# El QR movía la orden por extrusión, impresión y troquelado y ahí se cortaba:
+# nada en el backend la ponía en `completada` salvo editarla a mano. Ahora hay
+# un escaneo más (`finalizado`), y necesita dos columnas propias.
+#
+# `fecha_cierre` es TIMESTAMPTZ y NO DATE como las `fecha_*` de etapa: el
+# tablero muestra «hace cuánto» se cerró y con el día solo no se puede.
+#
+# Y no se reaprovecha `updated_at`: cualquier edición posterior la corre hacia
+# adelante, así que corregirle una medida a una orden cerrada el mes pasado la
+# mostraba como recién cerrada. `updated_at` queda de respaldo en el tablero
+# para las órdenes cerradas antes de que existiera esta columna.
+#
+# Las dos son aditivas y nullables, así que no hay nada que convertir: las
+# órdenes ya cerradas se quedan sin cierre registrado, que es la verdad.
+# ──────────────────────────────────────────────────────────────────────────────
+
+MIGRATIONS_OT_CIERRE = [
+    ("OT: fecha_cierre (escaneo de finalizado)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMPTZ;"),
+    ("OT: operador_cierre (escaneo de finalizado)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS operador_cierre VARCHAR(150);"),
+]
+
+
 def _ensure_tracking_table(conn):
     """Tabla de control de migraciones ya aplicadas (para saltearlas en re-runs)."""
     conn.execute(text("""
@@ -1354,7 +1381,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE
 
     aplicadas = 0
     salteadas = 0

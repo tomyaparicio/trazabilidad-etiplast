@@ -12,6 +12,7 @@ from .clientes import RazonSocial, Cliente, ClienteUbicacion, ClienteContacto, C
 from .seguridad import User, Role, AuditLog, Notificacion
 from .produccion import (
     ETAPAS_PRODUCCION, ESTADOS_PASE, ETAPAS_CON_MAQUINA,
+    ETAPA_CIERRE, ETAPAS_ESCANEABLES,
     OrdenTrabajo, OrdenExtrusionBobina, PlanProduccion,
 )
 from .comercial import Presupuesto, PresupuestoItem, Factura, Remito, RemitoItem
@@ -39,6 +40,8 @@ __all__ = [
     "ETAPAS_PRODUCCION",
     "ESTADOS_PASE",
     "ETAPAS_CON_MAQUINA",
+    "ETAPA_CIERRE",
+    "ETAPAS_ESCANEABLES",
     "Presupuesto",
     "PresupuestoItem",
     "Factura",

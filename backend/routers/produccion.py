@@ -13,11 +13,12 @@ El tablero tiene dos mitades porque la planta tiene dos clases de etapa:
   - **Extrusión y troquelado** no: las máquinas son intercambiables → una
     columna por etapa, con los trabajos que están en ella.
 
-Alrededor de las tres etapas escaneables el tablero completa el recorrido con
-secciones que NO salen del escaneo: las **pendientes** (el 1er paso: la orden
-emitida que todavía no arrancó), las **finalizadas** (el 5to paso: la orden
-cerrada por la oficina) y el **depósito** (qué producto terminado hay y qué
-falta).
+Alrededor de las tres etapas de máquina el tablero completa el recorrido con
+las **pendientes** (el 1er paso: la orden emitida que todavía no arrancó, que
+no sale del escaneo justamente porque lo que la define es que nadie la
+escaneó), las **finalizadas** (el 5to paso: la orden cerrada, por el escaneo de
+`finalizado` o a mano desde la oficina) y el **depósito** (qué producto
+terminado hay y qué falta).
 
 El recorrido que numera esta pantalla tiene CINCO pasos —pendiente, extrusión,
 impresión, troquelado, finalizado—, y a propósito NO coincide con los ①②③ de la
@@ -55,10 +56,16 @@ ESTADOS_EN_PLANTA = ("en_proceso",)
 # nadie sabe dónde está, que es un problema. Ésta no arrancó, y eso es normal.
 ESTADOS_PENDIENTES = ("borrador", "pendiente")
 
-# El 5to paso del flujo de planta: finalizado. No es una etapa escaneable más
-# —el QR sigue teniendo tres pases y la ficha impresa no cambia— sino la orden
-# cerrada por la oficina (`ESTADOS_ORDEN` en routers/ordenes.py). El escaneo de
-# troquelado no cierra nada: haber troquelado no es haber entregado.
+# El 5to paso del flujo de planta: finalizado, o sea la orden `completada`
+# (`ESTADOS_ORDEN` en routers/ordenes.py).
+#
+# Ya no es sólo una decisión de la oficina: hay un escaneo propio para cerrar
+# (`ETAPA_CIERRE`, el 4to que puede hacer el QR). La ficha impresa igual no
+# cambia —sigue numerando los ①②③ pases de máquina— porque el cierre no se hace
+# en ninguna: la etapa se elige en la pantalla del escaneo.
+#
+# Lo que sigue sin cerrar nada son las tres etapas de planta: el escaneo de
+# troquelado no da la orden por terminada, haber troquelado no es haber entregado.
 ESTADO_FINALIZADA = "completada"
 
 # La orden cancelada no está en ninguna parte del recorrido: no se va a hacer.
@@ -106,6 +113,22 @@ CANCELADAS_TOTAL = (
     .where(OrdenTrabajo.estado == ESTADO_CANCELADA)
     .scalar_subquery()
 )
+
+# La marca del cierre, en UN solo lugar: la usan la fecha que se muestra, su
+# `ORDER BY` y el `desde` del paso 5. Ordenar por una marca distinta de la que
+# se exhibe deja la lista revuelta a la vista sin que nada más se rompa.
+#
+# `fecha_cierre` la escribe el escaneo de `finalizado` en el momento del cierre
+# y nada más la vuelve a tocar. `updated_at` NO sirve sola —era lo que había
+# antes—: cualquier edición posterior la corre, así que corregirle una medida a
+# una orden cerrada el mes pasado la mostraba como recién cerrada, arriba de
+# todo, justo en la lista que se mira para saber qué salió hoy.
+#
+# Pero queda de respaldo, porque las órdenes cerradas ANTES de que existiera la
+# columna no tienen `fecha_cierre` y su fecha de cierre no se puede inventar.
+# Sin el `coalesce` quedarían sin fecha y, en un DESC, Postgres pone los NULOS
+# PRIMERO: las más viejas se treparían al tope.
+MARCA_CIERRE = func.coalesce(OrdenTrabajo.fecha_cierre, OrdenTrabajo.updated_at)
 
 # Mismo criterio que `StockItem.to_dict()`: un stock nulo con mínimo cargado
 # está bajo mínimo. Se calcula en SQL una sola vez para que la bandera de cada
@@ -225,7 +248,7 @@ def _pasos(db: Session) -> list[dict]:
     # paso 5 aunque su último pase sea de impresión, o el tablero diría que
     # todavía está en la planta.
     ramas = (
-        (OrdenTrabajo.estado == ESTADO_FINALIZADA,     PASO_FINAL,     OrdenTrabajo.updated_at),
+        (OrdenTrabajo.estado == ESTADO_FINALIZADA,     PASO_FINAL,     MARCA_CIERRE),
         (OrdenTrabajo.estado.in_(ESTADOS_PENDIENTES),  PASO_INICIAL,   OrdenTrabajo.created_at),
         (etapa_conocida,                               ultimo.c.etapa, ultimo.c.desde),
     )
@@ -402,7 +425,10 @@ def tablero(
     # HACE CUÁNTO QUE ESTÁ ESPERANDO. Con `updated_at`, corregirle una medida a
     # una orden de hace un mes la haría figurar como recién emitida y taparía
     # justo el dato que se viene a buscar acá. En las finalizadas es al revés:
-    # ahí el hecho es el cierre, y el cierre lo marca `updated_at`.
+    # ahí el hecho es el cierre, y el cierre lo marca `fecha_cierre` (ver
+    # `MARCA_CIERRE`), que la escribe el escaneo de finalizado y después nadie
+    # mueve. `updated_at` quedó ahí sólo de respaldo, para las órdenes que se
+    # cerraron antes de que esa columna existiera.
     pendientes = [
         {
             "id":       o.id,
@@ -446,17 +472,21 @@ def tablero(
         if o.id not in ubicadas
     ]
 
-    # El 5to y último paso: las que ya salieron. Se muestran con `updated_at` y
-    # no con otra marca porque es la única que no depende de que alguien la
-    # escriba: la pone la base sola (`onupdate=now()`) en el mismo UPDATE que
-    # pasa el estado a «completada». `created_at` es cuándo se cargó el pedido
-    # —puede ser de meses antes, y es justo la marca que usan las pendientes,
-    # donde el hecho que importa es el otro—, `fecha_entrega` es una promesa al
-    # cliente (una fecha futura, no un hecho) y `fecha_troquelado` la escribe el
-    # escaneo de una etapa que no es el cierre, así que ni marca el final ni
-    # está siempre.
-    # `updated_at` tampoco es exacta: una edición posterior la corre. Es la
-    # mejor disponible sin agregar una columna, y agregarla pedía migración.
+    # El 5to y último paso: las que ya salieron. La fecha es `MARCA_CIERRE`, o
+    # sea el `fecha_cierre` que escribe el escaneo de `finalizado` con
+    # `updated_at` de respaldo para las que se cerraron antes de que existiera
+    # la columna (el porqué de las dos, en `MARCA_CIERRE`).
+    #
+    # Las otras marcas no sirven: `created_at` es cuándo se cargó el pedido
+    # —puede ser de meses antes, y es justo la que usan las pendientes, donde el
+    # hecho que importa es el otro—, `fecha_entrega` es una promesa al cliente
+    # (una fecha futura, no un hecho) y `fecha_troquelado` la escribe el escaneo
+    # de una etapa que no es el cierre, así que ni marca el final ni está
+    # siempre.
+    #
+    # La MISMA expresión viaja en el SELECT y en el ORDER BY a propósito: si se
+    # escribieran por separado podrían desalinearse, y una lista ordenada por
+    # una fecha distinta de la que muestra se ve revuelta sin más explicación.
     finalizadas = [
         {
             "id":       o.id,
@@ -465,16 +495,20 @@ def tablero(
             "cliente":  c.marca if c else None,
             "producto": p.nombre if p else None,
             "cantidad": o.cantidad,
-            "fecha":    o.updated_at.isoformat() if o.updated_at else None,
+            "fecha":    cerrada.isoformat() if cerrada else None,
         }
-        for o, c, p in (
-            db.query(OrdenTrabajo, Cliente, ClienteProducto)
+        for o, c, p, cerrada in (
+            db.query(
+                OrdenTrabajo, Cliente, ClienteProducto,
+                MARCA_CIERRE.label("cerrada"),
+            )
             .outerjoin(Cliente, Cliente.id == OrdenTrabajo.cliente_id)
             .outerjoin(ClienteProducto, ClienteProducto.id == OrdenTrabajo.cliente_producto_id)
             .filter(OrdenTrabajo.estado == ESTADO_FINALIZADA)
-            # Una orden migrada a mano puede no tener marca: al fondo, no
-            # arriba (Postgres pone los nulos primero en un DESC).
-            .order_by(nullslast(OrdenTrabajo.updated_at.desc()), OrdenTrabajo.id.desc())
+            # Una orden migrada a mano puede no tener ninguna de las dos
+            # marcas: al fondo, no arriba (Postgres pone los nulos primero en
+            # un DESC).
+            .order_by(nullslast(MARCA_CIERRE.desc()), OrdenTrabajo.id.desc())
             .limit(TOPE_FINALIZADAS)
             .all()
         )

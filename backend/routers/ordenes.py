@@ -5,7 +5,7 @@ CRUD completo de órdenes de trabajo con manejo de bobinas de extrusión.
 Genera números correlativos tipo OT-0001.
 """
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,8 +15,8 @@ from core.bloqueos import con_bloqueos
 from core.database import get_db
 from core.security import require_permiso, verify_token
 from models import (
-    ETAPAS_CON_MAQUINA, ETAPAS_PRODUCCION, Cliente, ClienteProducto, Maquina, OrdenExtrusionBobina,
-    OrdenTrabajo, PlanProduccion, User,
+    ETAPA_CIERRE, ETAPAS_CON_MAQUINA, ETAPAS_ESCANEABLES, Cliente, ClienteProducto, Maquina,
+    OrdenExtrusionBobina, OrdenTrabajo, PlanProduccion, User,
 )
 from schemas import EscaneoEtapaSchema, OrdenCreateSchema, OrdenUpdateSchema
 from services import auditoria
@@ -550,13 +550,20 @@ def registrar_etapa(
     Endpoint propio y no el PUT genérico a propósito: el PUT deja que el cliente
     mande cualquier `operador_*`, y la atribución de quién hizo el trabajo no
     puede salir del request.
+
+    El mismo QR cierra la orden: con `etapa="finalizado"` la saca de la máquina,
+    la pone en `completada` y firma el cierre. No es una etapa de planta (ver
+    `ETAPA_CIERRE` en models/produccion.py), así que no pide máquina y no
+    escribe en las columnas por etapa de la ficha, sino en `fecha_cierre` y
+    `operador_cierre`.
     """
     etapa = (payload.etapa or "").strip().lower()
-    if etapa not in ETAPAS_PRODUCCION:
+    if etapa not in ETAPAS_ESCANEABLES:
         raise HTTPException(
             status_code=400,
-            detail=f"Etapa inválida: {payload.etapa}. Son {', '.join(ETAPAS_PRODUCCION)}",
+            detail=f"Etapa inválida: {payload.etapa}. Son {', '.join(ETAPAS_ESCANEABLES)}",
         )
+    cierre = etapa == ETAPA_CIERRE
 
     orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()
     if not orden:
@@ -586,8 +593,26 @@ def registrar_etapa(
 
     hoy = date.today()
 
+    # Cerrar una orden que no tiene UN SOLO pase significa una de dos cosas, y
+    # las dos importan: o los operarios nunca escanearon —y entonces el tablero
+    # estuvo mintiendo todo el pedido— o la orden nunca se produjo. Se permite
+    # igual (la oficina puede cerrar una entrega hecha con stock), pero vuelve
+    # como `advertencia` para que la pantalla del escaneo lo diga EN EL MOMENTO,
+    # que es cuando se puede averiguar. Después nadie distingue esa orden de una
+    # que recorrió la planta entera. Se mira antes de agregar el pase del cierre.
+    advertencia = None
+    if cierre and not db.query(
+        db.query(PlanProduccion)
+        .filter(PlanProduccion.orden_trabajo_id == orden.id)
+        .exists()
+    ).scalar():
+        advertencia = (
+            "Se cierra sin ningún escaneo de planta: esta orden no registra "
+            "paso por extrusión, impresión ni troquelado."
+        )
+
     # Dos liberaciones, y las dos van ANTES de crear el pase nuevo:
-    #   - la orden suelta donde estaba (avanzó de etapa),
+    #   - la orden suelta donde estaba (avanzó de etapa, o se cerró),
     #   - y si esta etapa usa máquina, la máquina suelta lo que tuviera encima.
     filtros = [PlanProduccion.orden_trabajo_id == orden.id]
     if maquina is not None:
@@ -597,32 +622,65 @@ def registrar_etapa(
             filtro, PlanProduccion.estado == "en_curso",
         ).update({"estado": "terminada", "fecha_fin": hoy}, synchronize_session=False)
 
+    # El pase del cierre nace TERMINADO, y los de planta `en_curso`: un pase
+    # abierto significa «la orden ESTÁ ahí ahora» (ver ESTADOS_PASE), y la orden
+    # cerrada no está en ninguna parte. Dejarlo abierto la mostraría ocupando un
+    # lugar para siempre y le ensuciaría el contador de pases abiertos a
+    # `/api/produccion/version`.
     pase = PlanProduccion(
         orden_trabajo_id=orden.id,
         maquina_id=maquina.id if maquina else None,
         etapa=etapa,
-        estado="en_curso",
+        estado="terminada" if cierre else "en_curso",
         fecha_inicio=hoy,
+        fecha_fin=hoy if cierre else None,
         notas=(payload.notas or None),
         created_by=user.get("id"),
     )
     db.add(pase)
 
-    # La ficha de siempre se sigue llenando: `fecha_*`, `operador_*` y
-    # `*_maquina` son los campos que hoy se escriben a mano en el papel y nunca
-    # vuelven al sistema. El escaneo los completa solo, y así el PDF impreso y
-    # las pantallas viejas no se enteran de que cambió nada debajo.
-    operario = (payload.operario or "").strip() or _nombre_de(db, user)
-    setattr(orden, f"fecha_{etapa}", hoy)
-    setattr(orden, f"operador_{etapa}", operario[:150] or None)
-    # `*_maquina` sólo se pisa si esta etapa eligió una. Si no, se respeta lo
-    # que haya cargado la oficina (el paso 0 ya elige la impresora).
-    if maquina is not None:
-        setattr(orden, f"{etapa}_maquina", (maquina.nombre or "")[:100] or None)
+    if cierre:
+        # El cierre NO pasa por el `setattr(orden, f"fecha_{etapa}")` de abajo:
+        # no hay `fecha_finalizado` ni `operador_finalizado`, así que el
+        # `setattr` genérico escribiría un atributo suelto en el objeto Python y
+        # el dato se perdería en el commit SIN UN SOLO ERROR. Van a las columnas
+        # propias del cierre.
+        #
+        # `fecha_cierre` es TIMESTAMPTZ y se escribe con la hora completa, no
+        # con `hoy`: el tablero muestra hace cuánto se cerró.
+        #
+        # Y el que firma sale del TOKEN, no de `payload.operario`. En las etapas
+        # de planta ese campo existe para la tablet compartida —quién está
+        # realmente en la máquina—, pero el cierre no se hace en una máquina: es
+        # la decisión de dar el pedido por terminado, y queda firmada por la
+        # cuenta que la tomó. Si pudiera venir en el request, cualquiera podría
+        # cerrar órdenes a nombre de otro, que es justo lo que este endpoint
+        # existe para impedir.
+        operario = _nombre_de(db, user)
+        orden.fecha_cierre = datetime.now(timezone.utc)
+        orden.operador_cierre = operario[:150] or None
+    else:
+        # La ficha de siempre se sigue llenando: `fecha_*`, `operador_*` y
+        # `*_maquina` son los campos que hoy se escriben a mano en el papel y
+        # nunca vuelven al sistema. El escaneo los completa solo, y así el PDF
+        # impreso y las pantallas viejas no se enteran de que cambió nada debajo.
+        operario = (payload.operario or "").strip() or _nombre_de(db, user)
+        setattr(orden, f"fecha_{etapa}", hoy)
+        setattr(orden, f"operador_{etapa}", operario[:150] or None)
+        # `*_maquina` sólo se pisa si esta etapa eligió una. Si no, se respeta lo
+        # que haya cargado la oficina (el paso 0 ya elige la impresora).
+        if maquina is not None:
+            setattr(orden, f"{etapa}_maquina", (maquina.nombre or "")[:100] or None)
 
-    # Primer escaneo = arrancó la producción. Cerrar la orden sigue siendo una
-    # decisión de la oficina: empezar a troquelar no es haber terminado.
-    if orden.estado in ("borrador", "pendiente"):
+    # El escaneo del cierre es el ÚNICO que mueve la orden a `completada`: hasta
+    # ahora sólo se podía editándola a mano, así que el paso 5 del tablero
+    # estaba vacío y no había forma de medir el pedido de punta a punta.
+    #
+    # Las tres etapas de planta siguen sin cerrar nada: empezar a troquelar no
+    # es haber terminado. Lo único que infieren es el arranque.
+    if cierre:
+        orden.estado = "completada"
+    elif orden.estado in ("borrador", "pendiente"):
         orden.estado = "en_proceso"
     if not orden.lote:
         orden.lote = _autogenerar_lote(orden)
@@ -633,7 +691,11 @@ def registrar_etapa(
         datos={"etapa": etapa,
                "maquina_id": maquina.id if maquina else None,
                "maquina": maquina.nombre if maquina else None,
-               "operario": operario, "lote": orden.lote},
+               "operario": operario, "lote": orden.lote,
+               # Queda en el log y no sólo en la respuesta: la pantalla la
+               # muestra una vez, y a los dos días la pregunta («¿por qué esta
+               # orden no tiene escaneos?») se contesta por acá.
+               "advertencia": advertencia},
     )
     db.commit()
     db.refresh(pase)
@@ -647,4 +709,6 @@ def registrar_etapa(
         "maquina":      maquina.to_dict() if maquina else None,
         "operario":     operario,
         "pase":         pase.to_dict(),
+        # Nula salvo en el cierre de una orden sin ningún pase de planta.
+        "advertencia":  advertencia,
     }
