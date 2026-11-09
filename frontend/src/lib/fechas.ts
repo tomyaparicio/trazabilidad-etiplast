@@ -53,3 +53,35 @@ export function fechaCorta(iso: string | null): string {
     day: "2-digit", month: "2-digit", year: "numeric",
   })
 }
+
+/**
+ * «2 días», «1 h 42 min», «20 min»: la misma cuenta que `desdeHace`, corta.
+ *
+ * Existe aparte y no como un parámetro de `desdeHace` por dos razones:
+ *
+ *  - Va en una columna angosta, al lado de un nombre de operario. «hace 1 h 42
+ *    min» ahí envuelve en tres renglones.
+ *  - Dice los DÍAS. `desdeHace` no: un pedido trabado desde anteayer sale
+ *    «hace 50 h 10 min», que hay que dividir mentalmente para entender que son
+ *    dos días. En la lista de planta, ordenada por antigüedad, ese es
+ *    justamente el renglón de arriba de todo.
+ *
+ * `desdeHace` queda como está a propósito: la usan el dashboard y
+ * `/planificacion`, y cambiarle la salida les cambiaría el texto a las dos sin
+ * que nadie lo haya pedido.
+ */
+export function desdeHaceCorto(iso: string | null): string {
+  if (!iso) return ""
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return ""
+  const minutos = Math.floor((Date.now() - t) / 60000)
+  if (minutos < 1) return "recién"
+  if (minutos < 60) return `${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) {
+    const m = minutos % 60
+    return m ? `${horas} h ${m} min` : `${horas} h`
+  }
+  const dias = Math.floor(horas / 24)
+  return dias === 1 ? "1 día" : `${dias} días`
+}

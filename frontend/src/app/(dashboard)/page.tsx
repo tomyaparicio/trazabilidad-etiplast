@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { OrdenesPorEtapa } from "./_components/ordenes-por-etapa"
-import { PlantaEnVivo } from "./_components/planta-en-vivo"
+import { PedidosEnPlanta } from "./_components/pedidos-en-planta"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -559,10 +559,15 @@ export default function DashboardPage() {
               «etapas» pero graficaba los estados de la orden. */}
           <OrdenesPorEtapa />
 
-          {/* La misma planta, en lista plana y sin abrir nada: sirve para
-              barrer de un vistazo cuando hay varias máquinas ocupadas. Va
-              después de los pasos porque repite su dato. */}
-          <PlantaEnVivo />
+          {/* Un renglón por pedido, el que hace más que no se mueve arriba de
+              todo: es lo único de la pantalla que dice qué hacer.
+
+              Reemplaza a «En planta ahora» (`planta-en-vivo.tsx`), que mostraba
+              un subconjunto de esto leyendo `maquinas` + `etapas` —los campos
+              que sólo ven pases ABIERTOS y por eso se comen justo las órdenes
+              trabadas—. El aviso de «en producción sin escanear» que tenía ese
+              bloque se conserva acá. */}
+          <PedidosEnPlanta />
 
           {/* Órdenes activas + por estado */}
           <section className="grid gap-4 sm:grid-cols-2">

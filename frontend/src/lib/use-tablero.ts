@@ -4,7 +4,7 @@
  * El tablero de planta, traído UNA sola vez para todos los que lo miran.
  *
  * Por qué existe: en la pestaña «Producción» del dashboard se dibujan juntos
- * `OrdenesPorEtapa` y `PlantaEnVivo`, y cada uno tenía su propio `setInterval`
+ * `OrdenesPorEtapa` y `PedidosEnPlanta`, y cada uno tenía su propio `setInterval`
  * de 15 s contra el MISMO `GET /api/produccion/tablero`. Eso eran 8 pedidos por
  * minuto —contra un rate limit de 120/min por IP— y, peor, el cold start de
  * Railway se pagaba dos veces: los dos bloques podían quedar mostrando
