@@ -17,7 +17,7 @@ import type {
   RoleCatalogo, RolePermisos, MisPermisos, RoleInput,
   ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
   ReporteClientesTop, ReporteStockResumen, Trazabilidad,
-  EscaneoEtapaRequest, EscaneoEtapaResponse, TableroProduccion,
+  EscaneoEtapaRequest, EscaneoEtapaResponse, TableroProduccion, VersionProduccion,
 } from "./types"
 import type { RazonSocialSimilar } from "@/types/database"
 
@@ -291,6 +291,15 @@ export const api = {
   /** Tablero de planta: qué hay en cada máquina, en vivo */
   produccion: {
     tablero: () => get<TableroProduccion>("/api/produccion/tablero"),
+    /**
+     * El pulso del tablero: una consulta barata para saber si hay algo nuevo.
+     *
+     * Se pide cada 3 s. El tablero completo son 7+ consultas, así que pedirlo a
+     * esa frecuencia no se puede; pedir esto y el tablero sólo cuando `v`
+     * cambia baja la latencia del escaneo de 15 s a 3 s haciendo MENOS trabajo
+     * que el refresco ciego de 15 s que había antes.
+     */
+    version: () => get<VersionProduccion>("/api/produccion/version"),
   },
   /** Presupuestos */
   presupuestos: {

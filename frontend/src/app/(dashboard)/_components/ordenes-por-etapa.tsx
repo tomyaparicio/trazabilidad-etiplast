@@ -6,13 +6,14 @@
  * Reemplaza al bloque que se llamaba «Órdenes por etapa» y mostraba
  * borrador / pendientes / en producción / completadas. Eso son los ESTADOS de
  * la orden (`ordenes_trabajo.estado`), no el recorrido del trabajo: el título
- * mentía. El recorrido es el que contesta `GET /api/produccion/tablero`:
+ * mentía. El recorrido es el que contesta `GET /api/produccion/tablero` en
+ * `pasos`:
  *
- *   1  Orden de trabajo   emitida, sin arrancar   (`pendientes`)
- *   2  Extrusión                                  (`etapas`, etapa extrusion)
- *   3  Impresión                                  (`maquinas` con orden)
- *   4  Troquelado                                 (`etapas`, etapa troquelado)
- *   5  Finalizado         fuera de planta         (`finalizadas`)
+ *   1  Orden de trabajo   emitida o en producción sin ningún escaneo
+ *   2  Extrusión                                  ← último pase escaneado
+ *   3  Impresión                                  ← último pase escaneado
+ *   4  Troquelado                                 ← último pase escaneado
+ *   5  Finalizado         fuera de planta
  *
  * Estos números NO son los ①②③ de la ficha impresa, y está bien: el papel
  * numera las tres cosas que hace el operario en la máquina, esta pantalla
@@ -20,21 +21,26 @@
  * que está en la máquina y el que mira la planta de arriba— así que no tienen
  * por qué coincidir. La ficha impresa no se toca.
  *
- * Los pasos 2, 3 y 4 salen de los escaneos del QR. El 1 y el 5 no: el 1 es la
- * orden recién cargada en Órdenes de Trabajo, y al 5 llega cuando alguien le
- * pone estado «completada».
+ * Los contadores salen de `paso.total` y no se calculan acá. Antes se armaban
+ * mirando `maquinas` y `etapas`, que sólo traen pases ABIERTOS: una orden cuyo
+ * pase lo cerró el escaneo de la orden siguiente al entrar a la misma impresora
+ * no caía en NINGÚN paso. Medido contra producción: de 3 órdenes en proceso se
+ * veía 1. El backend reparte ahora cada orden en exactamente un paso.
  *
  * Cada paso se abre y muestra qué tiene adentro, porque el número solo no
  * alcanza: «3 en impresión» no dice cuáles, en qué máquina ni desde cuándo.
  *
- * El dato lo trae `useTablero()`, compartido con `PlantaEnVivo`: los dos
- * bloques se dibujan juntos en esta pestaña y antes cada uno pedía el mismo
- * endpoint cada 15 s por su cuenta.
+ * El dato lo trae `useTablero()`, compartido con `PlantaEnVivo` y con
+ * `/planificacion`: antes cada uno pedía el mismo endpoint cada 15 s por su
+ * cuenta.
  */
-import type { EtapaProduccion, OrdenEnMaquina, TableroProduccion } from "@/lib/api/types"
+import {
+  SIGUIENTE_DE, estaTrabada,
+  type ClavePaso, type OrdenEnPaso, type PasoTablero, type TableroProduccion,
+} from "@/lib/api/types"
 import { desdeHace, fechaCorta } from "@/lib/fechas"
 import { useTablero } from "@/lib/use-tablero"
-import { ArrowRight, ChevronDown } from "lucide-react"
+import { AlertTriangle, ArrowRight, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
@@ -62,150 +68,51 @@ const nf = new Intl.NumberFormat("es-AR")
 const idPanel = (clave: string) => `paso-${clave}-panel`
 const idBoton = (clave: string) => `paso-${clave}-boton`
 
-/** Una orden dentro de un paso, ya aplanada: la lista se dibuja igual en los 5. */
-type ItemPaso = {
-  clave: string
-  numero: string
-  cliente: string | null
-  producto: string | null
-  /** Sólo impresión: en extrusión y troquelado las máquinas son intercambiables */
-  maquina?: string | null
-  operario?: string | null
-  /** Hace cuánto que está acá: el escaneo (pasos 2 a 4) o la emisión (paso 1) */
-  desde?: string | null
-  /** Día de cierre — sólo el paso 5, que no sale de un escaneo */
-  fecha?: string | null
+/**
+ * Renglón corto arriba del número: dónde está el trabajo cuando está acá.
+ *
+ * Los tres pasos de planta dicen «En planta» y no «En máquina»: en un paso de
+ * planta puede haber órdenes que pasaron por la etapa y están esperando la
+ * siguiente, o sea en la planta pero NO en una máquina. Ese detalle lo dice
+ * cada tarjeta, que es donde se puede decir sin mentir sobre las demás.
+ */
+const DONDE: Record<ClavePaso, string> = {
+  orden_trabajo: "Antes de planta",
+  extrusion:     "En planta",
+  impresion:     "En planta",
+  troquelado:    "En planta",
+  finalizado:    "Fuera de planta",
 }
 
-type Paso = {
-  clave: string
-  /** El lugar en el recorrido de la orden (1 a 5). No es el número de la ficha impresa. */
-  numero: number
-  titulo: string
-  /** Renglón corto arriba del número: dónde está el trabajo cuando está acá */
-  donde: string
-  cuenta: number
-  items: ItemPaso[]
-  /** Aviso de que la lista viene recortada: le pasa a los pasos 1 y 5 */
-  nota: string | null
-  /** Qué decir cuando el paso está vacío, que es casi siempre al estrenarlo */
-  vacio: string
+/** Qué decir cuando el paso está vacío, que es casi siempre al estrenarlo. */
+const VACIO: Record<ClavePaso, string> = {
+  orden_trabajo:
+    "No hay ninguna orden esperando para arrancar. Acá caen las órdenes recién cargadas en Órdenes de Trabajo y también las que ya están en producción pero que todavía nadie escaneó en ninguna máquina.",
+  extrusion:
+    "Ninguna orden quedó en extrusión. Una orden aparece acá cuando el operario escanea el QR en la máquina, y se va cuando alguien la escanea en impresión.",
+  impresion:
+    "Ninguna orden quedó en impresión. Una orden aparece acá cuando el operario escanea el QR en la impresora, y se va cuando alguien la escanea en troquelado.",
+  troquelado:
+    "Ninguna orden quedó en troquelado. Una orden aparece acá cuando el operario escanea el QR en la máquina, y se va cuando le ponen estado «Completada».",
+  finalizado:
+    "Todavía no se cerró ninguna orden. Una orden cae acá cuando le ponen estado «Completada» en Órdenes de Trabajo.",
 }
 
-function aItem(o: OrdenEnMaquina, maquina?: string): ItemPaso {
-  return {
-    clave: `${maquina ?? o.etapa}-${o.id}`,
-    numero: o.numero,
-    cliente: o.cliente,
-    producto: o.producto,
-    maquina,
-    operario: o.operario,
-    desde: o.desde,
-  }
-}
+/** «3 trabajos», con el singular bien, que es lo que se lee en voz alta. */
+const trabajos = (n: number) => (n === 1 ? "1 trabajo" : `${nf.format(n)} trabajos`)
 
-function armarPasos(t: TableroProduccion): Paso[] {
-  const ordenesDe = (etapa: EtapaProduccion) =>
-    t.etapas.find((e) => e.etapa === etapa)?.ordenes ?? []
-
-  const extrusion = ordenesDe("extrusion")
-  const troquelado = ordenesDe("troquelado")
-
-  // `maquinas` ya viene filtrada por el backend a las etapas que eligen máquina
-  // —hoy sólo impresión, ver `ETAPAS_CON_MAQUINA`— así que una máquina ocupada
-  // es una impresora trabajando. Las de extrusión y troquelado nunca llegan acá.
-  const impresoras = t.maquinas.filter((m) => m.orden)
-
-  // Los totales reales. `resumen.pendientes` y `resumen.finalizadas` son el
-  // largo de cada lista, que el backend recorta: mostrar esos números dejaría
-  // la card diciendo «20» para siempre. Los `??` cubren la ventana de deploy en
-  // la que el front ya es nuevo y la API todavía no manda el campo (Vercel y
-  // Railway van separados).
-  const pendientes = t.pendientes ?? []
-  const pendientesTotal = t.resumen?.pendientes_total ?? pendientes.length
-  const finalizadasTotal = t.resumen?.finalizadas_total ?? t.finalizadas.length
-
-  return [
-    {
-      clave: "orden",
-      numero: 1,
-      titulo: "Orden de trabajo",
-      donde: "Antes de planta",
-      cuenta: pendientesTotal,
-      items: pendientes.map((o) => ({
-        clave: `pend-${o.id}`,
-        numero: o.numero,
-        cliente: o.cliente,
-        producto: o.producto,
-        // `desde` y no `fecha`: de una orden que todavía no arrancó lo que
-        // importa es hace cuánto que espera, no el día en que se emitió.
-        desde: o.fecha,
-      })),
-      // Misma redacción que el paso Finalizado: es el mismo recorte y tiene que
-      // decirse igual en los dos lados.
-      nota:
-        pendientes.length < pendientesTotal
-          ? `se ven los primeros ${nf.format(pendientes.length)}`
-          : null,
-      vacio:
-        "No hay ninguna orden esperando para arrancar. Una orden aparece acá en cuanto se carga en Órdenes de Trabajo, y se va cuando el operario escanea el QR en la primera máquina.",
-    },
-    {
-      clave: "extrusion",
-      numero: 2,
-      titulo: "Extrusión",
-      donde: "En planta",
-      cuenta: extrusion.length,
-      items: extrusion.map((o) => aItem(o)),
-      nota: null,
-      vacio: "Ninguna orden escaneada en extrusión. Aparecen acá cuando el operario escanea el QR de la orden en la máquina.",
-    },
-    {
-      clave: "impresion",
-      numero: 3,
-      titulo: "Impresión",
-      donde: "En máquina",
-      cuenta: impresoras.length,
-      items: impresoras.map((m) => aItem(m.orden!, m.nombre)),
-      nota: null,
-      vacio:
-        t.maquinas.length === 0
-          ? "No hay impresoras cargadas en el sistema."
-          : `Las ${nf.format(t.maquinas.length)} impresoras están libres: ninguna orden escaneada en impresión.`,
-    },
-    {
-      clave: "troquelado",
-      numero: 4,
-      titulo: "Troquelado",
-      donde: "En planta",
-      cuenta: troquelado.length,
-      items: troquelado.map((o) => aItem(o)),
-      nota: null,
-      vacio: "Ninguna orden escaneada en troquelado. Aparecen acá cuando el operario escanea el QR de la orden en la máquina.",
-    },
-    {
-      clave: "finalizado",
-      numero: 5,
-      titulo: "Finalizado",
-      donde: "Fuera de planta",
-      cuenta: finalizadasTotal,
-      items: t.finalizadas.map((o) => ({
-        clave: `fin-${o.id}`,
-        numero: o.numero,
-        cliente: o.cliente,
-        producto: o.producto,
-        fecha: o.fecha,
-      })),
-      // Misma redacción que el tablero de `/planificacion` y que el depósito:
-      // es el mismo recorte y tiene que decirse igual en los tres lados.
-      nota:
-        t.finalizadas.length < finalizadasTotal
-          ? `se ven los primeros ${nf.format(t.finalizadas.length)}`
-          : null,
-      vacio:
-        "Todavía no se cerró ninguna orden. Una orden cae acá cuando le ponen estado «Completada» en Órdenes de Trabajo.",
-    },
-  ]
+/**
+ * Las trabadas primero.
+ *
+ * El backend manda las más recientes primero, que es lo correcto para una
+ * lista. Pero dentro de un paso la única cosa accionable es la orden que quedó
+ * esperando la etapa siguiente: si está novena en la lista, no se ve. El resto
+ * mantiene el orden que mandó el backend.
+ */
+function trabadasPrimero(paso: PasoTablero): OrdenEnPaso[] {
+  const trabadas = paso.ordenes.filter((o) => estaTrabada(paso.clave, o.en_maquina))
+  if (trabadas.length === 0 || trabadas.length === paso.ordenes.length) return paso.ordenes
+  return [...trabadas, ...paso.ordenes.filter((o) => !estaTrabada(paso.clave, o.en_maquina))]
 }
 
 /**
@@ -215,16 +122,13 @@ function armarPasos(t: TableroProduccion): Paso[] {
  * en impresión») y todavía no se sabe. Además deja la altura puesta desde el
  * principio, así el dashboard no salta cuando contesta Railway.
  */
-const PASOS_VACIOS: Paso[] = [
-  { clave: "orden",      numero: 1, titulo: "Orden de trabajo", donde: "Antes de planta", cuenta: 0, items: [], nota: null, vacio: "" },
-  { clave: "extrusion",  numero: 2, titulo: "Extrusión",        donde: "En planta",       cuenta: 0, items: [], nota: null, vacio: "" },
-  { clave: "impresion",  numero: 3, titulo: "Impresión",        donde: "En máquina",      cuenta: 0, items: [], nota: null, vacio: "" },
-  { clave: "troquelado", numero: 4, titulo: "Troquelado",       donde: "En planta",       cuenta: 0, items: [], nota: null, vacio: "" },
-  { clave: "finalizado", numero: 5, titulo: "Finalizado",       donde: "Fuera de planta", cuenta: 0, items: [], nota: null, vacio: "" },
+const PASOS_VACIOS: PasoTablero[] = [
+  { clave: "orden_trabajo", numero: 1, titulo: "Orden de trabajo", total: 0, ordenes: [] },
+  { clave: "extrusion",     numero: 2, titulo: "Extrusión",        total: 0, ordenes: [] },
+  { clave: "impresion",     numero: 3, titulo: "Impresión",        total: 0, ordenes: [] },
+  { clave: "troquelado",    numero: 4, titulo: "Troquelado",       total: 0, ordenes: [] },
+  { clave: "finalizado",    numero: 5, titulo: "Finalizado",       total: 0, ordenes: [] },
 ]
-
-/** «3 trabajos», con el singular bien, que es lo que se lee en voz alta. */
-const trabajos = (n: number) => (n === 1 ? "1 trabajo" : `${nf.format(n)} trabajos`)
 
 export function OrdenesPorEtapa() {
   const { datos, falló } = useTablero()
@@ -239,8 +143,10 @@ export function OrdenesPorEtapa() {
     if (abierta) panelRef.current?.scrollIntoView({ block: "nearest" })
   }, [abierta])
 
-  const pasos = datos ? armarPasos(datos) : null
-  const aDibujar = pasos ?? PASOS_VACIOS
+  // `normalizar()` en `use-tablero` garantiza los cinco pasos y en orden, así
+  // que acá no hay nada que armar: sólo decidir si ya hay dato o no.
+  const aDibujar = datos?.pasos ?? PASOS_VACIOS
+  const hayDatos = datos !== null
 
   return (
     <section className="eti-in relative overflow-hidden rounded-3xl bg-brand p-5 text-white shadow-[0_30px_60px_-34px_rgba(41,45,150,.9)] sm:p-6">
@@ -270,6 +176,8 @@ export function OrdenesPorEtapa() {
         </p>
       )}
 
+      <Canceladas datos={datos} />
+
       <div className="relative">
         {/* `bg-gold` usa `--gold`, que vale #f5eb4a en los dos temas: los fills
             dorados (bg/border/ring) no tienen el problema de `text-gold`. */}
@@ -288,6 +196,7 @@ export function OrdenesPorEtapa() {
         <ol className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
           {aDibujar.map((p) => {
             const esta = abierta === p.clave
+            const trabadas = p.ordenes.filter((o) => estaTrabada(p.clave, o.en_maquina)).length
             return (
               <li key={p.clave} className="relative">
                 {/* `aria-hidden` en el número del paso: va FUERA del botón, así
@@ -302,23 +211,27 @@ export function OrdenesPorEtapa() {
                 {/* `aria-label` completo porque el nombre que armaba el
                     contenido era «En planta 3 Extrusión Ver»: ese 3 son
                     órdenes, pero se lee pegado a un bloque numerado 1-5 y se
-                    confunde con el número de paso. */}
+                    confunde con el número de paso. Las trabadas también van en
+                    el label: es el dato accionable y con el aviso sólo en color
+                    un lector de pantalla no se entera. */}
                 <button
                   type="button"
                   id={idBoton(p.clave)}
                   aria-expanded={esta}
                   aria-controls={idPanel(p.clave)}
-                  // `p.donde` va DENTRO del label: el aria-label reemplaza al
+                  // `DONDE` va DENTRO del label: el aria-label reemplaza al
                   // contenido del botón como nombre accesible, así que sin esto
-                  // el renglón «Antes de planta» / «En máquina» queda visible
+                  // el renglón «Antes de planta» / «En planta» queda visible
                   // pero mudo — justo el dato que dice si el trabajo todavía
                   // está en la planta.
                   aria-label={
-                    pasos
-                      ? `Paso ${p.numero}, ${p.titulo}, ${p.donde}: ${trabajos(p.cuenta)}`
-                      : `Paso ${p.numero}, ${p.titulo}, ${p.donde}`
+                    hayDatos
+                      ? `Paso ${p.numero}, ${p.titulo}, ${DONDE[p.clave]}: ${trabajos(p.total)}${
+                          trabadas > 0 ? `, ${trabadas} esperando la etapa siguiente` : ""
+                        }`
+                      : `Paso ${p.numero}, ${p.titulo}, ${DONDE[p.clave]}`
                   }
-                  disabled={!pasos}
+                  disabled={!hayDatos}
                   onClick={() => setAbierta(esta ? null : p.clave)}
                   className={`relative mt-4 block min-h-[172px] w-full rounded-2xl border bg-white/[0.06] p-5 text-left transition hover:bg-white/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold disabled:cursor-default disabled:hover:bg-white/[0.06] ${
                     esta ? "border-gold bg-white/[0.12]" : "border-white/10"
@@ -333,12 +246,21 @@ export function OrdenesPorEtapa() {
                       #363a9c—, no contra el navy pelado: 6,65:1 el que quedó,
                       4,01:1 el que había (AA pide 4,5:1). */}
                   <span className="text-sm font-bold uppercase tracking-[0.16em] text-white/80">
-                    {p.donde}
+                    {DONDE[p.clave]}
                   </span>
                   <p className="mt-3 font-display text-[40px] font-semibold leading-none tabular-nums">
-                    {pasos ? nf.format(p.cuenta) : "—"}
+                    {hayDatos ? nf.format(p.total) : "—"}
                   </p>
                   <p className="mt-1.5 text-base font-bold">{p.titulo}</p>
+                  {/* El aviso de trabadas viaja con el contador: es lo único de
+                      la card sobre lo que hay que hacer algo, y esperar a que
+                      alguien abra el paso para enterarse lo esconde. */}
+                  {trabadas > 0 && (
+                    <p className="mt-2 flex items-center gap-1.5 text-[13px] font-bold text-amber-200">
+                      <AlertTriangle aria-hidden className="size-4 shrink-0" />
+                      {trabadas === 1 ? "1 esperando" : `${trabadas} esperando`}
+                    </p>
+                  )}
                   <span className="mt-4 flex items-center gap-3">
                     <span className="h-px flex-1 bg-white/15" />
                     <span className="flex items-center gap-1 text-[13px] font-bold text-brand-yellow">
@@ -371,54 +293,152 @@ export function OrdenesPorEtapa() {
             hidden={!esta}
             className="mt-5 rounded-2xl border border-white/15 bg-white/[0.08] p-5"
           >
-            {esta && (
-              <>
-                <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h3 className="font-display text-xl font-semibold">
-                    Paso {p.numero} · {p.titulo}
-                  </h3>
-                  <p className="text-sm font-bold uppercase tracking-wider text-white/70">
-                    {trabajos(p.cuenta)}
-                    {p.nota && <> · {p.nota}</>}
-                  </p>
-                </div>
-
-                {p.items.length === 0 ? (
-                  <p className="max-w-[70ch] text-base font-semibold text-white/80">{p.vacio}</p>
-                ) : (
-                  <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {p.items.map((o) => (
-                      <li key={o.clave}>
-                        <Link
-                          href={`/ordenes?buscar=${o.numero}`}
-                          className="block h-full rounded-xl border border-white/15 bg-brand/40 p-4 transition hover:border-gold"
-                        >
-                          <p className="text-lg font-extrabold leading-tight">
-                            {o.producto ?? "Sin producto cargado"}
-                          </p>
-                          {/* Mismo caso que el link del encabezado: el fondo de
-                              la tarjeta compone #33379b, donde `text-gold` en
-                              claro da 2.08:1 y `text-brand-yellow` da 7.81:1. */}
-                          <p className="mt-1 text-base font-bold text-brand-yellow">{o.numero}</p>
-                          <p className="text-base font-semibold text-white/85">
-                            {o.cliente ?? "Sin cliente"}
-                          </p>
-                          <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-white/70">
-                            {o.maquina && <span>{o.maquina}</span>}
-                            {o.operario && <span>{o.operario}</span>}
-                            {o.desde && <span>{desdeHace(o.desde)}</span>}
-                            {o.fecha && <span>{fechaCorta(o.fecha)}</span>}
-                          </p>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
+            {esta && <Panel paso={p} />}
           </div>
         )
       })}
     </section>
+  )
+}
+
+/**
+ * El contenido de un paso abierto.
+ *
+ * Separado del acordeón porque sólo se arma para el paso abierto: adentro del
+ * `.map` el `esta &&` ya lo evitaba, pero con el filtro de trabadas y la
+ * cabecera el bloque pasó a ser más largo que el acordeón que lo contiene.
+ */
+function Panel({ paso }: { paso: PasoTablero }) {
+  const items = trabadasPrimero(paso)
+  const trabadas = items.filter((o) => estaTrabada(paso.clave, o.en_maquina)).length
+  // Misma redacción en los cinco pasos y en `/planificacion`: es el mismo
+  // recorte y tiene que decirse igual en todos lados.
+  const nota =
+    items.length < paso.total ? `se ven las ${nf.format(items.length)} más recientes` : null
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 className="font-display text-xl font-semibold">
+          Paso {paso.numero} · {paso.titulo}
+        </h3>
+        <p className="text-sm font-bold uppercase tracking-wider text-white/70">
+          {trabajos(paso.total)}
+          {nota && <> · {nota}</>}
+        </p>
+      </div>
+
+      {/* El aviso explica qué significa el color de las tarjetas de abajo. Va
+          antes de la lista: si va después, el que ve la tarjeta amarilla
+          primero no sabe qué le están diciendo. */}
+      {trabadas > 0 && (
+        <p className="mb-4 flex items-start gap-2 rounded-xl border border-amber-300/50 border-l-[6px] border-l-amber-300 bg-amber-300/10 px-4 py-3 text-base font-bold">
+          <AlertTriangle aria-hidden className="mt-0.5 size-5 shrink-0 text-amber-200" />
+          <span>
+            {trabadas === 1
+              ? "Hay 1 orden que terminó este paso y nadie la escaneó en el siguiente."
+              : `Hay ${nf.format(trabadas)} órdenes que terminaron este paso y nadie las escaneó en el siguiente.`}{" "}
+            Están en la planta, pero en ninguna máquina.
+          </span>
+        </p>
+      )}
+
+      {items.length === 0 ? (
+        <p className="max-w-[70ch] text-base font-semibold text-white/80">{VACIO[paso.clave]}</p>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((o) => (
+            <li key={o.id}>
+              <Tarjeta clave={paso.clave} orden={o} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+/**
+ * Una orden dentro de un paso.
+ *
+ * Las dos situaciones de un paso de planta NO se pueden ver iguales:
+ *
+ *  - en la máquina ahora → tarjeta normal
+ *  - trabada entre dos etapas → amarillo + barra gruesa a la izquierda + ícono
+ *
+ * Tres señales y no sólo el color: el que mira el tablero de la planta puede
+ * ser daltónico, y la pantalla de la oficina se mira de lejos y de costado. La
+ * barra gruesa es lo que se ve primero desde tres metros.
+ *
+ * Esta distinción es lo único accionable de toda la pantalla: dice entre qué
+ * dos etapas se quedó una orden.
+ */
+function Tarjeta({ clave, orden }: { clave: ClavePaso; orden: OrdenEnPaso }) {
+  const trabada = estaTrabada(clave, orden.en_maquina)
+  const siguiente = SIGUIENTE_DE[clave]
+
+  return (
+    <Link
+      href={`/ordenes?buscar=${orden.numero}`}
+      className={`block h-full rounded-xl border p-4 transition ${
+        trabada
+          ? "border-amber-300/60 border-l-[6px] border-l-amber-300 bg-amber-300/[0.08] hover:border-amber-200"
+          : "border-white/15 bg-brand/40 hover:border-gold"
+      }`}
+    >
+      <p className="text-lg font-extrabold leading-tight">
+        {orden.producto ?? "Sin producto cargado"}
+      </p>
+      {/* Mismo caso que el link del encabezado: el fondo de la tarjeta compone
+          #33379b, donde `text-gold` en claro da 2.08:1 y `text-brand-yellow`
+          da 7.81:1. */}
+      <p className="mt-1 text-base font-bold text-brand-yellow">{orden.numero}</p>
+      <p className="text-base font-semibold text-white/85">{orden.cliente ?? "Sin cliente"}</p>
+
+      {trabada && siguiente && (
+        <p className="mt-2 flex items-start gap-1.5 text-base font-bold text-amber-200">
+          <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0" />
+          Esperando {siguiente}
+        </p>
+      )}
+
+      <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-white/70">
+        {orden.maquina && <span>{orden.maquina}</span>}
+        {orden.operario && <span>{orden.operario}</span>}
+        {/* En el paso 5 el día y no el «hace tanto»: de una orden cerrada lo
+            que se busca es la fecha de cierre. En los otros cuatro es al
+            revés —«hace 6 días» es un problema y «06/11» no dice nada sin
+            hacer la cuenta—, y en una trabada es EL dato. */}
+        {orden.desde && (
+          <span>
+            {clave === "finalizado"
+              ? fechaCorta(orden.desde)
+              : trabada
+                ? `trabada ${desdeHace(orden.desde)}`
+                : desdeHace(orden.desde)}
+          </span>
+        )}
+      </p>
+    </Link>
+  )
+}
+
+/**
+ * Las canceladas, que no caen en ningún paso.
+ *
+ * Tienen que estar escritas en algún lado: el tablero reparte cada orden en uno
+ * de los cinco pasos menos éstas, y si el número no aparece, la suma de los
+ * cinco pasos no cierra contra el total de órdenes y parece que el tablero
+ * perdió trabajo otra vez.
+ */
+function Canceladas({ datos }: { datos: TableroProduccion | null }) {
+  const n = datos?.resumen?.canceladas ?? 0
+  if (n === 0) return null
+  return (
+    <p className="mb-5 text-sm font-semibold text-white/70">
+      {n === 1
+        ? "Además hay 1 orden cancelada, que no entra en ningún paso."
+        : `Además hay ${nf.format(n)} órdenes canceladas, que no entran en ningún paso.`}
+    </p>
   )
 }

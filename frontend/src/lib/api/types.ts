@@ -571,6 +571,105 @@ export interface OrdenFinalizada {
   fecha: string | null
 }
 
+// ─── Los cinco pasos, con TODAS las órdenes adentro ──────────────────────────
+//
+// `maquinas` y `etapas` se armaban mirando sólo los pases ABIERTOS, y por eso
+// el tablero se comía órdenes. Medido contra producción: de 3 órdenes en
+// proceso se veía 1.
+//
+//   OT-0002  último pase en impresión, abierto    → se veía en el paso 3
+//   OT-0001  último pase en impresión, CERRADO    → no se veía en ningún paso
+//   OT-0003  nunca se escaneó                     → no se veía en ningún paso
+//
+// El pase de OT-0001 lo cerró el escaneo de OT-0002 al entrar a la misma
+// impresora, que es correcto —una impresora no puede tener dos trabajos— pero
+// dejaba a la orden fuera del tablero. Un flujo de planta que pierde órdenes es
+// peor que no tener tablero: da confianza falsa.
+//
+// `pasos` lo resuelve del lado del backend: cada orden NO cancelada cae en
+// EXACTAMENTE un paso, y las canceladas se cuentan aparte en
+// `resumen.canceladas`. La invariante es
+// `resumen.pasos_total + resumen.canceladas == total de órdenes`.
+
+export type ClavePaso =
+  | "orden_trabajo"
+  | "extrusion"
+  | "impresion"
+  | "troquelado"
+  | "finalizado"
+
+/** Los cinco pasos en el orden del recorrido. Se dibujan SIEMPRE los cinco. */
+export const PASOS_ORDENADOS: ClavePaso[] = [
+  "orden_trabajo", "extrusion", "impresion", "troquelado", "finalizado",
+]
+
+export const TITULO_PASO: Record<ClavePaso, string> = {
+  orden_trabajo: "Orden de trabajo",
+  extrusion:     "Extrusión",
+  impresion:     "Impresión",
+  troquelado:    "Troquelado",
+  finalizado:    "Finalizado",
+}
+
+/**
+ * Los pasos que salen de un escaneo del QR.
+ *
+ * Importa para leer `en_maquina`: SÓLO acá «no está en máquina» significa que
+ * la orden quedó trabada entre dos etapas. En el paso 1 la orden todavía no
+ * entró a la planta y en el 5 ya salió: en esos dos, `en_maquina: false` es lo
+ * normal y no hay nada que hacer al respecto.
+ */
+export const PASOS_DE_PLANTA: ClavePaso[] = ["extrusion", "impresion", "troquelado"]
+
+/**
+ * Qué falta que pase para que la orden se mueva de este paso.
+ *
+ * Es el dato accionable del tablero: si una orden está trabada, esto dice entre
+ * qué dos etapas se quedó. Sólo los pasos de planta lo tienen.
+ */
+export const SIGUIENTE_DE: Partial<Record<ClavePaso, string>> = {
+  extrusion:  "impresión",
+  impresion:  "troquelado",
+  troquelado: "el cierre de la orden",
+}
+
+/** `true` si la orden pasó por esta etapa y nadie la escaneó en la siguiente. */
+export function estaTrabada(clave: ClavePaso, enMaquina: boolean): boolean {
+  return !enMaquina && PASOS_DE_PLANTA.includes(clave)
+}
+
+/** Una orden dentro de un paso. Misma forma en los cinco, se dibuja igual. */
+export interface OrdenEnPaso {
+  id: number
+  numero: string
+  lote: string | null
+  cliente: string | null
+  producto: string | null
+  cantidad: number | null
+  /** Desde cuándo está en este paso (ISO) */
+  desde: string | null
+  operario: string | null
+  /** Sólo impresión: en extrusión y troquelado las máquinas son intercambiables */
+  maquina: string | null
+  /**
+   * `true` = el pase está ABIERTO: está en la máquina ahora.
+   * `false` = el pase está cerrado: pasó por esta etapa y nadie la escaneó en
+   * la siguiente, así que está físicamente entre dos máquinas.
+   */
+  en_maquina: boolean
+}
+
+export interface PasoTablero {
+  clave: ClavePaso
+  /** El lugar en el recorrido (1 a 5). No es el número de la ficha impresa. */
+  numero: number
+  titulo: string
+  /** Cuántas hay EN TOTAL en este paso, sin tope. Esto es lo que se muestra. */
+  total: number
+  /** Las 20 más recientes de este paso — su largo NO es el total */
+  ordenes: OrdenEnPaso[]
+}
+
 /** Una fila del depósito: lo que hay de un producto terminado contra su mínimo */
 export interface StockTableroItem {
   id: number
@@ -615,6 +714,14 @@ export interface TableroProduccion {
   finalizadas: OrdenFinalizada[]
   /** El depósito de producto terminado, después del último paso */
   stock: StockTablero
+  /**
+   * Los CINCO pasos, con todas las órdenes repartidas sin perder ninguna.
+   *
+   * Siempre vienen los cinco y en orden: `normalizar()` en `use-tablero.ts` lo
+   * garantiza, incluso en la ventana de deploy en la que la API todavía no
+   * manda el campo (Vercel y Railway se deployan por separado).
+   */
+  pasos: PasoTablero[]
   resumen: {
     ocupadas: number
     libres: number
@@ -630,7 +737,25 @@ export interface TableroProduccion {
     finalizadas_total: number
     /** Mismo número que `stock.bajo_minimo` */
     bajo_minimo: number
+    /** Suma de los `total` de los cinco pasos */
+    pasos_total: number
+    /**
+     * Las canceladas no caen en ningún paso, pero no pueden desaparecer en
+     * silencio: con este número cierra
+     * `pasos_total + canceladas == total de órdenes`.
+     */
+    canceladas: number
   }
+}
+
+/**
+ * La versión del tablero: un string opaco que cambia cuando cambia algo.
+ *
+ * Es lo único que se pide cada 3 s. El cliente no lo interpreta: sólo compara
+ * si es distinto del último que vio y, si lo es, pide el tablero completo.
+ */
+export interface VersionProduccion {
+  v: string
 }
 
 export interface EscaneoEtapaRequest {

@@ -15,6 +15,7 @@ import {
   ETAPAS_CON_MAQUINA,
   type EtapaProduccion, type Maquina, type OrdenTrabajo,
 } from "@/lib/api/types"
+import { refrescarTablero } from "@/lib/use-tablero"
 import { AlertTriangle, Check, Loader2 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 
@@ -77,6 +78,15 @@ export function EscanearCliente({ ordenId, etapaInicial }: Props) {
         etapa,
         ...(maquina ? { maquina_id: maquina.id } : {}),
       })
+      // El tablero tiene que mostrar este movimiento sin esperar un tick.
+      //
+      // Ojo con lo que esto hace y lo que NO: el store es del navegador, así
+      // que esto no despierta al tablero de la OFICINA —ése es otro navegador y
+      // lo despierta el sondeo de `/produccion/version` cada 3 s—. Lo que
+      // arregla es este navegador: esta pantalla no monta el tablero, pero deja
+      // el store al día para cuando el operario vuelva al dashboard o a
+      // `/planificacion`, que si no mostrarían la foto de antes del escaneo.
+      refrescarTablero()
       setListo({ maquina: r.maquina?.nombre ?? null, etapa: etiqueta(r.etapa) })
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo registrar el escaneo")

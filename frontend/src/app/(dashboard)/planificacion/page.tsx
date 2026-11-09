@@ -13,94 +13,63 @@
  * que está en la máquina y el que mira la planta de arriba—, así que no tienen
  * por qué coincidir. La ficha impresa (`print/ordenes/[id]`) no se toca.
  *
- * Los pasos 2 a 4 salen de los escaneos del QR. El paso 1 es la orden recién
- * cargada en Órdenes de Trabajo, que todavía no arrancó. Al paso 5 llega
- * cuando alguien le cambia el estado a «completada». El depósito tampoco sale
- * de un escaneo: se carga desde la pantalla de Stock. No hay carga manual acá,
- * sólo lectura.
+ * Los pasos 2 a 4 salen de los escaneos del QR. El paso 1 son las órdenes que
+ * todavía no entraron a la planta: las recién cargadas en Órdenes de Trabajo y
+ * también las que ya están en producción pero que nadie escaneó nunca. Al paso
+ * 5 llega cuando alguien le cambia el estado a «completada». El depósito
+ * tampoco sale de un escaneo: se carga desde la pantalla de Stock. No hay carga
+ * manual acá, sólo lectura.
  *
- * Se refresca sola cada 15 segundos. Polling y no websockets a propósito: el
- * backend duerme en Railway y una conexión abierta se cae igual; además una
- * planta no cambia de estado cinco veces por segundo. 15 segundos es «en vivo»
- * de sobra para esto, y no hay infraestructura nueva que mantener.
+ * Los contadores salen de `pasos[].total` y no se calculan acá: cada orden no
+ * cancelada cae en EXACTAMENTE un paso. Antes esta pantalla contaba los pases
+ * ABIERTOS (`maquinas` y `etapas`), así que una orden cuyo pase lo cerró el
+ * escaneo de la orden siguiente al entrar a la misma impresora no salía en
+ * ningún paso. Medido contra producción: de 3 órdenes en proceso se veía 1.
+ *
+ * Reacciona al escaneo. El dato lo trae `useTablero()`, que pregunta cada 3 s
+ * por `GET /api/produccion/version` —una consulta barata— y pide el tablero
+ * entero sólo cuando ese valor cambió; el refresco ciego de 15 s quedó
+ * únicamente como red de seguridad. Polling y no SSE a propósito: el front pasa
+ * por el proxy de Next, que buferea la respuesta entera y colgaría un stream, y
+ * Vercel cortaría la función igual sin `maxDuration`.
+ *
+ * Antes esta pantalla tenía su propio `setInterval` contra el mismo endpoint
+ * que los dos bloques del dashboard: tres relojes pidiendo lo mismo. Ahora es
+ * uno.
  */
 import { PageContainer } from "@/components/ui/page-container"
 import { PageHeader } from "@/components/ui/page-header"
-import { api } from "@/lib/api"
 import { desdeHace, fechaCorta } from "@/lib/fechas"
-import type {
-  EtapaProduccion, MaquinaTablero, OrdenEnMaquina, OrdenFinalizada, OrdenPendiente,
-  StockTableroItem, TableroProduccion,
+import {
+  SIGUIENTE_DE, estaTrabada,
+  type ClavePaso, type MaquinaTablero, type OrdenEnPaso, type PasoTablero,
+  type StockTableroItem,
 } from "@/lib/api/types"
+import { refrescarTablero, useTablero } from "@/lib/use-tablero"
 import {
   AlertCircle, AlertTriangle, Boxes, CheckCircle2, CircleSlash, Factory, FileText, Loader2,
   PackageOpen, RefreshCw, Wrench,
 } from "lucide-react"
 import Link from "next/link"
-import { useCallback, useEffect, useState } from "react"
-
-const REFRESCO_MS = 15_000
 
 const nf = new Intl.NumberFormat("es-AR")
 
-/**
- * Los tres pasos que sí salen de un escaneo, con su lugar en el recorrido.
- *
- * Arrancan en 2 porque el paso 1 es la orden emitida que todavía no entró a la
- * planta, y ésa no se escanea.
- */
-const PASOS_ESCANEADOS: { numero: number; tipo: EtapaProduccion; titulo: string }[] = [
-  { numero: 2, tipo: "extrusion",  titulo: "Extrusión"  },
-  { numero: 3, tipo: "impresion",  titulo: "Impresión"  },
-  { numero: 4, tipo: "troquelado", titulo: "Troquelado" },
-]
+/** Qué decir cuando un paso de planta está vacío, con el link a mano. */
+const VACIO_PLANTA: Record<string, string> = {
+  extrusion:
+    "Una orden aparece acá cuando el operario escanea el QR en la máquina, y se va cuando alguien la escanea en impresión.",
+  impresion:
+    "Una orden aparece acá cuando el operario escanea el QR en la impresora, y se va cuando alguien la escanea en troquelado.",
+  troquelado:
+    "Una orden aparece acá cuando el operario escanea el QR en la máquina, y se va cuando le ponen estado «Completada».",
+}
 
 export default function PlanificacionPage() {
-  const [datos, setDatos]       = useState<TableroProduccion | null>(null)
-  const [error, setError]       = useState<string | null>(null)
-  const [cargando, setCargando] = useState(true)
+  const { datos, falló, mensaje, cargando } = useTablero()
 
-  const traer = useCallback(async (silencioso = false) => {
-    if (!silencioso) setCargando(true)
-    try {
-      const t = await api.produccion.tablero()
-      // El backend promete que `finalizadas` y `stock` vienen siempre, pero
-      // front y back se deployan por separado (Vercel y Railway): hay una
-      // ventana en la que esta pantalla ya es nueva y la API todavía no. Sin
-      // estos defaults, en esa ventana el tablero entero queda en blanco por
-      // una clave que falta.
-      setDatos({
-        ...t,
-        pendientes: t.pendientes ?? [],
-        finalizadas: t.finalizadas ?? [],
-        stock: t.stock ?? { terminado: [], total_items: 0, bajo_minimo: 0 },
-      })
-      setError(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo leer el tablero")
-    } finally {
-      setCargando(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    traer()
-    const t = setInterval(() => traer(true), REFRESCO_MS)
-    return () => clearInterval(t)
-  }, [traer])
-
-  // Cuántas órdenes finalizadas hay DE VERDAD. `resumen.finalizadas` es el
-  // largo de la lista, que el backend recorta: mostrar ese número al lado de
-  // «Impresoras trabajando» y «Sin ubicar» —que sí son totales— dejaba el
-  // tablero diciendo «20 finalizadas» para siempre. El `??` cubre la ventana
-  // de deploy en la que el front ya es nuevo y la API todavía no manda el
-  // campo (Vercel y Railway se deployan por separado).
-  const finalizadasTotal = datos?.resumen.finalizadas_total ?? datos?.finalizadas.length ?? 0
-
-  // Mismo caso que `finalizadasTotal`: la lista de pendientes viene con tope de
-  // 20, así que su largo no es el total. Los `??` cubren la ventana de deploy
-  // en la que el front ya es nuevo y la API todavía no manda el campo.
-  const pendientesTotal = datos?.resumen.pendientes_total ?? datos?.pendientes?.length ?? 0
+  // `normalizar()` en `use-tablero` garantiza los cinco pasos y en orden.
+  const pasos = datos?.pasos ?? []
+  const paso = (clave: ClavePaso) => pasos.find((p) => p.clave === clave)
 
   return (
     <PageContainer>
@@ -112,29 +81,49 @@ export default function PlanificacionPage() {
 
       {datos && (
         <div className="mb-6 flex flex-wrap gap-3">
-          <Chip label="Sin arrancar" valor={pendientesTotal} />
+          <Chip label="Sin arrancar" valor={paso("orden_trabajo")?.total ?? 0} />
           <Chip label="Impresoras trabajando" valor={datos.resumen.ocupadas} />
           <Chip label="Impresoras libres" valor={datos.resumen.libres} />
-          <Chip label="En extrusión o troquelado" valor={datos.resumen.en_etapas} />
-          <Chip label="Finalizadas" valor={finalizadasTotal} />
+          {/* De los pasos y no de `resumen.en_etapas`: ese cuenta pases
+              abiertos, así que dejaba afuera a las que terminaron la etapa y
+              están esperando la siguiente. */}
+          <Chip
+            label="En extrusión o troquelado"
+            valor={(paso("extrusion")?.total ?? 0) + (paso("troquelado")?.total ?? 0)}
+          />
+          <Chip label="Finalizadas" valor={paso("finalizado")?.total ?? 0} />
           <Chip
             label="Bajo mínimo"
             valor={datos.resumen.bajo_minimo ?? 0}
             alerta={(datos.resumen.bajo_minimo ?? 0) > 0}
           />
-          {/* El único chip que lleva a algún lado: avisa de algo sobre lo que
-              hay que actuar, así que tiene que poder llevar ahí. Si no hay
-              ninguna sin ubicar la sección no se dibuja, y el chip vuelve a
-              ser un número suelto. */}
+          {/* El número accionable de la pantalla: órdenes paradas entre dos
+              máquinas. Va acá arriba y no solamente adentro de cada paso
+              porque es lo que hay que ver sin abrir nada. */}
+          <Chip
+            label="Esperando la etapa siguiente"
+            valor={trabadasDe(pasos)}
+            alerta={trabadasDe(pasos) > 0}
+          />
+          {/* `alerta` apagada a propósito: este número es la suma de las
+              órdenes que nadie escaneó nunca (paso 1) más las que están
+              esperando la etapa siguiente (chip de al lado), y las dos ya
+              salen marcadas en su paso. Dos alarmas para el mismo problema en
+              la misma fila se leen como dos problemas. */}
           <Chip
             label="Sin ubicar"
             valor={datos.resumen.sin_ubicar}
-            alerta={datos.resumen.sin_ubicar > 0}
             href={datos.sin_ubicar.length > 0 ? "#sin-ubicar" : undefined}
           />
+          {/* Las canceladas no entran en ningún paso. Si el número no estuviera
+              escrito, la suma de los cinco pasos no cerraría contra el total de
+              órdenes y parecería que el tablero perdió trabajo otra vez. */}
+          {(datos.resumen.canceladas ?? 0) > 0 && (
+            <Chip label="Canceladas" valor={datos.resumen.canceladas} />
+          )}
           <button
             type="button"
-            onClick={() => traer()}
+            onClick={refrescarTablero}
             className="ml-auto flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
           >
             <RefreshCw className={`h-4 w-4 ${cargando ? "animate-spin" : ""}`} />
@@ -143,10 +132,10 @@ export default function PlanificacionPage() {
         </div>
       )}
 
-      {error && (
+      {falló && mensaje && (
         <p className="mb-6 flex items-center gap-2 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-base font-semibold text-red-700 dark:text-red-400">
           <AlertCircle className="h-5 w-5 shrink-0" />
-          {error}
+          {mensaje}
         </p>
       )}
 
@@ -174,11 +163,19 @@ export default function PlanificacionPage() {
             <section id="sin-ubicar" className="mb-8 scroll-mt-6 rounded-2xl border-2 border-amber-500 bg-amber-500/10 px-5 py-4">
               <h2 className="mb-1 flex items-center gap-2 text-xl font-extrabold uppercase tracking-[0.12em] text-amber-700 dark:text-amber-400">
                 <CircleSlash className="h-6 w-6 shrink-0" />
-                En producción, sin escanear
+                Ninguna máquina las tiene tomadas
               </h2>
+              {/* El texto que había —«nadie las escaneó»— era FALSO para la
+                  mitad de esta lista: una orden entra acá también cuando la
+                  escanearon y después el escaneo de otra orden en la misma
+                  impresora le cerró el pase. OT-0001 en producción la
+                  escanearon dos veces y salía acá abajo de ese cartel.
+                  Lo que sí es cierto de las dos mitades es que ahora mismo no
+                  hay ninguna máquina trabajándolas; en qué paso quedó cada una
+                  lo dice el recorrido de abajo. */}
               <p className="mb-3 text-base font-semibold text-foreground">
-                Arrancaron pero nadie las escaneó, así que el sistema no sabe en qué
-                máquina están.
+                Están en producción pero ahora mismo no hay ninguna máquina
+                trabajándolas. Abajo, en los pasos, se ve por dónde pasó cada una.
               </p>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {datos.sin_ubicar.map((o) => (
@@ -199,97 +196,64 @@ export default function PlanificacionPage() {
               trabajo desapareciera, el 4 pasaría a estar en el lugar del 3 y el
               recorrido dejaría de leerse de corrido. */}
           <ol className="flex flex-col">
-            {/* Paso 1: la orden ya emitida que todavía no entró a la planta.
-                No sale de un escaneo —es `estado` en borrador o pendiente— y es
-                el paso que faltaba: antes el tablero arrancaba en extrusión,
-                así que una orden cargada y sin arrancar no aparecía en ningún
-                lado. La cuenta es el total real y el aviso del recorte va
-                redactado igual que el del paso 5 y el del depósito. */}
-            <Paso
-              numero={1}
-              titulo="Orden de trabajo"
-              cuenta={pendientesTotal}
-              nota={
-                datos.pendientes.length < pendientesTotal
-                  ? `· se ven los primeros ${nf.format(datos.pendientes.length)}`
-                  : null
-              }
-            >
-              {datos.pendientes.length === 0 ? (
-                <Vacio
-                  icon={FileText}
-                  titulo="No hay órdenes esperando para arrancar"
-                  detalle="Una orden aparece acá en cuanto se carga en Órdenes de Trabajo, y se va de este paso cuando el operario escanea el QR en la primera máquina."
-                  href="/ordenes/nueva"
-                  cta="Cargar una orden"
-                />
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {datos.pendientes.map((o) => <TarjetaPendiente key={o.id} orden={o} />)}
-                </div>
-              )}
-            </Paso>
-
-            {PASOS_ESCANEADOS.map(({ numero, tipo, titulo }) => {
+            {pasos.map((p, i) => {
+              const trabadas = p.ordenes.filter((o) => estaTrabada(p.clave, o.en_maquina))
               const impresoras = datos.maquinas.filter(
-                (m) => (m.tipo ?? "").toLowerCase() === tipo,
+                (m) => (m.tipo ?? "").toLowerCase() === p.clave,
               )
-              const ordenes = datos.etapas.find((e) => e.etapa === tipo)?.ordenes ?? []
+              // Se saca de la lista lo que YA se está dibujando en una tarjeta
+              // de máquina, y nada más. Filtrar por `en_maquina` sería más
+              // corto pero esconde una orden si `maquinas` y `pasos` llegaran a
+              // no coincidir: una con `en_maquina: true` que ninguna máquina
+              // muestra desaparecería de la pantalla, que es exactamente el bug
+              // que este cambio vino a arreglar. Preferible repetirla a
+              // perderla.
+              const yaEnMaquina = new Set(
+                impresoras.map((m) => m.orden?.id).filter((id) => id != null),
+              )
+              const enTarjetas = ordenar(p).filter((o) => !yaEnMaquina.has(o.id))
 
               return (
                 <Paso
-                  key={tipo}
-                  numero={numero}
-                  titulo={titulo}
-                  cuenta={
-                    impresoras.length > 0
-                      ? impresoras.filter((m) => m.orden).length
-                      : ordenes.length
+                  key={p.clave}
+                  numero={p.numero}
+                  titulo={p.titulo}
+                  cuenta={p.total}
+                  // Mismo recorte y misma redacción que el depósito y que la
+                  // card del dashboard: tiene que decirse igual en los tres.
+                  nota={
+                    p.ordenes.length < p.total
+                      ? `· se ven las ${nf.format(p.ordenes.length)} más recientes`
+                      : null
                   }
+                  ultimo={i === pasos.length - 1}
                 >
+                  {/* El aviso va ANTES de las tarjetas: si va después, el que
+                      ve la tarjeta amarilla primero no sabe qué le dicen. */}
+                  <AvisoTrabadas clave={p.clave} cuantas={trabadas.length} />
+
                   {/* Impresión se abre en una tarjeta por máquina (Venus y las
                       otras hacen cosas distintas); extrusión y troquelado van
                       en tarjetas de orden, porque ahí las máquinas son
                       intercambiables y no se elige ninguna. */}
-                  {impresoras.length > 0 ? (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {impresoras.length > 0 && (
+                    <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       {impresoras.map((m) => <TarjetaMaquina key={m.id} maquina={m} />)}
                     </div>
+                  )}
+
+                  {enTarjetas.length > 0 ? (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {enTarjetas.map((o) => (
+                        <TarjetaOrden key={o.id} clave={p.clave} orden={o} />
+                      ))}
+                    </div>
                   ) : (
-                    <TarjetaEtapa ordenes={ordenes} />
+                    impresoras.length === 0 && <VacioDe paso={p} />
                   )}
                 </Paso>
               )
             })}
-
-            {/* La cuenta es el total real, y el aviso del recorte va redactado
-                igual que el del depósito: es el mismo recorte y la pantalla
-                tiene que decirlo de la misma forma en los dos lados. */}
-            <Paso
-              numero={5}
-              titulo="Finalizado"
-              cuenta={finalizadasTotal}
-              nota={
-                datos.finalizadas.length < finalizadasTotal
-                  ? `· se ven los primeros ${nf.format(datos.finalizadas.length)}`
-                  : null
-              }
-              ultimo
-            >
-              {datos.finalizadas.length === 0 ? (
-                <Vacio
-                  icon={CheckCircle2}
-                  titulo="Todavía no se cerró ninguna orden"
-                  detalle="Una orden cae acá cuando le ponen estado «Completada» en Órdenes de Trabajo. Mientras siga en producción, se ve en los pasos de arriba."
-                  href="/ordenes"
-                  cta="Ir a Órdenes de Trabajo"
-                />
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {datos.finalizadas.map((o) => <TarjetaFinalizada key={o.id} orden={o} />)}
-                </div>
-              )}
-            </Paso>
           </ol>
 
           {/* El depósito no es un paso del flujo —no se escanea, no tiene
@@ -461,39 +425,176 @@ function Vacio({
 }
 
 /**
- * Una etapa que no elige máquina: lo único que importa es qué hay adentro.
+ * Cuántas órdenes están paradas entre dos máquinas, en toda la planta.
  *
- * No se dibuja una tarjeta por máquina porque no las distingue nadie: en
- * extrusión y troquelado las máquinas son intercambiables.
+ * Sólo cuenta los pasos de planta: en el paso 1 la orden todavía no entró y en
+ * el 5 ya salió, así que ahí «no está en máquina» es lo normal.
  */
-function TarjetaEtapa({ ordenes }: { ordenes: OrdenEnMaquina[] }) {
-  if (ordenes.length === 0) {
-    return (
-      <p className="rounded-2xl border-2 border-dashed border-border bg-muted/30 px-5 py-6 text-xl font-bold text-muted-foreground">
-        Sin trabajos en esta etapa
+function trabadasDe(pasos: PasoTablero[]): number {
+  return pasos.reduce(
+    (n, p) => n + p.ordenes.filter((o) => estaTrabada(p.clave, o.en_maquina)).length,
+    0,
+  )
+}
+
+/**
+ * Las trabadas primero.
+ *
+ * El backend manda las más recientes primero, que es lo correcto para una
+ * lista. Pero dentro de un paso la única cosa accionable es la orden que quedó
+ * esperando la etapa siguiente: si está novena, no se ve. El resto mantiene el
+ * orden del backend.
+ */
+function ordenar(paso: PasoTablero): OrdenEnPaso[] {
+  const trabada = (o: OrdenEnPaso) => estaTrabada(paso.clave, o.en_maquina)
+  const trabadas = paso.ordenes.filter(trabada)
+  if (trabadas.length === 0 || trabadas.length === paso.ordenes.length) return paso.ordenes
+  return [...trabadas, ...paso.ordenes.filter((o) => !trabada(o))]
+}
+
+/**
+ * El aviso de que hay órdenes paradas entre dos máquinas.
+ *
+ * Es lo único de esta pantalla sobre lo que se puede ACTUAR, y dice entre qué
+ * dos etapas se quedó el trabajo. Escrito para alguien parado en la planta: la
+ * acción concreta es ir a esa máquina y escanear el QR.
+ */
+function AvisoTrabadas({ clave, cuantas }: { clave: ClavePaso; cuantas: number }) {
+  const siguiente = SIGUIENTE_DE[clave]
+  if (cuantas === 0 || !siguiente) return null
+
+  // Singular y plural escritos enteros: armar la frase pegando una «s» deja
+  // «Hay 1 orden… están… cuando arranquen», que es como escribe un sistema y
+  // no una persona. Esto lo lee alguien parado en la planta.
+  const una = cuantas === 1
+  const queHacer =
+    clave === "troquelado"
+      ? una
+        ? "Está terminada en la planta: hay que cerrarla en Órdenes de Trabajo."
+        : "Están terminadas en la planta: hay que cerrarlas en Órdenes de Trabajo."
+      : una
+        ? `Está en la planta pero en ninguna máquina. Cuando arranque, hay que escanear el QR en ${siguiente}.`
+        : `Están en la planta pero en ninguna máquina. Cuando arranquen, hay que escanear el QR en ${siguiente}.`
+
+  return (
+    <p className="mb-4 flex items-start gap-3 rounded-2xl border-2 border-amber-500 border-l-[10px] bg-amber-500/10 px-5 py-4 text-lg font-bold text-foreground">
+      <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-amber-700 dark:text-amber-400" />
+      <span>
+        {una
+          ? `Hay 1 orden que ya pasó por acá y está esperando ${siguiente}. `
+          : `Hay ${nf.format(cuantas)} órdenes que ya pasaron por acá y están esperando ${siguiente}. `}
+        {queHacer}
+      </span>
+    </p>
+  )
+}
+
+/**
+ * Una orden dentro de un paso, en cualquiera de los cinco.
+ *
+ * Reemplaza a las tres tarjetas casi idénticas que había (`TarjetaEtapa`,
+ * `TarjetaPendiente`, `TarjetaFinalizada`): el contrato manda la misma forma
+ * para los cinco pasos, así que mantener tres copias era dejar que se
+ * desincronicen.
+ *
+ * Las dos situaciones de un paso de planta NO se pueden ver iguales:
+ *
+ *  - en la máquina ahora → borde de marca, sólido
+ *  - trabada entre dos etapas → amarillo + barra gruesa a la izquierda + ícono
+ *
+ * Tres señales y no sólo el color: el que mira el tablero puede ser daltónico,
+ * y la pantalla de la planta se mira de lejos y de costado. La barra gruesa de
+ * la izquierda es lo que se ve primero desde tres metros.
+ *
+ * El punteado queda reservado para el paso 1, que es su significado en toda
+ * esta pantalla: todavía no empezó (lo mismo que una impresora libre).
+ */
+function TarjetaOrden({ clave, orden }: { clave: ClavePaso; orden: OrdenEnPaso }) {
+  const trabada = estaTrabada(clave, orden.en_maquina)
+  const siguiente = SIGUIENTE_DE[clave]
+
+  const borde = trabada
+    ? "border-amber-500 border-l-[10px] bg-amber-500/10 hover:border-amber-600"
+    : clave === "orden_trabajo"
+      ? "border-dashed border-border bg-card hover:border-brand"
+      : clave === "finalizado"
+        ? "border-border bg-card hover:border-brand"
+        : "border-brand bg-card hover:border-brand-strong"
+
+  return (
+    <Link
+      href={`/ordenes?buscar=${orden.numero}`}
+      className={`rounded-2xl border-2 p-5 transition ${borde}`}
+    >
+      <p className="text-2xl font-extrabold leading-tight text-foreground">
+        {orden.producto ?? "Sin producto cargado"}
       </p>
+      <p className="mt-1 text-lg font-bold text-brand">{orden.numero}</p>
+      <p className="text-base font-semibold text-foreground">{orden.cliente ?? "Sin cliente"}</p>
+
+      {trabada && siguiente && (
+        <p className="mt-3 flex items-center gap-2 text-lg font-extrabold text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          Esperando {siguiente}
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-muted-foreground">
+        {orden.cantidad != null && <span>{nf.format(orden.cantidad)} u</span>}
+        {orden.maquina && <span>{orden.maquina}</span>}
+        {orden.operario && <span>{orden.operario}</span>}
+        {orden.desde && <span>{cuando(clave, trabada, orden.desde)}</span>}
+        {orden.lote && <span className="font-mono">{orden.lote}</span>}
+      </div>
+    </Link>
+  )
+}
+
+/**
+ * El renglón de tiempo de una tarjeta.
+ *
+ * En el paso 5 el día y no el «hace tanto»: de una orden cerrada lo que se
+ * busca es la fecha de cierre. En los otros cuatro es al revés —«hace 3 h» es
+ * una cola que avanza, «hace 6 días» es un problema, y el día suelto no dice
+ * ninguna de las dos cosas sin hacer la cuenta mentalmente—. En una trabada es
+ * EL dato de la tarjeta, así que lleva la palabra puesta.
+ */
+function cuando(clave: ClavePaso, trabada: boolean, desde: string): string {
+  if (clave === "finalizado") return fechaCorta(desde)
+  if (trabada) return `trabada ${desdeHace(desde)}`
+  if (clave === "orden_trabajo") return `Emitida ${desdeHace(desde)}`
+  return desdeHace(desde)
+}
+
+/** El estado vacío de cada paso, con el link a lo que hay que hacer. */
+function VacioDe({ paso }: { paso: PasoTablero }) {
+  if (paso.clave === "orden_trabajo") {
+    return (
+      <Vacio
+        icon={FileText}
+        titulo="No hay órdenes esperando para arrancar"
+        detalle="Acá caen las órdenes recién cargadas en Órdenes de Trabajo y también las que ya están en producción pero que nadie escaneó nunca. Una orden se va de este paso cuando el operario escanea el QR en la primera máquina."
+        href="/ordenes/nueva"
+        cta="Cargar una orden"
+      />
+    )
+  }
+  if (paso.clave === "finalizado") {
+    return (
+      <Vacio
+        icon={CheckCircle2}
+        titulo="Todavía no se cerró ninguna orden"
+        detalle="Una orden cae acá cuando le ponen estado «Completada» en Órdenes de Trabajo. Mientras siga en producción, se ve en los pasos de arriba."
+        href="/ordenes"
+        cta="Ir a Órdenes de Trabajo"
+      />
     )
   }
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {ordenes.map((o) => (
-        <Link
-          key={o.id}
-          href={`/ordenes?buscar=${o.numero}`}
-          className="rounded-2xl border-2 border-brand bg-card p-5 transition hover:border-brand-strong"
-        >
-          <p className="text-2xl font-extrabold leading-tight text-foreground">
-            {o.producto ?? "Sin producto cargado"}
-          </p>
-          <p className="mt-1 text-lg font-bold text-brand">{o.numero}</p>
-          <p className="text-base font-semibold text-foreground">{o.cliente}</p>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-muted-foreground">
-            {o.operario && <span>{o.operario}</span>}
-            <span>{desdeHace(o.desde)}</span>
-          </div>
-        </Link>
-      ))}
-    </div>
+    <p className="rounded-2xl border-2 border-dashed border-border bg-muted/30 px-5 py-6 text-xl font-bold text-muted-foreground">
+      Ninguna orden quedó en {paso.titulo.toLowerCase()}.{" "}
+      <span className="font-semibold">{VACIO_PLANTA[paso.clave]}</span>
+    </p>
   )
 }
 
@@ -530,55 +631,6 @@ function TarjetaMaquina({ maquina }: { maquina: MaquinaTablero }) {
         </Link>
       )}
     </div>
-  )
-}
-
-/**
- * Una orden emitida que todavía no arrancó.
- *
- * Con «hace tanto» y no con el día de emisión: de una orden que no arrancó lo
- * que hay que ver de un vistazo es cuánto tiempo lleva esperando. «hace 3 h»
- * es una cola que avanza; «hace 6 días» es un problema. El día suelto no dice
- * ninguna de las dos cosas sin hacer la cuenta mentalmente.
- */
-function TarjetaPendiente({ orden }: { orden: OrdenPendiente }) {
-  return (
-    <Link
-      href={`/ordenes?buscar=${orden.numero}`}
-      className="rounded-2xl border-2 border-dashed border-border bg-card p-5 transition hover:border-brand"
-    >
-      <p className="text-2xl font-extrabold leading-tight text-foreground">
-        {orden.producto ?? "Sin producto cargado"}
-      </p>
-      <p className="mt-1 text-lg font-bold text-brand">{orden.numero}</p>
-      <p className="text-base font-semibold text-foreground">{orden.cliente ?? "Sin cliente"}</p>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-muted-foreground">
-        {orden.cantidad != null && <span>{nf.format(orden.cantidad)} u</span>}
-        {orden.fecha && <span>Emitida {desdeHace(orden.fecha)}</span>}
-        {orden.lote && <span className="font-mono">{orden.lote}</span>}
-      </div>
-    </Link>
-  )
-}
-
-/** Una orden que ya salió de la planta. Sin «hace tanto»: acá importa el día. */
-function TarjetaFinalizada({ orden }: { orden: OrdenFinalizada }) {
-  return (
-    <Link
-      href={`/ordenes?buscar=${orden.numero}`}
-      className="rounded-2xl border-2 border-border bg-card p-5 transition hover:border-brand"
-    >
-      <p className="text-2xl font-extrabold leading-tight text-foreground">
-        {orden.producto ?? "Sin producto cargado"}
-      </p>
-      <p className="mt-1 text-lg font-bold text-brand">{orden.numero}</p>
-      <p className="text-base font-semibold text-foreground">{orden.cliente ?? "Sin cliente"}</p>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-muted-foreground">
-        {orden.cantidad != null && <span>{nf.format(orden.cantidad)} u</span>}
-        {orden.fecha && <span>{fechaCorta(orden.fecha)}</span>}
-        {orden.lote && <span className="font-mono">{orden.lote}</span>}
-      </div>
-    </Link>
   )
 }
 
