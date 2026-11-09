@@ -814,3 +814,568 @@ def test_la_pendiente_sin_marca_de_emision_queda_al_fondo(api, cliente_id, crear
 
     mias = [p["id"] for p in cuerpo["pendientes"] if p["id"] in (con_marca, sin_marca)]
     assert mias == [con_marca, sin_marca]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Los cinco pasos del recorrido — la clave `pasos`
+#
+# Acá se prueba la propiedad que el tablero NO tenía: que una orden no se
+# pierda. Antes el tablero sólo miraba pases `en_curso`, así que cuando otra
+# orden entraba a la misma impresora —y el escaneo cerraba el pase anterior
+# para liberar la máquina— la orden vieja se caía de la pantalla: no estaba en
+# ninguna etapa y aparecía en `sin_ubicar`, que encima dice «nadie la escaneó»
+# justo de una orden que escanearon dos veces.
+#
+# Un tablero de planta que pierde órdenes es PEOR que no tener tablero: da
+# confianza falsa. De ahí que el test central de esta sección sea un invariante
+# de conservación y no un caso de ejemplo.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# El recorrido completo, en orden. Repetido a propósito y no importado del
+# router: si alguien le cambia una clave o un número, el contrato con el
+# frontend se rompe y este test tiene que ser el que avise.
+PASOS_ESPERADOS = [
+    ("orden_trabajo", 1, "Orden de trabajo"),
+    ("extrusion",     2, "Extrusión"),
+    ("impresion",     3, "Impresión"),
+    ("troquelado",    4, "Troquelado"),
+    ("finalizado",    5, "Finalizado"),
+]
+
+
+def _paso(cuerpo, clave):
+    return next(p for p in cuerpo["pasos"] if p["clave"] == clave)
+
+
+def _en_paso(cuerpo, clave, orden_id):
+    """La fila de una orden dentro de un paso, o None si no está ahí."""
+    return next((o for o in _paso(cuerpo, clave)["ordenes"] if o["id"] == orden_id), None)
+
+
+def _donde_esta(cuerpo, orden_id):
+    """En qué pasos aparece una orden.
+
+    Devuelve una LISTA y no la primera coincidencia porque el invariante no es
+    «está en algún paso» sino «está en EXACTAMENTE uno»: una orden duplicada en
+    dos pasos también rompe la conservación, y hacia el otro lado (el total
+    cuenta de más).
+    """
+    return [
+        p["clave"] for p in cuerpo["pasos"]
+        if any(o["id"] == orden_id for o in p["ordenes"])
+    ]
+
+
+def _total_ordenes(db):
+    """Cuántas órdenes hay en la base, contadas por fuera del router."""
+    return db.query(OrdenTrabajo).count()
+
+
+def _cerrar_pases(db, orden_id):
+    """Cierra a mano los pases abiertos de una orden.
+
+    Reproduce lo que hace el escaneo cuando libera una máquina
+    (`registrar_etapa` en routers/ordenes.py) sin tener que meter otra orden en
+    la misma impresora.
+    """
+    db.query(PlanProduccion).filter(
+        PlanProduccion.orden_trabajo_id == orden_id,
+        PlanProduccion.estado == "en_curso",
+    ).update({"estado": "terminada"}, synchronize_session=False)
+    db.commit()
+
+
+def test_los_cinco_pasos_vienen_siempre_y_en_orden(api):
+    """Las cinco columnas están siempre, aunque estén en cero.
+
+    Un paso ausente no se distingue de «no hay nada ahí» y le rompe la pantalla
+    al que lo lee, así que la lista vacía es parte del contrato.
+    """
+    pasos = api.get("/api/produccion/tablero").json()["pasos"]
+
+    assert [(p["clave"], p["numero"], p["titulo"]) for p in pasos] == PASOS_ESPERADOS
+    for p in pasos:
+        assert isinstance(p["total"], int)
+        assert isinstance(p["ordenes"], list)
+
+
+def test_la_orden_con_el_pase_cerrado_sigue_en_su_paso(api, cliente_id, maquinas, db_session):
+    """El caso que hoy se pierde: escaneada, el pase cerrado, y en ningún lado.
+
+    La máquina se liberó (otra orden entró, o la cerró el escaneo siguiente),
+    pero la orden sigue EN PRODUCCIÓN y el último lugar donde se la vio es ese
+    paso. Dejarla ahí marcada como «no está en la máquina» es la verdad
+    disponible; borrarla de la pantalla, no.
+    """
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id, "cantidad": 20000}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-REINA"]})
+    _cerrar_pases(db_session, ot["id"])
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot["id"]) == ["impresion"]
+
+    fila = _en_paso(cuerpo, "impresion", ot["id"])
+    assert fila["en_maquina"] is False          # el pase está cerrado
+    assert fila["numero"] == ot["numero"]
+    assert fila["cliente"] == MARCA
+    assert fila["cantidad"] == 20000
+    assert fila["desde"]                        # desde cuándo está en este paso
+    assert fila["operario"]                     # quién lo escaneó
+
+
+def test_la_orden_con_el_pase_abierto_figura_en_la_maquina(api, cliente_id, maquinas):
+    """Pase abierto = la orden está ARRIBA de la máquina ahora mismo."""
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-REINA"]})
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot["id"]) == ["impresion"]
+
+    fila = _en_paso(cuerpo, "impresion", ot["id"])
+    assert fila["en_maquina"] is True
+    assert fila["maquina"] == "PYTEST-TB-REINA (ReinaFlex Tablero)"
+
+
+def test_cuando_entra_otra_orden_la_anterior_no_desaparece(api, cliente_id, maquinas):
+    """El caso real medido en producción, de punta a punta.
+
+    Dos órdenes a la MISMA impresora: el escaneo de la segunda cierra el pase
+    de la primera para liberar la máquina (bien: una impresora no puede tener
+    dos trabajos). Las dos tienen que seguir en el paso 3, y la columna de la
+    máquina tiene que mostrar sólo a la que está encima.
+    """
+    vieja = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{vieja['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+    nueva = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{nueva['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+
+    assert _donde_esta(cuerpo, vieja["id"]) == ["impresion"]
+    assert _donde_esta(cuerpo, nueva["id"]) == ["impresion"]
+    assert _en_paso(cuerpo, "impresion", vieja["id"])["en_maquina"] is False
+    assert _en_paso(cuerpo, "impresion", nueva["id"])["en_maquina"] is True
+    # La columna de la impresora no cambia: ahí va sólo lo que tiene encima.
+    assert _maquina(cuerpo, maquinas["PYTEST-TB-VENUS"])["orden"]["id"] == nueva["id"]
+
+
+def test_la_orden_en_produccion_que_nadie_escaneo_cae_en_el_primer_paso(
+    api, cliente_id, db_session
+):
+    """En producción y sin un solo pase: nadie la vio nunca en la planta.
+
+    El lugar honesto es el primer paso, la cola de entrada. Antes caía en
+    `sin_ubicar` y ahí se queda —esa sección no cambia, la usa /planificacion—
+    pero además tiene que estar en un paso, o el recorrido la pierde.
+    """
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    db_session.query(OrdenTrabajo).filter(OrdenTrabajo.id == ot["id"]).update(
+        {"estado": "en_proceso"}, synchronize_session=False
+    )
+    db_session.commit()
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot["id"]) == ["orden_trabajo"]
+
+    fila = _en_paso(cuerpo, "orden_trabajo", ot["id"])
+    assert fila["en_maquina"] is False
+    assert fila["maquina"] is None
+    assert fila["operario"] is None
+
+
+@pytest.mark.parametrize("estado", ["borrador", "pendiente"])
+def test_la_orden_recien_emitida_cae_en_el_primer_paso(
+    api, cliente_id, crear_orden, estado
+):
+    """`borrador` y `pendiente` son el mismo hecho para la planta: no arrancó."""
+    ot = crear_orden(cliente_id, f"PYTEST-TB-PASO-{estado[:4].upper()}", estado=estado)
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot) == ["orden_trabajo"]
+    assert _en_paso(cuerpo, "orden_trabajo", ot)["desde"]   # hace cuánto espera
+
+
+def test_la_orden_cerrada_cae_en_el_ultimo_paso(api, cliente_id, crear_orden):
+    ot = crear_orden(cliente_id, "PYTEST-TB-PASO-FIN", estado="completada")
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot) == ["finalizado"]
+    assert _en_paso(cuerpo, "finalizado", ot)["en_maquina"] is False
+
+
+def test_la_orden_cerrada_va_al_ultimo_paso_aunque_haya_pasado_por_una_maquina(
+    api, cliente_id, maquinas, db_session
+):
+    """El estado manda sobre el último pase: cerrada es cerrada.
+
+    Si el último pase ganara, una orden completada que pasó por impresión
+    seguiría apareciendo en el paso 3 y el tablero diría que está en la planta.
+    """
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+    db_session.query(OrdenTrabajo).filter(OrdenTrabajo.id == ot["id"]).update(
+        {"estado": "completada"}, synchronize_session=False
+    )
+    db_session.commit()
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot["id"]) == ["finalizado"]
+
+
+def test_la_cancelada_no_esta_en_ningun_paso_pero_se_cuenta(api, cliente_id, crear_orden):
+    """Una cancelada no ocupa lugar en el recorrido, pero no desaparece callada.
+
+    Por delta y no contra un absoluto: el Postgres de test está compartido
+    entre los 32 archivos de integración y arrastra residuo, así que el único
+    número honesto es cuánto SUBIÓ el contador por lo que hizo este test.
+    """
+    antes = api.get("/api/produccion/tablero").json()["resumen"]["canceladas"]
+
+    ot = crear_orden(cliente_id, "PYTEST-TB-PASO-CANC", estado="cancelada")
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot) == []
+    assert cuerpo["resumen"]["canceladas"] == antes + 1
+
+
+def test_con_dos_pases_la_orden_queda_en_el_ultimo(api, cliente_id, db_session):
+    """Dos pases CERRADOS: va al del último, no al del primero.
+
+    Si el router se quedara con cualquier pase en vez del más nuevo, el tablero
+    mostraría la orden en una etapa que ya dejó atrás. Los dos pases se cierran
+    a propósito: con uno abierto, un `estado == 'en_curso'` alcanzaría para
+    acertar por casualidad.
+    """
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa", json={"etapa": "extrusion"})
+    api.post(f"/api/ordenes/{ot['id']}/etapa", json={"etapa": "troquelado"})
+    _cerrar_pases(db_session, ot["id"])
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _donde_esta(cuerpo, ot["id"]) == ["troquelado"]
+    assert _en_paso(cuerpo, "troquelado", ot["id"])["en_maquina"] is False
+
+
+def test_el_total_del_paso_cuenta_todas_aunque_la_lista_corte_en_veinte(
+    api, cliente_id, crear_orden
+):
+    """La lista viene recortada; `total` no.
+
+    Con 57 órdenes en un paso, un `total` sacado del largo de la lista diría
+    «20» para siempre, justo al lado de un número que sí es total.
+    """
+    antes = _paso(api.get("/api/produccion/tablero").json(), "finalizado")["total"]
+
+    for i in range(22):
+        crear_orden(cliente_id, f"PYTEST-TB-PASO-T{i:02d}", estado="completada")
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    paso = _paso(cuerpo, "finalizado")
+    assert paso["total"] == antes + 22
+    assert len(paso["ordenes"]) == 20
+
+    # Y `pasos_total` tampoco puede salir del largo de las listas: con un paso
+    # pasado del tope, sumar largos da de menos y el invariante se cae.
+    assert paso["total"] > len(paso["ordenes"])
+    assert cuerpo["resumen"]["pasos_total"] == sum(p["total"] for p in cuerpo["pasos"])
+
+
+def test_ningun_paso_pierde_ordenes(api, db_session, cliente_id, maquinas, crear_orden):
+    """EL invariante: `pasos_total + canceladas` == las órdenes de la base.
+
+    Un flujo de planta que pierde órdenes da confianza falsa, así que no
+    alcanza con probar caso por caso: hay que probar la CONSERVACIÓN. Cada
+    orden no cancelada cae en exactamente un paso, y las canceladas se cuentan
+    aparte: la suma no puede dar otra cosa que el total.
+
+    El total se cuenta por fuera del router (`_total_ordenes`), con el residuo
+    compartido del Postgres de test incluido a propósito: el residuo son
+    órdenes reales en estados variados y también tienen que caer en algún paso.
+    Nada más corre mientras este test corre, así que las dos lecturas ven la
+    misma foto.
+
+    Las órdenes propias se chequean además una por una, porque el total global
+    podría cerrar por casualidad si el router perdiera una orden y contara otra
+    dos veces.
+    """
+    mias: list[int] = []
+
+    # (1) emitida y sin arrancar, en sus dos formas
+    mias.append(crear_orden(cliente_id, "PYTEST-TB-INV-BORR", estado="borrador"))
+    mias.append(crear_orden(cliente_id, "PYTEST-TB-INV-PEND", estado="pendiente"))
+
+    # (2) en producción, con el pase ABIERTO
+    abierta = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{abierta['id']}/etapa", json={"etapa": "extrusion"})
+    mias.append(abierta["id"])
+
+    # (3) en producción, con el pase CERRADO — la que hoy se perdía
+    cerrada = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{cerrada['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+    _cerrar_pases(db_session, cerrada["id"])
+    mias.append(cerrada["id"])
+
+    # (4) en producción y sin un solo pase
+    huerfana = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    db_session.query(OrdenTrabajo).filter(OrdenTrabajo.id == huerfana["id"]).update(
+        {"estado": "en_proceso"}, synchronize_session=False
+    )
+    db_session.commit()
+    mias.append(huerfana["id"])
+
+    # (5) cerrada por la oficina
+    mias.append(crear_orden(cliente_id, "PYTEST-TB-INV-FIN", estado="completada"))
+
+    # (6) cancelada: no va a ningún paso, se cuenta aparte
+    cancelada = crear_orden(cliente_id, "PYTEST-TB-INV-CANC", estado="cancelada")
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    resumen = cuerpo["resumen"]
+
+    # La conservación, con residuo y todo.
+    assert resumen["pasos_total"] + resumen["canceladas"] == _total_ordenes(db_session)
+
+    # `pasos_total` tiene que ser la suma de los cinco pasos y no un contador
+    # suelto: si se calculara aparte, podría cerrar el invariante mientras la
+    # pantalla muestra otra cosa.
+    assert resumen["pasos_total"] == sum(p["total"] for p in cuerpo["pasos"])
+
+    # Y cada orden de este test, en exactamente un paso.
+    for orden_id in mias:
+        assert len(_donde_esta(cuerpo, orden_id)) == 1, f"orden {orden_id} perdida o repetida"
+    assert _donde_esta(cuerpo, cancelada) == []
+
+
+def test_la_lista_del_paso_va_de_la_mas_reciente_a_la_mas_vieja(
+    api, cliente_id, crear_orden
+):
+    """El tablero se lee de arriba: lo último que pasó va primero.
+
+    La marca con la que ordena cada paso NO es la misma: el paso 5 ordena por
+    el cierre (`updated_at`), el paso 1 por la emisión y los del medio por el
+    escaneo. Si se ordenara por una marca de otro paso, la lista saldría
+    revuelta sin que nada más se rompa.
+
+    La vieja se da de alta PRIMERO (id menor) para que el desempate por
+    `id DESC` no pueda satisfacer el assert por su cuenta.
+    """
+    vieja = crear_orden(
+        cliente_id, "PYTEST-TB-ORD-V", estado="completada",
+        updated_at=datetime.now(timezone.utc) - timedelta(days=3),
+    )
+    nueva = crear_orden(
+        cliente_id, "PYTEST-TB-ORD-N", estado="completada",
+        updated_at=datetime.now(timezone.utc),
+    )
+    assert vieja < nueva, "los ids tienen que contradecir al orden esperado"
+
+    paso = _paso(api.get("/api/produccion/tablero").json(), "finalizado")
+    mias = [o["id"] for o in paso["ordenes"] if o["id"] in (vieja, nueva)]
+    assert mias == [nueva, vieja]
+
+
+def test_el_desde_del_ultimo_paso_es_el_cierre_y_no_la_emision(
+    api, cliente_id, crear_orden
+):
+    """En el paso 5 el hecho es el cierre, así que `desde` es `updated_at`.
+
+    Con `created_at` diría «hace cuánto se cargó el pedido» —puede ser de meses
+    antes— al lado de una columna que promete decir desde cuándo está en este
+    paso. Tiene que coincidir con la fecha que ya muestra `finalizadas`, que es
+    la misma marca.
+    """
+    cierre = datetime.now(timezone.utc) - timedelta(days=2)
+    ot = crear_orden(
+        cliente_id, "PYTEST-TB-DESDE", estado="completada",
+        updated_at=cierre, created_at=datetime.now(timezone.utc) - timedelta(days=90),
+    )
+
+    cuerpo = api.get("/api/produccion/tablero").json()
+    assert _en_paso(cuerpo, "finalizado", ot)["desde"] == _finalizada(cuerpo, ot)["fecha"]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# `GET /api/produccion/version` — para que el tablero reaccione al escaneo
+#
+# El que escanea está en la tablet de planta; el que mira el tablero está en la
+# oficina, en otro navegador. No hay forma de que el escaneo le avise a la otra
+# pantalla sin preguntar, y preguntar por el tablero entero cada 3 segundos es
+# caro. Este endpoint es la pregunta barata: un valor opaco que cambia si
+# cambió algo que el tablero muestra.
+#
+# No es SSE a propósito: el frontend pasa por el proxy de Next
+# (`frontend/src/app/api/backend/[...path]/route.ts`), que hace `await
+# res.text()` y buferea la respuesta entera —un stream se colgaría—, y
+# `vercel.json` no declara `maxDuration`, así que Vercel cortaría la función.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _version(api):
+    r = api.get("/api/produccion/version")
+    assert r.status_code == 200, r.text
+    v = r.json()["v"]
+    assert isinstance(v, str) and v, "la versión tiene que ser un string con algo adentro"
+    return v
+
+
+def test_la_version_pide_sesion(client):
+    """Mismo candado que el tablero: sin token no se mira la planta.
+
+    Usa el `client` pelado del conftest raíz, no `api`: ese pisa `verify_token`
+    en toda la app y el test pasaría sin probar nada.
+    """
+    assert client.get("/api/produccion/version").status_code == 401
+
+
+def test_la_version_no_se_mueve_si_no_paso_nada(api):
+    """Dos llamadas seguidas dan lo mismo.
+
+    Es la mitad que hace al endpoint útil: si cambiara siempre, el tablero se
+    recargaría entero cada 3 segundos y habríamos empeorado las cosas.
+    """
+    assert _version(api) == _version(api)
+
+
+def test_la_version_cambia_al_crear_una_orden(api, cliente_id):
+    antes = _version(api)
+    api.post("/api/ordenes", json={"cliente_id": cliente_id})
+    assert _version(api) != antes
+
+
+def test_la_version_cambia_al_borrar_una_orden(api, cliente_id):
+    """Una orden MENOS cambia el tablero igual que una más.
+
+    Es el caso que se escapa si la versión se arma sólo con marcas máximas:
+    borrar una fila no mueve ningún `max`, así que sin contar filas la pantalla
+    se quedaría mostrando una orden que ya no existe.
+
+    Se borra la VIEJA de dos y no la única, a propósito: borrando la última, el
+    `max(id)` también se mueve y el test pasaría por el motivo equivocado —
+    probado rompiendo el conteo del router, que con una sola orden sobrevivía—.
+    Dejando una orden más nueva en pie, ni `max(id)` ni `max(updated_at)` se
+    mueven, y el conteo queda como la ÚNICA señal que puede notar el borrado.
+    """
+    vieja = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    nueva = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    assert vieja["id"] < nueva["id"]
+    antes = _version(api)
+
+    r = api.delete(f"/api/ordenes/{vieja['id']}")
+    assert r.status_code == 204, r.text
+
+    assert _version(api) != antes
+
+
+def test_la_version_cambia_al_escanear(api, cliente_id, maquinas):
+    """El pedido textual del usuario: que escanear mueva el tablero."""
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    antes = _version(api)
+
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+
+    assert _version(api) != antes
+
+
+def test_la_version_cambia_cuando_se_cierra_un_pase(api, cliente_id, db_session, maquinas):
+    """Cerrar un pase sin abrir otro también cambia lo que se ve.
+
+    Es el caso más fácil de perder: no se crea ninguna fila, sólo cambia el
+    estado de una que ya estaba, así que un contador de filas no lo nota.
+    """
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+    antes = _version(api)
+
+    _cerrar_pases(db_session, ot["id"])
+
+    assert _version(api) != antes
+
+
+def test_la_version_cambia_cuando_la_orden_cambia_de_estado(api, cliente_id):
+    """Cerrar una orden la mueve del paso 1 al 5: el tablero tiene que enterarse."""
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    antes = _version(api)
+
+    r = api.put(f"/api/ordenes/{ot['id']}", json={"estado": "completada"})
+    assert r.status_code == 200, r.text
+
+    assert _version(api) != antes
+
+
+def test_la_version_cambia_al_mover_stock(api, crear_item):
+    """El depósito es parte del tablero: si se mueve, la versión se mueve."""
+    item = crear_item("VER", "Ítem versión", actual=100, minimo=10)
+    antes = _version(api)
+
+    r = api.post(f"/api/stock/{item}/movimientos", json={
+        "stock_item_id": item, "tipo": "egreso", "cantidad": 5, "motivo": "despacho",
+    })
+    assert r.status_code == 201, r.text
+
+    assert _version(api) != antes
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Presupuesto de consultas
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _contar_consultas(hacer):
+    """Cuántos SELECT manda a Postgres lo que haga `hacer`.
+
+    Contado con el listener de SQLAlchemy y no a ojo: un N+1 no se ve leyendo
+    el código —aparece cuando el bucle de Python toca un atributo perezoso— y
+    es exactamente el error que este endpoint tiene que evitar.
+    """
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    consultas: list[str] = []
+
+    def _anotar(conn, cursor, sentencia, params, contexto, muchos):
+        consultas.append(sentencia)
+
+    # El listener va en la CLASE `Engine` y no en el engine del conftest:
+    # importarlo desde acá levanta una SEGUNDA copia del módulo (pytest ya lo
+    # cargó con otro nombre) con su propio engine, y el contador daba CERO. Un
+    # `<= 9` que pasa con cero es un test que no prueba nada.
+    event.listen(Engine, "before_cursor_execute", _anotar)
+    try:
+        hacer()
+    finally:
+        event.remove(Engine, "before_cursor_execute", _anotar)
+    return consultas
+
+
+def test_el_tablero_entra_en_su_presupuesto_de_consultas(api, cliente_id, maquinas):
+    """El tablero se mira en una pantalla colgada en la planta, todo el día.
+
+    Nueve consultas es el techo: con una por máquina, o una por orden para
+    sacarle el último pase, el endpoint se iría a decenas y la pantalla de la
+    oficina lo pediría cada vez. `pasos` sale de UNA sola consulta con
+    funciones de ventana justamente por esto.
+    """
+    ot = api.post("/api/ordenes", json={"cliente_id": cliente_id}).json()
+    api.post(f"/api/ordenes/{ot['id']}/etapa",
+             json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-TB-VENUS"]})
+
+    consultas = _contar_consultas(lambda: api.get("/api/produccion/tablero"))
+    assert consultas, "el contador no vio nada: el listener no está escuchando"
+    assert len(consultas) <= 9, "\n\n".join(consultas)
+
+
+def test_la_version_es_una_sola_consulta(api):
+    """Es lo que se va a pedir cada 3 segundos: tiene que ser barato.
+
+    Una sola consulta de agregados, sin traer ni una fila. Si alguna vez son
+    dos, el endpoint perdió la gracia y conviene revisarlo antes que subir el
+    número acá.
+    """
+    consultas = _contar_consultas(lambda: api.get("/api/produccion/version"))
+    assert len(consultas) == 1, "\n\n".join(consultas)

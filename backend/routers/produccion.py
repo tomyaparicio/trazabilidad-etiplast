@@ -28,7 +28,7 @@ distintas, así que los números no tienen por qué ser los mismos.
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import case, func, nullslast, select
+from sqlalchemy import Text, and_, case, cast, func, nullslast, select
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -61,6 +61,12 @@ ESTADOS_PENDIENTES = ("borrador", "pendiente")
 # troquelado no cierra nada: haber troquelado no es haber entregado.
 ESTADO_FINALIZADA = "completada"
 
+# La orden cancelada no está en ninguna parte del recorrido: no se va a hacer.
+# Pero NO puede desaparecer callada —se cuenta en `resumen.canceladas`— porque
+# el que mira el tablero cuenta órdenes, y un número que no cierra con el
+# listado es la clase de cosa que hace desconfiar de toda la pantalla.
+ESTADO_CANCELADA = "cancelada"
+
 # Del depósito, el tablero muestra lo que sale de la planta.
 TIPO_TERMINADO = "producto_terminado"
 
@@ -69,12 +75,37 @@ TIPO_TERMINADO = "producto_terminado"
 TOPE_PENDIENTES = 20
 TOPE_FINALIZADAS = 20
 TOPE_STOCK = 24
+TOPE_PASO = 20
 
 TITULOS_ETAPA = {
     "extrusion":  "Extrusión",
     "impresion":  "Impresión",
     "troquelado": "Troquelado",
 }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Los cinco pasos del recorrido
+# ──────────────────────────────────────────────────────────────────────────────
+# Las tres etapas escaneables son el MEDIO del camino. Una orden también está
+# en algún lugar antes del primer escaneo y después del último, así que el
+# recorrido tiene cinco pasos y las claves salen de `ETAPAS_PRODUCCION` para
+# que no puedan desalinearse con el resto del router.
+PASO_INICIAL = "orden_trabajo"
+PASO_FINAL   = "finalizado"
+CLAVES_PASO  = (PASO_INICIAL, *ETAPAS_PRODUCCION, PASO_FINAL)
+TITULOS_PASO = {
+    PASO_INICIAL: "Orden de trabajo",
+    PASO_FINAL:   "Finalizado",
+    **TITULOS_ETAPA,
+}
+
+# Cuántas canceladas hay. Misma técnica que `FINALIZADAS_TOTAL`: viaja de
+# prestado en la consulta de contadores del depósito para no gastar otro viaje.
+CANCELADAS_TOTAL = (
+    select(func.count(OrdenTrabajo.id))
+    .where(OrdenTrabajo.estado == ESTADO_CANCELADA)
+    .scalar_subquery()
+)
 
 # Mismo criterio que `StockItem.to_dict()`: un stock nulo con mínimo cargado
 # está bajo mínimo. Se calcula en SQL una sola vez para que la bandera de cada
@@ -130,6 +161,169 @@ def _resumen_orden(
         "desde":    pase.created_at.isoformat() if pase.created_at else None,
         "operario": getattr(orden, f"operador_{pase.etapa}", None),
     }
+
+
+def _pasos(db: Session) -> list[dict]:
+    """El recorrido completo: en qué paso está cada orden, sin perder ninguna.
+
+    Esto arregla el agujero grande que tenía el tablero: las columnas de
+    máquina y de etapa sólo miran pases `en_curso`, y el escaneo CIERRA el pase
+    anterior cuando otra orden entra a la misma impresora (está bien: una
+    impresora no puede tener dos trabajos). Desde ese momento la orden vieja
+    —que sigue en producción— no estaba en ninguna columna y caía en
+    `sin_ubicar`, que encima dice «nadie la escaneó» de una orden escaneada dos
+    veces. Un tablero que pierde órdenes es peor que no tener tablero: da
+    confianza falsa.
+
+    La regla nueva es: el paso de una orden lo marca su ÚLTIMO pase, abierto o
+    cerrado. Un pase cerrado no significa «no está»: significa «pasó por acá y
+    nadie la escaneó en la etapa siguiente», que es justo lo que hay que ir a
+    buscar a la planta. `en_maquina` distingue los dos casos.
+
+    Todo en UNA consulta. El endpoint cuida su número de viajes a la base y
+    traer los pases para ordenarlos en Python sería un N+1 encubierto:
+
+      1. `ultimo`: `row_number()` por orden sobre `plan_produccion`, así queda
+         el pase más nuevo de cada una sin un GROUP BY + segundo viaje.
+      2. `base`:   a qué paso va cada orden y desde cuándo.
+      3. `rankeo`: `row_number()` y `count()` por paso, para sacar el tope de 20
+         Y el total de verdad de la misma pasada (el largo de una lista
+         recortada no es un total: con 57 cerradas diría «20» para siempre).
+    """
+    ultimo = (
+        select(
+            PlanProduccion.orden_trabajo_id.label("orden_id"),
+            PlanProduccion.etapa.label("etapa"),
+            PlanProduccion.estado.label("estado"),
+            PlanProduccion.maquina_id.label("maquina_id"),
+            # El momento real del escaneo. `fecha_inicio` es sólo el día,
+            # porque la tabla nació para planificar.
+            PlanProduccion.created_at.label("desde"),
+            func.row_number().over(
+                partition_by=PlanProduccion.orden_trabajo_id,
+                # Por `id` y no por fecha: dos escaneos del mismo día empatan
+                # en `fecha_inicio` (es DATE) y el orden quedaría a la suerte
+                # del plan de Postgres.
+                order_by=PlanProduccion.id.desc(),
+            ).label("rn"),
+        )
+        .subquery()
+    )
+
+    # Una etapa que no está en el catálogo (dato viejo, o `NULL`) NO puede
+    # hacer desaparecer la orden: cae al primer paso. Entre perder una orden y
+    # mostrarla en el lugar equivocado, se muestra.
+    etapa_conocida = ultimo.c.etapa.in_(ETAPAS_PRODUCCION)
+
+    # Las ramas de la asignación, en orden de prioridad, y en UN solo lugar:
+    # cada una dice a qué paso va la orden Y desde cuándo está ahí. Son dos
+    # `CASE` gemelos armados de la misma lista justamente para que no puedan
+    # desalinearse — un `desde` que no corresponda al paso ordena la lista por
+    # una fecha de otra cosa.
+    #
+    # El estado manda sobre el pase: una orden cerrada por la oficina va al
+    # paso 5 aunque su último pase sea de impresión, o el tablero diría que
+    # todavía está en la planta.
+    ramas = (
+        (OrdenTrabajo.estado == ESTADO_FINALIZADA,     PASO_FINAL,     OrdenTrabajo.updated_at),
+        (OrdenTrabajo.estado.in_(ESTADOS_PENDIENTES),  PASO_INICIAL,   OrdenTrabajo.created_at),
+        (etapa_conocida,                               ultimo.c.etapa, ultimo.c.desde),
+    )
+    # El `else` cubre lo que queda: en producción y sin un solo pase, o sea
+    # nadie la vio nunca en la planta. Su lugar honesto es la cola de entrada.
+    clave = case(*[(cond, paso)  for cond, paso, _ in ramas], else_=PASO_INICIAL)
+    desde = case(*[(cond, marca) for cond, _, marca in ramas], else_=OrdenTrabajo.created_at)
+
+    base = (
+        select(
+            OrdenTrabajo.id.label("id"),
+            OrdenTrabajo.numero.label("numero"),
+            OrdenTrabajo.lote.label("lote"),
+            Cliente.marca.label("cliente"),
+            ClienteProducto.nombre.label("producto"),
+            OrdenTrabajo.cantidad.label("cantidad"),
+            clave.label("clave"),
+            desde.label("desde"),
+            # Quién firmó el pase. El operario se guarda en una columna por
+            # etapa (`operador_impresion`…), así que el `CASE` hace de pivote.
+            case(
+                *[
+                    (ultimo.c.etapa == e, getattr(OrdenTrabajo, f"operador_{e}"))
+                    for e in ETAPAS_PRODUCCION
+                ]
+            ).label("operario"),
+            # El código solo no alcanza (nadie en la planta llama «IMP-002» a
+            # la Reinaflex) y el nombre solo tampoco (hay dos Venus). El `CASE`
+            # es por los pases sin máquina: `concat` trata el NULO como vacío y
+            # devolvería « ()».
+            case(
+                (Maquina.id.is_(None), None),
+                else_=func.concat(Maquina.codigo, " (", Maquina.nombre, ")"),
+            ).label("maquina"),
+            # Pase abierto = está arriba de la máquina AHORA. Sin pase el
+            # `WHEN` da NULO, que no es verdadero, y cae en el `else`.
+            case((ultimo.c.estado == "en_curso", True), else_=False).label("en_maquina"),
+        )
+        .select_from(OrdenTrabajo)
+        .outerjoin(ultimo, and_(ultimo.c.orden_id == OrdenTrabajo.id, ultimo.c.rn == 1))
+        .outerjoin(Maquina, Maquina.id == ultimo.c.maquina_id)
+        .outerjoin(Cliente, Cliente.id == OrdenTrabajo.cliente_id)
+        .outerjoin(ClienteProducto, ClienteProducto.id == OrdenTrabajo.cliente_producto_id)
+        .where(OrdenTrabajo.estado != ESTADO_CANCELADA)
+        .subquery()
+    )
+
+    rankeo = (
+        select(
+            *base.c,
+            func.row_number().over(
+                partition_by=base.c.clave,
+                # Una orden migrada a mano puede no tener marca: al fondo, no
+                # arriba (Postgres pone los nulos primero en un DESC).
+                order_by=(nullslast(base.c.desde.desc()), base.c.id.desc()),
+            ).label("pos"),
+            func.count().over(partition_by=base.c.clave).label("total"),
+        )
+        .subquery()
+    )
+
+    filas = db.execute(
+        select(rankeo).where(rankeo.c.pos <= TOPE_PASO).order_by(rankeo.c.clave, rankeo.c.pos)
+    ).all()
+
+    # Los cinco pasos siempre, aunque estén en cero: un paso ausente no se
+    # distingue de «no hay nada ahí» y le revienta la pantalla al que lo lee.
+    pasos = {
+        c: {"clave": c, "numero": i, "titulo": TITULOS_PASO[c], "total": 0, "ordenes": []}
+        for i, c in enumerate(CLAVES_PASO, start=1)
+    }
+
+    for f in filas:
+        # Indexado directo y no `.get()`: si el `CASE` llegara a producir una
+        # clave que no es ninguno de los cinco pasos, eso es una orden
+        # PERDIDA. Que explote es mucho mejor que que la pantalla mienta.
+        paso = pasos[f.clave]
+        paso["total"] = f.total
+        # Máquina y operario sólo tienen sentido en las tres etapas de planta:
+        # en el paso 1 todavía no la tocó nadie y en el 5 ya salió. Y
+        # `en_maquina` tiene que ser falso ahí aunque haya quedado un pase
+        # abierto sin cerrar, o el tablero diría que una orden entregada está
+        # ocupando una impresora.
+        en_planta = f.clave in ETAPAS_PRODUCCION
+        paso["ordenes"].append({
+            "id":         f.id,
+            "numero":     f.numero,
+            "lote":       f.lote,
+            "cliente":    f.cliente,
+            "producto":   f.producto,
+            "cantidad":   f.cantidad,
+            "desde":      f.desde.isoformat() if f.desde else None,
+            "operario":   f.operario   if en_planta else None,
+            "maquina":    f.maquina    if en_planta else None,
+            "en_maquina": bool(f.en_maquina) if en_planta else False,
+        })
+
+    return [pasos[c] for c in CLAVES_PASO]
 
 
 @router.get("/tablero", summary="Tablero de planta: dónde está cada pedido")
@@ -322,22 +516,26 @@ def tablero(
     # Los totales de órdenes viajan de prestado acá (ver `FINALIZADAS_TOTAL` y
     # `PENDIENTES_TOTAL`): es el mismo problema —un número que la lista
     # recortada no puede dar— y no vale otro viaje a la base por cada uno.
-    total_items, bajo_minimo, finalizadas_total, pendientes_total = (
+    total_items, bajo_minimo, finalizadas_total, pendientes_total, canceladas = (
         db.query(
             func.count(case((StockItem.tipo == TIPO_TERMINADO, 1))),
             func.count(case((BAJO_MINIMO, 1))),
             FINALIZADAS_TOTAL,
             PENDIENTES_TOTAL,
+            CANCELADAS_TOTAL,
         )
         .filter(StockItem.activo.is_(True))
         .one()
     )
+
+    pasos = _pasos(db)
 
     ocupadas = sum(1 for c in columnas if c["orden"])
     return {
         "pendientes":  pendientes,
         "maquinas":    columnas,
         "etapas":      etapas,
+        "pasos":       pasos,
         "sin_ubicar":  sin_ubicar,
         "finalizadas": finalizadas,
         "stock": {
@@ -358,5 +556,80 @@ def tablero(
             "finalizadas":       len(finalizadas),
             "finalizadas_total": finalizadas_total,
             "bajo_minimo": bajo_minimo,
+            # El invariante del recorrido, a la vista: estos dos sumados tienen
+            # que dar el total de órdenes de la base. Si no cierra, el tablero
+            # está perdiendo órdenes y hay que mirar `_pasos`.
+            "pasos_total": sum(p["total"] for p in pasos),
+            "canceladas":  canceladas,
         },
     }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /api/produccion/version
+# ──────────────────────────────────────────────────────────────────────────────
+# Qué resume cada tabla: cuántas filas hay y cuáles son sus marcas más altas.
+#
+# El conteo NO es redundante con el `max`: borrar una fila no mueve ningún
+# máximo, y una orden borrada cambia el tablero igual que una nueva.
+#
+# El conteo de pases ABIERTOS está por el caso más difícil: cuando el escaneo
+# cierra un pase para liberar la máquina no se crea ni se borra ninguna fila,
+# sólo cambia el `estado` de una que ya estaba. `max(updated_at)` también lo
+# nota (`onupdate=func.now()` se aplica incluso en el UPDATE masivo de
+# `registrar_etapa`, porque la columna no viaja en el SET), pero esa garantía
+# depende de que nadie escriba `updated_at` a mano en el SET. El contador no
+# depende de nada: si un pase se cierra, baja. Las dos señales, mismo barrido.
+def _huella(pk, *marcas):
+    """Una tabla resumida en UNA columna de texto, sin traer filas."""
+    return select(
+        func.concat_ws(
+            ".",
+            func.count(pk),
+            # `concat_ws` SALTEA los argumentos nulos, así que una tabla vacía
+            # correría las posiciones y dos estados distintos podrían dar la
+            # misma huella. El `coalesce` deja el hueco escrito.
+            *[func.coalesce(cast(m, Text), "-") for m in marcas],
+        )
+    ).scalar_subquery()
+
+
+HUELLA_ORDENES = _huella(
+    OrdenTrabajo.id, func.max(OrdenTrabajo.id), func.max(OrdenTrabajo.updated_at),
+)
+HUELLA_PASES = _huella(
+    PlanProduccion.id,
+    func.max(PlanProduccion.id),
+    func.max(PlanProduccion.updated_at),
+    func.count(case((PlanProduccion.estado == "en_curso", 1))),
+)
+HUELLA_STOCK = _huella(
+    StockItem.id, func.max(StockItem.id), func.max(StockItem.updated_at),
+)
+
+
+@router.get("/version", summary="Versión del tablero: cambia si cambió algo que muestra")
+def version(
+    _user: dict = Depends(verify_token),
+    db: Session = Depends(get_db),
+):
+    """Un valor opaco que cambia cuando cambia algo que el tablero muestra.
+
+    Para qué: el que escanea está en la tablet de la planta y el que mira el
+    tablero está en la oficina, en otro navegador. El escaneo no tiene forma de
+    avisarle a la otra pantalla, así que la pantalla pregunta. Pedir el tablero
+    entero cada 3 segundos es caro (son 8 consultas, con listas y joins);
+    pedir ESTO es una sola consulta de agregados que no trae ni una fila, y el
+    tablero completo se recarga sólo cuando el valor cambió.
+
+    Y no es SSE a propósito: el frontend pasa por el proxy de Next
+    (`frontend/src/app/api/backend/[...path]/route.ts`), que hace
+    `await res.text()` y buferea la respuesta entera —un stream se colgaría—, y
+    `vercel.json` no declara `maxDuration`, así que Vercel cortaría la función
+    igual.
+
+    El valor es OPACO: el cliente sólo compara si cambió. Nada de parsearlo —
+    el formato puede cambiar cuando el tablero muestre otra cosa.
+    """
+    huellas = db.execute(select(HUELLA_ORDENES, HUELLA_PASES, HUELLA_STOCK)).one()
+    return {"v": "|".join(huellas)}
