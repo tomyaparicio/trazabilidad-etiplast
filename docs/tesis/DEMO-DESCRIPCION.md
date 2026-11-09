@@ -144,6 +144,16 @@ y crea el usuario con el que se entra a la demostración.
 cd backend && source venv/bin/activate && python tools/seed_demo.py
 ```
 
+Terminado el sembrado, se entra en `http://localhost:3000` con:
+
+| | |
+|---|---|
+| Usuario | `demo@etiplast.local` |
+| Contraseña | `capturas-demo-2026` |
+
+Es un usuario de demostración con rol de administrador, creado por ese mismo
+script sobre la base descartable. No existe fuera de ella.
+
 Ninguna pantalla de la demostración muestra datos reales de clientes de la
 empresa: las razones sociales, los CUIT, los domicilios y los teléfonos que se
 ven son inventados.
