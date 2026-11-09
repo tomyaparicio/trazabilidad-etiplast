@@ -17,6 +17,7 @@ import type {
   RoleCatalogo, RolePermisos, MisPermisos, RoleInput,
   ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
   ReporteClientesTop, ReporteStockResumen, Trazabilidad,
+  ReporteEstimaciones, ReporteEsperas, EsperaAgrupacion, RehacerResponse,
   EscaneoEtapaRequest, EscaneoEtapaResponse, TableroProduccion, VersionProduccion,
 } from "./types"
 import type { RazonSocialSimilar } from "@/types/database"
@@ -287,6 +288,21 @@ export const api = {
      */
     escanearEtapa: (id: number, data: EscaneoEtapaRequest) =>
       post<EscaneoEtapaResponse>(`/api/ordenes/${id}/etapa`, data),
+    /**
+     * El responsable deja constancia de que revisó las etapas cargadas (RF-11).
+     * Sin esto el cierre se rechaza con 409, salvo que la orden no tenga
+     * responsable asignado.
+     */
+    verificar: (id: number) => post<OrdenTrabajo>(`/api/ordenes/${id}/verificar`, {}),
+    /** Marcha atrás: vuelve a trabar el cierre hasta que se verifique de nuevo. */
+    desverificar: (id: number) => del<OrdenTrabajo>(`/api/ordenes/${id}/verificar`),
+    /**
+     * Marca la orden para rehacer y abre el retrabajo (RF-16). NO reabre la
+     * original: devuelve las dos órdenes, la que falló —con su producción
+     * intacta— y la nueva, que hereda la especificación.
+     */
+    rehacer: (id: number, motivo: string) =>
+      post<RehacerResponse>(`/api/ordenes/${id}/rehacer`, { motivo }),
   },
   /** Tablero de planta: qué hay en cada máquina, en vivo */
   produccion: {
@@ -393,6 +409,16 @@ export const api = {
     clientesTop: (limit?: number) =>
       get<ReporteClientesTop>("/api/reportes/clientes-top", limit != null ? { limit } : undefined),
     stockResumen: () => get<ReporteStockResumen>("/api/reportes/stock-resumen"),
+    /** Fecha estimada de fin y atraso proyectado por orden abierta (RF-13 · RF-14). */
+    estimaciones: (desde?: string, hasta?: string) => {
+      const p: Record<string, string | undefined> = { desde, hasta }
+      return get<ReporteEstimaciones>("/api/reportes/estimaciones", p)
+    },
+    /** Esperas acumuladas y cuello de botella por etapa, máquina o mes (RF-15). */
+    esperas: (agrupar: EsperaAgrupacion = "etapa", desde?: string, hasta?: string) => {
+      const p: Record<string, string | undefined> = { agrupar, desde, hasta }
+      return get<ReporteEsperas>("/api/reportes/esperas", p)
+    },
   },
   /** Notificaciones del usuario autenticado */
   notificaciones: {

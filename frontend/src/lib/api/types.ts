@@ -166,6 +166,30 @@ export type OrdenTrabajo = {
   // Control de calidad
   control_calidad: string | null
 
+  // Plazo pactado con el cliente (RF-05). Día suelto («2026-03-15»), como las
+  // `fecha_*` de etapa: lo que se prometió es un día, no un instante. Es la
+  // referencia contra la que se mide el cumplimiento de plazos — `fecha_entrega`
+  // es el día real en que salió, y comparar las dos es el indicador.
+  fecha_comprometida: string | null
+
+  // Verificación del responsable antes del cierre (RF-11). `verificado_en` es
+  // ISO completo con offset, igual que `fecha_cierre`: formatealo con
+  // `fechaCorta`/`desdeHace` de `@/lib/fechas`, no cortando el string.
+  verificado_por: number | null
+  verificado_por_nombre: string | null
+  verificado_en: string | null
+
+  // Rehacer (RF-16). `rehacer` marca la orden ORIGINAL; `rehace_a_id` apunta
+  // desde el retrabajo a la orden que vino a reemplazar. Una orden nunca tiene
+  // las dos cosas por el mismo motivo: o falló, o es el arreglo de otra.
+  rehacer: boolean
+  rehacer_motivo: string | null
+  rehacer_en: string | null
+  rehacer_por: number | null
+  rehacer_por_nombre: string | null
+  rehace_a_id: number | null
+  rehace_a_numero: string | null
+
   // Fechas por etapa
   fecha_diseno: string | null
   fecha_preprensa: string | null
@@ -423,8 +447,23 @@ export type ReporteResumen = {
   total_ots: number
   completadas: number
   en_proceso: number
-  /** Porcentaje de entregas a tiempo (0-100) o null si no es calculable. */
+  /**
+   * Porcentaje de órdenes terminadas en término (0-100), o null cuando ninguna
+   * orden del rango tiene plazo registrado. Null y no 0: un 0% se lee como
+   * «ninguna salió en término», que es una afirmación sobre la planta, y no
+   * tener con qué medir es otra cosa.
+   */
   pct_a_tiempo: number | null
+  /**
+   * Sobre cuántas órdenes se calculó ese porcentaje. SIEMPRE mostralo al lado
+   * del porcentaje: un 100% sobre dos órdenes y un 100% sobre doscientas no se
+   * leen igual, y las órdenes viejas no tienen plazo cargado.
+   */
+  muestras_a_tiempo: number
+  /** De esas muestras, cuántas salieron en término. */
+  en_termino: number
+  /** Órdenes sin terminar cuyo plazo ya venció: atraso real, no proyectado. */
+  atrasadas_abiertas: number
   items_bajo_stock: number
 }
 
@@ -825,4 +864,77 @@ export interface EscaneoEtapaResponse {
    * el único en que alguien puede averiguar qué pasó. Null en todo el resto.
    */
   advertencia: string | null
+}
+
+// ─── Estimaciones y atraso proyectado (RF-13 · RF-14) ───────────────────────
+
+export type EstimacionOrden = {
+  id: number
+  numero: string
+  cliente_nombre: string | null
+  estado: string
+  /** La última etapa escaneada: dónde está la orden ahora. */
+  etapa_actual: string
+  etapas_hechas: string[]
+  etapas_faltantes: string[]
+  /** ISO completo con offset (TIMESTAMPTZ): usá `fechaCorta`/`desdeHace`. */
+  ultimo_escaneo: string | null
+  fecha_comprometida: string | null
+  /**
+   * Día estimado de finalización, o null cuando falta el promedio de alguna
+   * etapa que la orden todavía tiene por delante. Null se muestra como «sin
+   * datos», nunca como una fecha inventada: sobre este número la oficina le
+   * contesta al cliente.
+   */
+  fecha_estimada: string | null
+  /**
+   * Días de atraso proyectado contra el plazo, recortado en cero (adelantarse
+   * no es atraso negativo). Null si la orden no tiene plazo pactado.
+   */
+  atraso_proyectado_dias: number | null
+}
+
+export type ReporteEstimaciones = {
+  /** False cuando no hay ninguna orden cerrada de la que sacar promedios. */
+  disponible: boolean
+  /** Días promedio por etapa, medidos sobre los escaneos de las ya cerradas. */
+  promedios_etapa: Record<string, number>
+  /** Cuántas mediciones respaldan cada promedio. Mostralo junto al promedio. */
+  muestras_etapa: Record<string, number>
+  ordenes: EstimacionOrden[]
+  error?: string
+}
+
+// ─── Esperas acumuladas y cuello de botella (RF-15) ────────────────────────
+
+export type EsperaAgrupacion = "etapa" | "maquina" | "mes"
+
+export type EsperaFila = {
+  /** La etapa, el id de máquina o el mes («2026-03»), según `agrupar`. */
+  clave: string
+  /** Lo que se muestra: el nombre de la máquina, no su id. */
+  etiqueta: string
+  dias_acumulados: number
+  dias_promedio: number | null
+  /** Cuántos pases se midieron: el denominador del promedio. */
+  pases: number
+}
+
+export type ReporteEsperas = {
+  agrupar: EsperaAgrupacion
+  filas: EsperaFila[]
+  /**
+   * La clave que más acumula: el cuello de botella. Null al agrupar por mes
+   * (un mes no es un recurso que se pueda destrabar) o sin datos.
+   */
+  cuello: string | null
+  error?: string
+}
+
+/** Lo que devuelve marcar una orden para rehacer (RF-16). */
+export type RehacerResponse = {
+  /** La orden que falló, ya marcada. Su producción queda intacta. */
+  original: OrdenTrabajo
+  /** El retrabajo: hereda la especificación, nace sin producción encima. */
+  nueva: OrdenTrabajo
 }

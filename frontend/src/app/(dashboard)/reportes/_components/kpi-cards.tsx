@@ -6,8 +6,16 @@ export interface KpiData {
   totalOts: number
   completadas: number
   enProceso: number
-  /** Porcentaje a tiempo (0-100) o null si no es calculable. */
+  /**
+   * Porcentaje a tiempo (0-100), o null cuando ninguna orden del rango tiene
+   * plazo cargado. Null y no 0: un 0% afirma que ninguna salió en término, y
+   * no tener con qué medir es otra cosa.
+   */
   pctATiempo: number | null
+  /** Sobre cuántas órdenes se calculó. Va SIEMPRE junto al porcentaje. */
+  muestrasATiempo: number
+  /** Órdenes sin terminar con el plazo ya vencido. */
+  atrasadasAbiertas: number
   itemsBajoStock: number
 }
 
@@ -40,7 +48,7 @@ function KpiCard({
  */
 export function KpiCardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="rounded-2xl border border-border bg-card/80 p-5 shadow-sm">
           <Skeleton className="h-3 w-20" />
@@ -59,7 +67,7 @@ export function KpiCards({ data }: { data: KpiData }) {
   const pctTexto = data.pctATiempo != null ? `${data.pctATiempo}%` : "—"
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       <KpiCard
         label="Total OTs"
         value={data.totalOts}
@@ -79,10 +87,29 @@ export function KpiCards({ data }: { data: KpiData }) {
         value={data.enProceso}
         sub="Órdenes activas"
       />
+      {/* El porcentaje NUNCA va solo: sin el denominador, un 100% sobre dos
+          órdenes se lee igual que sobre doscientas. Las órdenes cargadas antes
+          de que existiera el campo de plazo no tienen con qué medirse y quedan
+          fuera de la cuenta, así que la muestra puede ser mucho menor que el
+          total de OTs del rango — y eso tiene que verse. */}
       <KpiCard
         label="A tiempo"
         value={pctTexto}
-        sub={data.pctATiempo != null ? "Entregas dentro de fecha" : "Sin datos de entrega"}
+        sub={
+          data.pctATiempo != null
+            ? `Sobre ${nf.format(data.muestrasATiempo)} ${data.muestrasATiempo === 1 ? "orden con plazo" : "órdenes con plazo"}`
+            : "Ninguna orden del rango tiene plazo cargado"
+        }
+      />
+      <KpiCard
+        label="Atrasadas"
+        value={data.atrasadasAbiertas}
+        alert={data.atrasadasAbiertas > 0}
+        sub={
+          data.atrasadasAbiertas > 0
+            ? "Sin terminar y con el plazo vencido"
+            : "Ninguna abierta pasada de fecha"
+        }
       />
       <KpiCard
         label="Bajo stock"

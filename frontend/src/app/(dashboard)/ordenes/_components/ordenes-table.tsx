@@ -377,6 +377,13 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
           open={!!detailOrden}
           onOpenChange={(o) => { if (!o) setDetailOrden(null) }}
           onEdit={() => { handleEdit(detailOrden); setDetailOrden(null) }}
+          onCambio={() => {
+            // Se recarga el listado Y se cierra el detalle: la orden que está
+            // en `detailOrden` es una copia vieja, y dejarla abierta mostraría
+            // el estado anterior al cambio.
+            setDetailOrden(null)
+            void fetchOrdenes(page, search, estadoFilter)
+          }}
         />
       )}
       <ConfirmDialog

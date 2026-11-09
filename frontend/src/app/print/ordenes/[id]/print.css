@@ -585,3 +585,24 @@
   }
   .no-print { display: none !important; }
 }
+
+/* El plazo pactado con el cliente, en la cabecera de la ficha. Más grande y en
+   negrita que la fecha de la orden: el operario que mira la hoja en la máquina
+   necesita saber para cuándo es el pedido, no cuándo se cargó. Recuadro y no
+   sólo negrita porque la cabecera ya tiene tres líneas de texto chico y una
+   cuarta se perdería entre ellas. */
+.ot-comprometida {
+  display: block;
+  margin-top: 2px;
+  padding: 1px 5px;
+  /* `currentColor` y no negro: el recuadro vive en la cabecera azul oscuro de
+     la ficha, donde el texto es blanco. Un borde negro ahí es invisible —y en
+     la impresión en blanco y negro también, porque el fondo sale casi negro.
+     Siguiendo al texto, el recuadro se ve en los dos casos. */
+  border: 1.2pt solid currentColor;
+  border-radius: 3px;
+  font-size: 9.5pt;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}

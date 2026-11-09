@@ -173,6 +173,13 @@ export default async function PrintOrdenPage({ params }: Props) {
     ...Array.from({ length: 6 - bobinas.length }, () => ({ metros: null, kg_bob: null })),
   ]
 
+  // El plazo pactado con el cliente va EN EL PAPEL: la ficha es lo que el
+  // operario tiene en la mano en la máquina, y hasta ahora ningún formulario
+  // —ni el de papel ni éste— decía para cuándo era el pedido. Esa ausencia es
+  // parte del problema que el sistema vino a resolver.
+  const comprometidaStr = orden.fecha_comprometida
+    ? new Date(orden.fecha_comprometida + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null
   const fechaStr  = orden.fecha
     ? new Date(orden.fecha + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
     : "—"
@@ -239,6 +246,9 @@ export default async function PrintOrdenPage({ params }: Props) {
               <div className="ot-header-num">
                 <span className="ot-numero">{orden.numero}</span>
                 <span className="ot-fecha">{fechaStr}</span>
+                {comprometidaStr && (
+                  <span className="ot-comprometida">Entregar: {comprometidaStr}</span>
+                )}
                 <span className="ot-qr-label">Escaneá antes de empezar</span>
                 {orden.lote && <span className="ot-qr-lote">{orden.lote}</span>}
               </div>

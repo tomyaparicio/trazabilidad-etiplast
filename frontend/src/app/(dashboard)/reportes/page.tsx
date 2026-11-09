@@ -15,7 +15,12 @@ import { Button } from "@/components/ui/button"
 import { OrdenesLineChart, type OrdenesSeriePunto } from "@/components/charts/ordenes-line-chart"
 import { ProduccionBarChart, type ProduccionPunto } from "@/components/charts/produccion-bar-chart"
 import { TiemposEtapaChart } from "@/components/charts/tiempos-etapa-chart"
-import type { ClienteTop, ReporteTiempos } from "@/lib/api/types"
+import { EstimacionesTabla } from "./_components/estimaciones-tabla"
+import { EsperasTabla } from "./_components/esperas-tabla"
+import type {
+  ClienteTop, ReporteTiempos, ReporteEstimaciones, ReporteEsperas,
+  EsperaAgrupacion,
+} from "@/lib/api/types"
 
 // ─── Helpers de fecha ───────────────────────────────────────────────────────
 function isoHoy(): string {
@@ -76,6 +81,16 @@ export default function ReportesPage() {
   const [kpi, setKpi] = useState<KpiData | null>(null)
   const [produccion, setProduccion] = useState<ProduccionPunto[]>([])
   const [tiempos, setTiempos] = useState<ReporteTiempos>({ disponible: false, etapas: [] })
+  const [estimaciones, setEstimaciones] = useState<ReporteEstimaciones>({
+    disponible: false, promedios_etapa: {}, muestras_etapa: {}, ordenes: [],
+  })
+  // La agrupación de las esperas es independiente de la del chart de producción:
+  // una es «por qué recurso se acumula el trabajo» y la otra «cuánto se produjo
+  // por máquina». Compartir el selector mezclaría dos preguntas distintas.
+  const [agruparEsperas, setAgruparEsperas] = useState<EsperaAgrupacion>("etapa")
+  const [esperas, setEsperas] = useState<ReporteEsperas>({
+    agrupar: "etapa", filas: [], cuello: null,
+  })
   const [serie, setSerie] = useState<OrdenesSeriePunto[]>([])
   const [topClientes, setTopClientes] = useState<ClienteTop[]>([])
 
@@ -98,7 +113,8 @@ export default function ReportesPage() {
       api.reportes.resumen(rango),
       api.reportes.produccion({ ...rango, agrupar }),
       api.reportes.tiempos(rango),
-    ]).then(([resR, prodR, tiempoR]) => {
+      api.reportes.estimaciones(desde, hasta),
+    ]).then(([resR, prodR, tiempoR, estimR]) => {
       if (resR.status === "fulfilled") {
         const r = resR.value
         setKpi({
@@ -106,16 +122,27 @@ export default function ReportesPage() {
           completadas: r.completadas ?? 0,
           enProceso: r.en_proceso ?? 0,
           pctATiempo: r.pct_a_tiempo ?? null,
+          muestrasATiempo: r.muestras_a_tiempo ?? 0,
+          atrasadasAbiertas: r.atrasadas_abiertas ?? 0,
           itemsBajoStock: r.items_bajo_stock ?? 0,
         })
       } else {
-        setKpi({ totalOts: 0, completadas: 0, enProceso: 0, pctATiempo: null, itemsBajoStock: 0 })
+        setKpi({
+          totalOts: 0, completadas: 0, enProceso: 0,
+          pctATiempo: null, muestrasATiempo: 0, atrasadasAbiertas: 0,
+          itemsBajoStock: 0,
+        })
       }
       setProduccion(prodR.status === "fulfilled" ? prodR.value.data ?? [] : [])
       setTiempos(tiempoR.status === "fulfilled" ? tiempoR.value : { disponible: false, etapas: [] })
+      setEstimaciones(
+        estimR.status === "fulfilled"
+          ? estimR.value
+          : { disponible: false, promedios_etapa: {}, muestras_etapa: {}, ordenes: [] }
+      )
       setCargando(false)
 
-      const fallos = [resR, prodR, tiempoR].filter(
+      const fallos = [resR, prodR, tiempoR, estimR].filter(
         (r): r is PromiseRejectedResult => r.status === "rejected"
       )
       if (fallos.length > 0) {
@@ -126,7 +153,20 @@ export default function ReportesPage() {
         toast.error(msg)
       }
     })
-  }, [rango, agrupar])
+  }, [rango, desde, hasta, agrupar])
+
+  // Las esperas tienen su propio fetch: cambiar la agrupación no tiene que
+  // volver a pedir el resumen, la producción y las estimaciones.
+  const cargarEsperas = useCallback(() => {
+    api.reportes
+      .esperas(agruparEsperas, desde, hasta)
+      .then(setEsperas)
+      .catch(() => setEsperas({ agrupar: agruparEsperas, filas: [], cuello: null }))
+  }, [agruparEsperas, desde, hasta])
+
+  useEffect(() => {
+    cargarEsperas()
+  }, [cargarEsperas])
 
   // Serie temporal de órdenes (independiente del rango: últimos 12 meses).
   const cargarSerie = useCallback(() => {
@@ -265,6 +305,22 @@ export default function ReportesPage() {
           <TiemposEtapaChart etapas={tiempos.etapas ?? []} disponible={!!tiempos.disponible} />
         )}
       </div>
+
+      {/* ── Cumplimiento de plazos: cuándo termina cada orden (RF-13 · RF-14) ── */}
+      {cargando ? (
+        <ChartSkeleton />
+      ) : errorRango ? (
+        <ErrorBlock message={errorRango} onRetry={cargarRango} />
+      ) : (
+        <EstimacionesTabla datos={estimaciones} />
+      )}
+
+      {/* ── Cuellos de botella (RF-15) ── */}
+      <EsperasTabla
+        datos={esperas}
+        agrupar={agruparEsperas}
+        onAgrupar={setAgruparEsperas}
+      />
 
       {/* ── Top clientes ── */}
       <div className="bg-card/80 border border-border rounded-2xl p-6">

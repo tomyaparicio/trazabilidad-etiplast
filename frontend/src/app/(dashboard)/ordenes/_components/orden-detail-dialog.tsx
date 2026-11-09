@@ -12,6 +12,7 @@ import {
   Check, ChevronDown, ChevronRight, FileText, Loader2, Pencil, Plus, RotateCcw, X,
 } from "lucide-react"
 import { QcRegistroDialog } from "./qc-registro-dialog"
+import { OrdenPlazoPanel } from "./orden-plazo-panel"
 
 function estadoBadge(estado: EstadoOrden) {
   const map: Record<EstadoOrden, { label: string; className: string }> = {
@@ -234,9 +235,15 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit: () => void
+  /**
+   * La orden cambió desde el panel de plazo (se verificó, se desverificó o se
+   * marcó para rehacer). El listado tiene que recargarse: si no, el estado que
+   * se ve en la tabla queda viejo y el botón vuelve a ofrecer lo que ya se hizo.
+   */
+  onCambio?: () => void
 }
 
-export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) {
+export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit, onCambio }: Props) {
   const coloresActivos = orden.impresion_colores?.filter(Boolean) ?? []
 
   const fmtFecha = (d?: string | null) =>
@@ -281,7 +288,14 @@ export function OrdenDetailDialog({ orden, open, onOpenChange, onEdit }: Props) 
                 : `#${orden.cliente_id}`
             } />
             <Field label="Fecha" value={fmtFecha(orden.fecha)} />
+            <Field label="Responsable" value={orden.responsable_nombre} />
           </Section>
+
+          {/* Plazo, verificación y retrabajo (RF-05 · RF-11 · RF-16).
+              Va ARRIBA de la ficha de producción a propósito: lo primero que
+              se pregunta de una orden abierta es si sale en fecha, no con qué
+              formulación se extrudó. */}
+          <OrdenPlazoPanel orden={orden} onCambio={onCambio} />
 
           {/* Extrusión */}
           <Section title="Extrusión">
