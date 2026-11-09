@@ -1351,6 +1351,55 @@ MIGRATIONS_OT_CIERRE = [
      "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS operador_cierre VARCHAR(150);"),
 ]
 
+# La fecha que se le prometió al cliente. Es el dato que faltaba para poder
+# medir si los pedidos salen en término: sin ella `pct_a_tiempo` no tenía contra
+# qué comparar la entrega real y el reporte devolvía null.
+#
+# Se agrega como NULLABLE y sin backfill: el plazo de las órdenes ya cerradas no
+# está registrado en ninguna parte (ni en el papel), así que inventarlo sería
+# fabricar la medición. El indicador de cumplimiento se calcula sólo sobre las
+# órdenes que la tengan, y lo informa en `muestras`.
+MIGRATIONS_OT_PLAZOS = [
+    ("OT: fecha_comprometida (plazo pactado con el cliente)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS fecha_comprometida DATE;"),
+    ("OT: índice de fecha_comprometida (reporte de cumplimiento)",
+     "CREATE INDEX IF NOT EXISTS ix_ordenes_trabajo_fecha_comprometida "
+     "ON ordenes_trabajo (fecha_comprometida);"),
+]
+
+# Constancia de la verificación del responsable antes del cierre (RF-11).
+# Las órdenes ya cerradas quedan sin verificar, y así tiene que ser: nadie las
+# verificó en el sistema, y marcarlas sería firmar un control que no se hizo.
+MIGRATIONS_OT_VERIFICACION = [
+    ("OT: verificado_por (quién verificó las etapas)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS verificado_por INTEGER "
+     "REFERENCES users(id) ON DELETE SET NULL;"),
+    ("OT: verificado_en (cuándo se verificó)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS verificado_en TIMESTAMPTZ;"),
+]
+
+# Rehacer una orden (RF-16). `rehacer` arranca en FALSE para todas las órdenes
+# existentes, que es lo correcto: ninguna está marcada, y los retrabajos que la
+# empresa hizo antes del sistema no están registrados en ninguna parte.
+MIGRATIONS_OT_REHACER = [
+    ("OT: rehacer (la orden debe rehacerse)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS rehacer BOOLEAN NOT NULL DEFAULT FALSE;"),
+    ("OT: rehacer_motivo (por qué se rechazó)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS rehacer_motivo TEXT;"),
+    ("OT: rehacer_en (cuándo se marcó)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS rehacer_en TIMESTAMPTZ;"),
+    ("OT: rehacer_por (quién la marcó)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS rehacer_por INTEGER "
+     "REFERENCES users(id) ON DELETE SET NULL;"),
+    ("OT: rehace_a_id (del rehecho a la orden original)",
+     "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS rehace_a_id INTEGER "
+     "REFERENCES ordenes_trabajo(id) ON DELETE SET NULL;"),
+    ("OT: índice de rehacer",
+     "CREATE INDEX IF NOT EXISTS ix_ordenes_trabajo_rehacer ON ordenes_trabajo (rehacer);"),
+    ("OT: índice de rehace_a_id",
+     "CREATE INDEX IF NOT EXISTS ix_ordenes_trabajo_rehace_a_id ON ordenes_trabajo (rehace_a_id);"),
+]
+
 
 def _ensure_tracking_table(conn):
     """Tabla de control de migraciones ya aplicadas (para saltearlas en re-runs)."""
@@ -1381,7 +1430,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER
 
     aplicadas = 0
     salteadas = 0

@@ -9,6 +9,7 @@ from .base import _Schema
 from .clientes import ClienteUpdateSchema, ClienteCreateSchema, RazonSocialUpdateSchema, RazonSocialCreateSchema
 from .produccion import (
     OrdenBobinaSchema, OrdenUpdateSchema, OrdenCreateSchema, EscaneoEtapaSchema,
+    RehacerOrdenSchema,
 )
 from .comercial import PresupuestoItemSchema, PresupuestoCreateSchema, PresupuestoUpdateSchema, FacturaCreateSchema, FacturaUpdateSchema, RemitoItemSchema, RemitoCreateSchema, RemitoUpdateSchema
 from .stock import StockItemCreateSchema, StockItemUpdateSchema, StockMovimientoCreateSchema
@@ -24,6 +25,7 @@ __all__ = [
     "OrdenUpdateSchema",
     "OrdenCreateSchema",
     "EscaneoEtapaSchema",
+    "RehacerOrdenSchema",
     "PresupuestoItemSchema",
     "PresupuestoCreateSchema",
     "PresupuestoUpdateSchema",

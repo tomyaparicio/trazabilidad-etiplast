@@ -18,7 +18,10 @@ from models import (
     ETAPA_CIERRE, ETAPAS_CON_MAQUINA, ETAPAS_ESCANEABLES, Cliente, ClienteProducto, Maquina,
     OrdenExtrusionBobina, OrdenTrabajo, PlanProduccion, User,
 )
-from schemas import EscaneoEtapaSchema, OrdenCreateSchema, OrdenUpdateSchema
+from schemas import (
+    EscaneoEtapaSchema, OrdenCreateSchema, OrdenUpdateSchema,
+    RehacerOrdenSchema,
+)
 from services import auditoria
 from services.extrusion import calcular_metros_extrusion
 from services.numeracion import generar_numero
@@ -323,6 +326,7 @@ def crear_orden(
 
         control_calidad=datos.get("control_calidad"),
 
+        fecha_comprometida=_parse_date(datos.get("fecha_comprometida")),
         fecha_diseno=_parse_date(datos.get("fecha_diseno")),
         fecha_preprensa=_parse_date(datos.get("fecha_preprensa")),
         fecha_extrusion=_parse_date(datos.get("fecha_extrusion")),
@@ -455,7 +459,8 @@ def actualizar_orden(
         orden.control_calidad = datos["control_calidad"]
 
     # Fechas por etapa (parse defensivo)
-    for fecha_campo in ("fecha_diseno", "fecha_preprensa", "fecha_extrusion",
+    for fecha_campo in ("fecha_comprometida",
+                        "fecha_diseno", "fecha_preprensa", "fecha_extrusion",
                         "fecha_impresion", "fecha_troquelado", "fecha_entrega"):
         if fecha_campo in datos:
             setattr(orden, fecha_campo, _parse_date(datos[fecha_campo]))
@@ -534,6 +539,180 @@ def _nombre_de(db: Session, user: dict) -> str:
     return " ".join(p for p in (u.nombre, u.apellido) if p).strip() or u.email
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# POST /api/ordenes/{orden_id}/rehacer  — el retrabajo del RF-16
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Lo que describe QUÉ hay que fabricar: la especificación del trabajo. Es lo
+# único que hereda la orden nueva.
+#
+# Lo que NO está en esta lista es deliberado y es la mitad del requerimiento:
+# las `fecha_*` por etapa, los `operador_*`, el lote, el cierre y la
+# verificación describen lo que YA SE HIZO, y eso pertenece a la orden original.
+# Copiarlo al rehecho lo haría nacer con una producción que nadie ejecutó.
+CAMPOS_ESPECIFICACION = (
+    "cliente_id", "cliente_producto_id", "responsable_id",
+    "extrusion_ancho", "extrusion_color", "extrusion_trat", "extrusion_espesor",
+    "extrusion_cant_bob", "extrusion_metros", "extrusion_formulacion",
+    "extrusion_maquina", "extrusion_observaciones",
+    "impresion_frente", "impresion_retroverso", "impresion_observaciones",
+    "impresion_cilindro", "impresion_colores", "impresion_maquina",
+    "troquelado_ancho", "troquelado_cierre", "troquelado_alto",
+    "troquelado_envase", "troquelado_maquina", "troquelado_observaciones",
+    "cantidad", "total_final",
+)
+
+
+@router.post("/ordenes/{orden_id}/rehacer", status_code=201,
+             summary="Marcar que una orden debe rehacerse y abrir el retrabajo (RF-16)")
+def rehacer_orden(
+    orden_id: int,
+    payload: RehacerOrdenSchema,
+    user: dict = Depends(require_permiso("ordenes:crear")),
+    db: Session = Depends(get_db),
+):
+    """
+    Registra que una orden debe rehacerse y abre la orden del retrabajo.
+
+    NO reabre la original, y ésa es la decisión central: el requerimiento pide
+    conservar el registro de la producción original, y reabrirla dejaría que el
+    escaneo del trabajo nuevo pise los operarios, las máquinas y las fechas del
+    trabajo que sí se hizo. El rechazo —que es justamente lo que la empresa
+    necesita poder medir— desaparecería del historial.
+
+    Quedan entonces dos órdenes y dos hechos separados: la original, marcada con
+    su motivo, y el rehecho, que hereda la especificación y apunta a ella.
+
+    Pide permiso de ALTA y no de edición: lo que hace es crear una orden.
+    """
+    motivo = (payload.motivo or "").strip()
+    if not motivo:
+        raise HTTPException(
+            status_code=400,
+            detail="Hace falta el motivo: un rechazo sin motivo no se puede analizar después",
+        )
+
+    orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden de trabajo no encontrada")
+    if orden.rehacer:
+        raise HTTPException(
+            status_code=409,
+            detail=f"La orden ya está marcada para rehacer: «{orden.rehacer_motivo}»",
+        )
+
+    # — La marca sobre la original. Nada más se toca —
+    orden.rehacer = True
+    orden.rehacer_motivo = motivo
+    orden.rehacer_en = datetime.now(timezone.utc)
+    orden.rehacer_por = user.get("id")
+
+    # — El retrabajo: especificación heredada, producción en blanco —
+    nueva = OrdenTrabajo(
+        numero=generar_numero(db, OrdenTrabajo, "OT"),
+        fecha=date.today(),
+        estado="pendiente",
+        created_by=user.get("id"),
+        rehace_a_id=orden.id,
+        # El plazo NO se hereda: el de la orden que falló ya está vencido o por
+        # vencer, y arrastrarlo contaría como atraso del rehecho un
+        # incumplimiento que todavía no ocurrió. Se renegocia con el cliente.
+        fecha_comprometida=None,
+        observaciones=f"Rehace la orden {orden.numero}. Motivo: {motivo}",
+        **{c: getattr(orden, c) for c in CAMPOS_ESPECIFICACION},
+    )
+    db.add(nueva)
+    db.flush()
+
+    auditoria.registrar(
+        db, user, "rehacer", "orden_trabajo", orden.id,
+        f"Se marcó {orden.numero} para rehacer. Motivo: {motivo}",
+        datos={"motivo": motivo, "orden_nueva_id": nueva.id,
+               "orden_nueva_numero": nueva.numero},
+    )
+    db.commit()
+    db.refresh(orden)
+    db.refresh(nueva)
+
+    return {"original": orden.to_dict(), "nueva": nueva.to_dict()}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# POST / DELETE /api/ordenes/{orden_id}/verificar  — la verificación del RF-11
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Mensaje único: lo usan el rechazo del cierre y la advertencia, y tienen que
+# decir lo mismo.
+_FALTA_VERIFICAR = (
+    "La orden no está verificada: el responsable de producción tiene que "
+    "revisar las etapas cargadas antes de darla por terminada."
+)
+
+
+@router.post("/ordenes/{orden_id}/verificar",
+             summary="El responsable verifica las etapas cargadas (RF-11)")
+def verificar_orden(
+    orden_id: int,
+    user: dict = Depends(require_permiso("ordenes:editar")),
+    db: Session = Depends(get_db),
+):
+    """
+    Deja constancia de que el responsable revisó lo que cargaron los operarios.
+    Sin esto el cierre se rechaza (ver `registrar_etapa`).
+
+    Quién verifica sale del TOKEN y nunca del request, por lo mismo que el
+    cierre: una constancia que el cliente puede firmar a nombre de otro no es
+    una constancia.
+    """
+    orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden de trabajo no encontrada")
+    if orden.estado == "cancelada":
+        raise HTTPException(
+            status_code=409,
+            detail="La orden está cancelada: no hay nada que verificar",
+        )
+
+    orden.verificado_por = user.get("id")
+    orden.verificado_en = datetime.now(timezone.utc)
+
+    auditoria.registrar(
+        db, user, "verificar", "orden_trabajo", orden.id,
+        f"Verificación de las etapas de {orden.numero}",
+        datos={"verificado_por": orden.verificado_por},
+    )
+    db.commit()
+    db.refresh(orden)
+    return orden.to_dict()
+
+
+@router.delete("/ordenes/{orden_id}/verificar",
+               summary="Dar marcha atrás una verificación")
+def desverificar_orden(
+    orden_id: int,
+    user: dict = Depends(require_permiso("ordenes:editar")),
+    db: Session = Depends(get_db),
+):
+    """
+    Se verificó y después apareció algo para corregir. Vuelve a trabar el
+    cierre hasta que se verifique de nuevo.
+    """
+    orden = db.query(OrdenTrabajo).filter(OrdenTrabajo.id == orden_id).first()
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden de trabajo no encontrada")
+
+    orden.verificado_por = None
+    orden.verificado_en = None
+
+    auditoria.registrar(
+        db, user, "desverificar", "orden_trabajo", orden.id,
+        f"Se dio marcha atrás la verificación de {orden.numero}",
+    )
+    db.commit()
+    db.refresh(orden)
+    return orden.to_dict()
+
+
 @router.post("/ordenes/{orden_id}/etapa", status_code=201,
              summary="Registrar el paso de una orden por una máquina (escaneo del QR)")
 def registrar_etapa(
@@ -600,8 +779,21 @@ def registrar_etapa(
     # como `advertencia` para que la pantalla del escaneo lo diga EN EL MOMENTO,
     # que es cuando se puede averiguar. Después nadie distingue esa orden de una
     # que recorrió la planta entera. Se mira antes de agregar el pase del cierre.
+    # El cierre exige la verificación del responsable (RF-11), y el límite es
+    # tener responsable asignado: si la orden no tiene, no hay quién verifique
+    # y trabar el cierre la dejaría muerta para siempre. En ese caso se cierra
+    # igual y se avisa, con el mismo criterio que la advertencia de abajo.
+    if cierre and orden.responsable_id and not orden.verificado_en:
+        raise HTTPException(status_code=409, detail=_FALTA_VERIFICAR)
+
     advertencia = None
-    if cierre and not db.query(
+    if cierre and not orden.responsable_id and not orden.verificado_en:
+        advertencia = (
+            "Se cierra sin verificación porque la orden no tiene responsable "
+            "de producción asignado: nadie revisó las etapas cargadas."
+        )
+
+    if cierre and advertencia is None and not db.query(
         db.query(PlanProduccion)
         .filter(PlanProduccion.orden_trabajo_id == orden.id)
         .exists()

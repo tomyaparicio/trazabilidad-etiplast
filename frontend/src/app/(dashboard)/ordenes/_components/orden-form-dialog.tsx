@@ -406,6 +406,11 @@ function emptyForm(estadoInicial: EstadoOrden = "borrador") {
     troquelado_observaciones: "",
     operador_troquelado: "",
     control_calidad: "",
+    // El plazo que se le promete al cliente (RF-05). Vacío por defecto y NUNCA
+    // con un default calculado: el plazo lo pacta la empresa con el cliente, y
+    // poner «hoy + 10» lo haría parecer acordado cuando nadie lo acordó. Sobre
+    // este dato se mide después el cumplimiento de plazos.
+    fecha_comprometida: "",
     fecha_diseno: "",
     fecha_preprensa: "",
     fecha_extrusion: "",
@@ -457,6 +462,7 @@ function ordenToForm(orden: OrdenTrabajo): ReturnType<typeof emptyForm> {
     troquelado_observaciones: orden.troquelado_observaciones ?? "",
     operador_troquelado: orden.operador_troquelado ?? "",
     control_calidad: orden.control_calidad ?? "",
+    fecha_comprometida: orden.fecha_comprometida ?? "",
     fecha_diseno: orden.fecha_diseno ?? "",
     fecha_preprensa: orden.fecha_preprensa ?? "",
     fecha_extrusion: orden.fecha_extrusion ?? "",
@@ -875,7 +881,33 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                 />
               </div>
 
-              <label className="flex cursor-pointer items-start gap-3 sm:self-end sm:pb-1">
+              {/* El plazo pactado con el cliente. Va acá, al lado del
+                  responsable, porque es parte del compromiso de la orden y no
+                  una fecha de producción: las `fecha_*` de etapa las llena el
+                  escaneo, ésta la carga quien toma el pedido.
+
+                  Opcional a propósito: hay pedidos que entran sin plazo
+                  acordado, y obligar a inventar uno arruinaría el indicador de
+                  cumplimiento, que es justo para lo que existe el campo. */}
+              <label>
+                <span className="ficha-rotulo">Fecha comprometida con el cliente</span>
+                <Input
+                  type="date"
+                  value={form.fecha_comprometida}
+                  min={form.fecha}
+                  onChange={(e) => set("fecha_comprometida", e.target.value)}
+                  className="ficha-campo"
+                />
+                <span className="mt-1 block text-[13px] font-semibold text-[#5a5f6e]">
+                  {form.fecha_comprometida
+                    ? "Contra esta fecha se mide si el pedido salió en término."
+                    : "Sin plazo cargado la orden no entra al indicador de cumplimiento."}
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-5">
+              <label className="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox" checked={esBorrador}
                   onChange={(e) => set("estado", e.target.checked ? "borrador" : "en_proceso")}

@@ -25,6 +25,16 @@ class OrdenTrabajo(Base):
     cliente_id = Column(Integer, ForeignKey("clientes.id", ondelete="CASCADE"), nullable=False, index=True)
     cliente_producto_id = Column(Integer, ForeignKey("cliente_productos.id", ondelete="SET NULL"), nullable=True)
     fecha      = Column(Date, nullable=True)
+    # La fecha que la empresa le PROMETIÓ al cliente. Columna propia y no
+    # reaprovechar `fecha_entrega`: esa es el día real en que el pedido salió, y
+    # esta es el plazo pactado antes de arrancar. Compararlas es lo que mide el
+    # cumplimiento de plazos (ver reportes.py); en una sola columna la
+    # comparación no existe.
+    #
+    # Nullable e indexada: nullable porque las órdenes anteriores a la columna
+    # no la tienen y su plazo no se puede inventar, indexada porque el reporte
+    # de cumplimiento filtra por ella.
+    fecha_comprometida = Column(Date, nullable=True, index=True)
     estado     = Column(String(20), default="borrador", nullable=False, index=True)
     # estados: borrador | pendiente | en_proceso | completada | cancelada
     created_by     = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -87,6 +97,42 @@ class OrdenTrabajo(Base):
     # `registrar_etapa` en routers/ordenes.py).
     operador_cierre              = Column(String(150))
 
+    # — Rehacer (RF-16) —
+    #
+    # El requerimiento pide registrar que una orden debe rehacerse CONSERVANDO
+    # el registro de la producción original, y esa segunda mitad es la que
+    # decide el diseño: rehacer NO reabre la orden. Si se reabriera, el escaneo
+    # del trabajo nuevo pisaría los operarios, las máquinas y las fechas del
+    # trabajo que sí se hizo, y el rechazo —que es justo lo que hay que poder
+    # medir— se borraría del historial.
+    #
+    # Entonces son dos órdenes: la original queda marcada acá, y la que se
+    # produce para reemplazarla nace nueva y apunta a ella con `rehace_a_id`.
+    rehacer                      = Column(Boolean, default=False, nullable=False, index=True)
+    # El motivo es obligatorio en el endpoint: un rechazo sin motivo no se puede
+    # analizar después, y analizarlos es para lo que sirve tenerlos registrados.
+    rehacer_motivo               = Column(Text)
+    rehacer_en                   = Column(DateTime(timezone=True))
+    rehacer_por                  = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # Apunta de la orden NUEVA a la que vino a reemplazar. SET NULL y no CASCADE:
+    # si alguien borra la original, el rehecho no se va con ella.
+    rehace_a_id                  = Column(Integer, ForeignKey("ordenes_trabajo.id", ondelete="SET NULL"),
+                                          nullable=True, index=True)
+
+    # — Verificación del responsable (RF-11) —
+    #
+    # El encargado revisa las etapas que cargaron los operarios ANTES de que la
+    # orden se dé por terminada. Era un paso que ya existía de palabra y que el
+    # sistema no registraba, así que un error de carga viajaba con el pedido
+    # hasta el cliente sin que nadie lo hubiera mirado.
+    #
+    # Dos columnas y no un booleano: el requerimiento pide constancia de QUIÉN
+    # verificó y CUÁNDO, y un `verificado = true` no dice ni una ni la otra.
+    # TIMESTAMPTZ por lo mismo que `fecha_cierre`: con el día solo no se puede
+    # reconstruir el orden de los hechos de una jornada.
+    verificado_por               = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    verificado_en                = Column(DateTime(timezone=True))
+
     # — Fechas por etapa —
     fecha_diseno                 = Column(Date)
     fecha_preprensa              = Column(Date)
@@ -113,6 +159,9 @@ class OrdenTrabajo(Base):
     )
     creador      = relationship("User", foreign_keys=[created_by])
     responsable  = relationship("User", foreign_keys=[responsable_id])
+    verificador  = relationship("User", foreign_keys=[verificado_por])
+    marco_rehacer = relationship("User", foreign_keys=[rehacer_por])
+    rehace_a     = relationship("OrdenTrabajo", remote_side=[id], foreign_keys=[rehace_a_id])
 
     def __repr__(self):
         return f"<OrdenTrabajo numero={self.numero!r} estado={self.estado!r}>"
@@ -148,6 +197,8 @@ class OrdenTrabajo(Base):
             "envase_codificado": pr.envase_codificado if pr else None,
             "envase_ubicacion":  pr.ubicacion         if pr else None,
             "fecha":            self.fecha.isoformat() if self.fecha else None,
+            # El plazo prometido al cliente, contra el que se mide el atraso.
+            "fecha_comprometida": self.fecha_comprometida.isoformat() if self.fecha_comprometida else None,
             "estado":           self.estado,
             "created_by":          self.created_by,
             "creador_nombre":      self.creador.nombre_completo if self.creador else None,
@@ -188,6 +239,18 @@ class OrdenTrabajo(Base):
             # Cierre (paso 5): cuándo y quién la dio por terminada
             "fecha_cierre":              self.fecha_cierre.isoformat()     if self.fecha_cierre     else None,
             "operador_cierre":           self.operador_cierre,
+            # Rehacer (RF-16): la marca sobre la original y el puntero del rehecho
+            "rehacer":                   bool(self.rehacer),
+            "rehacer_motivo":            self.rehacer_motivo,
+            "rehacer_en":                self.rehacer_en.isoformat() if self.rehacer_en else None,
+            "rehacer_por":               self.rehacer_por,
+            "rehacer_por_nombre":        self.marco_rehacer.nombre_completo if self.marco_rehacer else None,
+            "rehace_a_id":               self.rehace_a_id,
+            "rehace_a_numero":           self.rehace_a.numero if self.rehace_a else None,
+            # Verificación del responsable antes del cierre (RF-11)
+            "verificado_por":            self.verificado_por,
+            "verificado_por_nombre":     self.verificador.nombre_completo if self.verificador else None,
+            "verificado_en":             self.verificado_en.isoformat() if self.verificado_en else None,
             # Fechas por etapa
             "fecha_diseno":              self.fecha_diseno.isoformat()     if self.fecha_diseno     else None,
             "fecha_preprensa":           self.fecha_preprensa.isoformat()  if self.fecha_preprensa  else None,

@@ -343,12 +343,25 @@ def test_se_puede_cerrar_una_orden_que_nunca_entro_a_la_planta(api, db_session, 
 
 
 def test_cerrar_una_orden_que_si_paso_por_la_planta_no_advierte_nada(
-    api, orden, maquinas
+    api, orden, maquinas, admin
 ):
+    """La orden lleva responsable y queda verificada antes del cierre: así no
+    se dispara NINGUNA de las dos advertencias y se ve que la del escaneo de
+    planta no salta cuando sí hubo escaneos.
+
+    El responsable y la verificación entraron con el RF-11: sin responsable el
+    cierre avisa que nadie revisó las etapas, y esa advertencia —legítima— le
+    tapaba a este test lo que viene a comprobar."""
+    assert api.put(
+        f"/api/ordenes/{orden['id']}", json={"responsable_id": admin["id"]},
+    ).status_code == 200
+
     assert api.post(
         f"/api/ordenes/{orden['id']}/etapa",
         json={"etapa": "impresion", "maquina_id": maquinas["PYTEST-CI-VENUS"]},
     ).status_code == 201
+
+    assert api.post(f"/api/ordenes/{orden['id']}/verificar").status_code == 200
 
     assert _finalizar(api, orden["id"]).json()["advertencia"] is None
 

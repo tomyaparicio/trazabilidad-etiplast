@@ -15,6 +15,8 @@ class OrdenUpdateSchema(_Schema):
     cliente_id:          OptId = None
     cliente_producto_id: OptId = None
     fecha:               Optional[str] = None
+    # El plazo prometido al cliente (YYYY-MM-DD; el router parsea).
+    fecha_comprometida:  Optional[str] = None
     estado:              Optional[str] = Field(None, max_length=20)
     responsable_id:      OptId = None
     operador:            Optional[str] = Field(None, max_length=150)
@@ -88,3 +90,13 @@ class EscaneoEtapaSchema(_Schema):
     # usuario logueado es una cuenta de oficina y no el operario.
     operario:   Optional[str] = Field(None, max_length=150)
     notas:      Optional[str] = None
+
+
+class RehacerOrdenSchema(_Schema):
+    """Por qué hay que rehacer la orden.
+
+    Obligatorio a propósito: un rechazo sin motivo registrado no se puede
+    analizar después, y poder analizarlos —qué falla, en qué etapa, con qué
+    cliente— es para lo que sirve dejarlos asentados.
+    """
+    motivo: str = Field(..., min_length=1, max_length=1000)
