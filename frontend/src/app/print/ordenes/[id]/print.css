@@ -71,22 +71,155 @@
    márgenes negativos, así la banda llega al filo como en una hoja
    membretada de verdad y no como un recuadro pegado adentro. */
 .ot-header {
-  background: #0f0c44;
-  color: #fff;
+  /* BLANCO Y NEGRO, NO POR ESTILO SINO POR TINTA.
+     La banda azul maciza media 210 x 46 mm: descontando el QR y el bloque de
+     la inicial quedaban 67,2 cm2 de relleno oscuro, el 10,8% de la hoja a
+     cobertura casi total. El rendimiento de un toner se especifica sobre el 5%
+     de la pagina, asi que SOLO esa banda gastaba como dos paginas y media
+     normales — en cada orden que se imprime.
+
+     GRIS CLARO Y NO BLANCO: la banda tiene que seguir siendo un bloque, que es
+     lo que hace que la hoja se reconozca de lejos y que la cabecera se lea como
+     cabecera. #ededed es ~7% de cobertura: los mismos 66 cm2 pasan de gastar
+     como 67 cm2 de negro macizo a unos 4,6. Mas claro que esto el gris se lava
+     y la banda deja de leerse como banda. La que DE VERDAD separa la cabecera
+     del resto es la raya negra de abajo, asi que el gris puede ser apenas una
+     insinuacion. */
+  background: #ededed;
+  color: #000;
+  border-bottom: 2.4px solid #000;
   margin: -13mm -12mm 0;
   /* SIN relleno arriba ni a la derecha: el QR tiene que llegar al filo de la
      hoja y ocupar la esquina entera, no quedar como una estampilla pegada
      adentro de la banda. El alto de la banda lo manda él. */
   padding: 0 0 0 12mm;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* Dos columnas: el titulo y el bloque de la derecha. La del logo se fue
+     —el logo ahora vive adentro del bloque derecho—. Con la inicial de
+     maquina se agrega una tercera por delante (`.ot-header--inicial`). */
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 16px;
 }
 
+/* ══ LA INICIAL DE LA MÁQUINA ════════════════════════════════
+   Un cuarto renglón de grilla y el relleno izquierdo a cero: el bloque de la
+   letra SE COME esos 12 mm que antes eran azul vacío, y se queda con 18. Los
+   6 mm extra salen del aire que le sobra al título —mide 76,65 mm dentro de
+   una columna de 90,15—, así que ORDEN DE TRABAJO sigue entrando en un renglón.
+
+   La banda NO crece: el bloque se estira a lo alto con `align-self: stretch` y
+   el alto lo sigue mandando el QR, igual que antes. La hoja está en 297,00 mm
+   exactos y una segunda página en blanco no es una opción. */
+.ot-header--inicial {
+  grid-template-columns: auto 1fr auto;
+  padding-left: 0;
+}
+
+/* AMARILLO DE FONDO Y LETRA AZUL, no al revés.
+   Pasado a blanco y negro el amarillo #f5eb4a sube a un gris casi blanco y el
+   azul #0f0c44 cae a casi negro: queda una letra NEGRA sobre un rectángulo
+   CLARO, que es la combinación de los carteles de ruta y la que más aguanta de
+   lejos y fotocopiada.
+
+   Y resuelve el problema que tenía el cuadradito: el logo de Etiplast es
+   blanco calado, así que en gris una forma amarilla MACIZA al lado del logo
+   daban dos manchones claros pegados. Acá lo que porta la señal no es el
+   rectángulo sino la letra oscura de adentro, que el logo no tiene. */
+.ot-inicial {
+  align-self: stretch;
+  width: 26mm;
+  /* RECUADRO CALADO Y NO RELLENO: un bloque negro de 22 x 46 mm son 10,1 cm2
+     mas de tinta en cada hoja. Calado gasta el borde y la letra, y de lejos se
+     ve igual — lo que el ojo agarra a tres metros es la LETRA, que es enorme,
+     no el fondo que tiene detras. */
+  /* BLANCA sobre el gris: el papel sin imprimir ES el color del recuadro, asi
+     que la marca de maquina —lo unico que el operario busca de lejos— sale
+     gratis y ademas es lo mas claro de toda la hoja. Recorta sola. */
+  background: #fff;
+  color: #000;
+  /* ENCAJONADO EN NEGRO por los tres lados que dan al papel (el cuarto es el
+     filo de la hoja, donde la impresora no llega). Sin el filete, el recuadro
+     de Reinaflex —gris claro— quedaba a 16 niveles de la banda y se le fundía:
+     parecía que esa orden no tenía marca de máquina.
+
+     Con el cajón, el relleno ya no tiene que diferenciarse de la banda, sólo
+     de los otros rellenos. Eso libera toda la escala para separar máquinas y
+     de paso deja usar tonos claros, que son los que menos tinta gastan. */
+  border-top: 2.4px solid #000;
+  border-right: 2.4px solid #000;
+  border-bottom: 2.4px solid #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 52 px ≈ 14 mm de altura de letra: se lee cruzando la planta. Entra porque
+     el logo dejó libre su columna de la izquierda y el título heredó ese aire.
+
+     EL TECHO NO ES EL ALTO SINO EL ANCHO: la banda tiene 47 mm y la letra usa
+     23, así que a lo alto sobra. Lo que frena es la columna del título — si el
+     recuadro le roba más de 6 mm, ORDEN DE TRABAJO se parte en dos renglones,
+     la banda crece y la hoja se va de los 297 mm. */
+  /* OTRA FAMILIA QUE EL RESTO DE LA HOJA, a proposito: la letra de maquina no
+     es texto, es un simbolo, y leerse distinto ayuda a que el ojo la separe del
+     resto antes de leer nada.
+
+     NADA DE FUENTE WEB: esta hoja se imprime desde la PC de la oficina. Si el
+     archivo no baja, el navegador cae a lo que sea SIN AVISAR y el simbolo que
+     sale impreso NO es el que vimos en pantalla. Trebuchet MS viene con Windows
+     y con Mac desde hace veinte anios, asi que no hay nada que instalar; detras
+     quedan dos sans anchas por si apareciera una maquina rara. */
+  font-family: 'Trebuchet MS', 'Lucida Grande', Verdana, sans-serif;
+  font-size: 86px;
+  font-weight: 700;
+  line-height: 1;
+  /* Sin `letter-spacing`: es UNA letra y el espaciado la descentra. */
+  letter-spacing: 0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 /* El archivo del logo YA es blanco sobre transparente: está hecho
    para fondo oscuro. Sobre la banda azul va tal cual. */
-.ot-logo { height: 52px; width: auto; display: block; }
+/* ── POR QUÉ EL RECUADRO NO LLEVA RELLENO ──────────────────
+   Se probó un tono de gris por máquina y se descartó POR TINTA: el recuadro
+   mide 22 × 47 mm = 10,3 cm², así que rellenarlo al 49% (Venus) eran 5,0 cm²
+   de tóner y al 82% (Autoadhesiva) 8,5 cm² — en cada hoja, todos los días.
+
+   Y era redundante. Lo que distingue una máquina de otra ya es LA LETRA, que
+   mide 14 mm de alto: a ese tamaño y con negro sobre blanco se lee a cinco o
+   seis metros, que es cruzar la planta. El tono no agregaba alcance, agregaba
+   consumo.
+
+   Lo que queda es lo barato y lo que no falla: el cajón negro, que ubica el
+   recuadro, y la letra. Entre los dos no llegan a 2 cm². */
+
+/* El archivo es blanco calado sobre transparente, hecho para la banda azul.
+   Sobre papel blanco seria invisible. `brightness(0)` lleva los tres canales a
+   cero sin tocar el alfa: mismo dibujo, en negro. Asi no hace falta un segundo
+   archivo que despues alguien se olvide de actualizar. */
+.ot-logo {
+  height: 24px;
+  width: auto;
+  display: block;
+  filter: brightness(0);
+}
+
+/* La marca: el logotipo calado más el nombre escrito, abajo de la fecha. */
+.ot-marca {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 3px;
+}
+
+.ot-marca-nombre {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: #000;
+  line-height: 1;
+}
 
 .ot-titulo-block {
   display: flex;
@@ -98,15 +231,20 @@
 /* «ORDEN DE TRABAJO» con su raya abajo, igual que el papel — pero
    la raya en amarillo de marca, que es el único acento de la hoja. */
 .ot-titulo {
-  font-size: 23px;
+  font-size: 28px;
   font-weight: 800;
-  letter-spacing: 0.12em;
-  text-indent: 0.12em;
+  /* El espaciado BAJA de 0,12 a 0,06 em y el cuerpo se queda en 28 px.
+     «ORDEN DE TRABAJO» son 17 caracteres: a 0,12 em el aire entre letras solo
+     media unos 15 mm, mas que suficiente para partir el titulo en dos renglones
+     cuando el recuadro de la maquina crecio. Achicando el espaciado entra en un
+     renglon SIN tocar el tamano de la letra, que es lo que se ve de lejos. */
+  letter-spacing: 0.06em;
+  text-indent: 0.06em;
   text-transform: uppercase;
-  border-bottom: 2.5px solid #f5eb4a;
+  border-bottom: 2.5px solid #000;
   padding: 0 4px 3px;
   line-height: 1.1;
-  color: #fff;
+  color: #000;
 }
 
 /* La máquina: la palabra sola, en amarillo. En el papel el
@@ -119,12 +257,12 @@
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 900;
   letter-spacing: 0.3em;
   text-indent: 0.3em;
   text-transform: uppercase;
-  color: #f5eb4a;
+  color: #000;
   line-height: 1.15;
 }
 
@@ -167,14 +305,14 @@
   letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  color: #fff;
+  color: #000;
 }
 
 .ot-fecha {
   font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: rgba(255,255,255,.75);
+  color: #3a3a3a;
 }
 
 /* El QR SIEMPRE negro sobre blanco, aunque esté sobre la banda

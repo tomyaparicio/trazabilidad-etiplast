@@ -209,6 +209,19 @@ export default async function PrintOrdenPage({ params }: Props) {
   const maquinaCodigo = maquinaPartes ? maquinaPartes[1] : ""
   const maquinaNombre = maquinaPartes ? maquinaPartes[2] : maquinaRaw
 
+  // La INICIAL de la máquina, gigante contra el filo izquierdo de la hoja.
+  //
+  // El operario tiene que saber de lejos si la orden es para SU máquina, sin
+  // leer. Una letra se distingue por FORMA —V, R y A no se parecen en nada—,
+  // así que sobrevive a una fotocopia en blanco y negro, y no hay que
+  // aprenderse ningún código: la V es Venus.
+  //
+  // SALE DEL NOMBRE, NO DE UNA TABLA. Por eso una impresora que carguen mañana
+  // ya tiene su letra sin que nadie toque este archivo, y la letra NUNCA puede
+  // contradecir al nombre que está impreso tres centímetros a la derecha.
+  const inicialMaquina = maquinaNombre.trim().charAt(0).toUpperCase()
+
+
   // Separador decimal argentino: «240,5», no «240.5». El resto de la app ya
   // formatea con es-AR (la cantidad sale «20.000»); la ficha era la única que
   // mezclaba los dos criterios en la misma hoja.
@@ -241,10 +254,18 @@ export default async function PrintOrdenPage({ params }: Props) {
               Logo · ORDEN DE TRABAJO / MÁQUINA · número, fecha y QR.
               Mismo reparto que el papel, con el QR ocupando el lugar donde
               el formulario impreso tiene el __/__/__ escrito a mano. */}
-          <div className="ot-header">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logoSOLO.png" alt="Etiplast" className="ot-logo" />
+          <div className={`ot-header${inicialMaquina ? " ot-header--inicial" : ""}`}>
+            {/* Ocupa los 12 mm de azul pelado que la banda ya tenía de relleno
+                a la izquierda, estirado a los 46 mm de alto. El logo no se
+                mueve: arranca donde arrancaba. Va PRIMERO en el DOM para que
+                sea la primera columna de la grilla.
 
+                `aria-hidden` porque es la inicial de algo que el lector de
+                pantalla ya va a leer entero dos elementos más adelante: suelta
+                diría «A» y no significa nada. */}
+            {inicialMaquina && (
+              <span className="ot-inicial" aria-hidden="true">{inicialMaquina}</span>
+            )}
             <div className="ot-titulo-block">
               <span className="ot-titulo">Orden de Trabajo</span>
               {maquinaNombre && (
@@ -264,6 +285,20 @@ export default async function PrintOrdenPage({ params }: Props) {
                 {comprometidaStr && (
                   <span className="ot-comprometida">Entregar: {comprometidaStr}</span>
                 )}
+                {/* La marca, abajo de la fecha. Se fue de la izquierda porque
+                    ahí ahora va la inicial de la máquina, que es el dato que
+                    el operario busca de lejos; el logo no lo busca nadie —ya
+                    sabe en qué fábrica trabaja— así que acompaña al número y
+                    la fecha, que es la esquina de los datos de la orden.
+
+                    `alt` vacío y `aria-hidden` en la imagen: el nombre está
+                    escrito al lado, y con `alt="Etiplast"` el lector de
+                    pantalla diría «Etiplast Etiplast». */}
+                <span className="ot-marca">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logoSOLO.png" alt="" aria-hidden="true" className="ot-logo" />
+                  <span className="ot-marca-nombre">Etiplast</span>
+                </span>
               </div>
               {/* SVG generado en el servidor, no entra nada del usuario. */}
               <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
@@ -419,7 +454,9 @@ export default async function PrintOrdenPage({ params }: Props) {
                          angostos y parejos. */
                       ancho={340}
                       campos={[
-                        { label: "Cilindro Ø", value: orden.impresion_cilindro != null ? `${fmt(orden.impresion_cilindro)} mm` : "", flex: 1 },
+                        // Sin «mm»: la unidad del cilindro no cambia nunca, y repetirla en
+                        // cada ficha sólo le come ancho a una celda que ya era angosta.
+                        { label: "Cilindro Ø", value: orden.impresion_cilindro != null ? fmt(orden.impresion_cilindro) : "", flex: 1 },
                         { label: "Frente", value: orden.impresion_frente, flex: 1.2, texto: true },
                         { label: "Retrov.", value: orden.impresion_retroverso, flex: 1, texto: true },
                       ]}
@@ -463,7 +500,9 @@ export default async function PrintOrdenPage({ params }: Props) {
               <Caja
                 campos={[
                   { label: "Alto", value: orden.troquelado_alto != null ? `${fmt(orden.troquelado_alto)} cm` : "", flex: 0.8 },
-                  { label: "Cierre", value: orden.troquelado_cierre != null ? fmt(orden.troquelado_cierre) : "", flex: 0.8 },
+                  // «Cierre (int)» y no «Cierre» a secas: es como lo nombra la planta,
+                  // y el papel tiene que decir lo mismo que dice la gente.
+                  { label: "Cierre (int)", value: orden.troquelado_cierre != null ? fmt(orden.troquelado_cierre) : "", flex: 0.8 },
                   { label: "Envase", value: orden.troquelado_envase, flex: 1.4 },
                   { label: "Código envase", value: orden.envase_codificado, flex: 1.2 },
                   { label: "Ubicación", value: orden.envase_ubicacion, flex: 1.2 },
