@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
+import { nombreDeProducto } from "@/lib/producto"
 import type { Bobina, Cliente, ClienteProducto, EstadoOrden, OrdenTrabajo, UserAdmin } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
 import { Selector } from "@/components/ui/selector"
@@ -248,54 +249,12 @@ function ClienteSelector({ value, onSelect, initialName, subrayado = false }: { 
 // ─── Selector de producto ─────────────────────────────────────────────────
 
 /**
- * Volumen del producto escrito como lo escribe una persona: 1,5 lt (y no
- * 1.5000lt, que es como viene de la base).
- */
-function volumenLegible(p: ClienteProducto): string {
-  if (p.volumen_cantidad == null) return ""
-  const cantidad = Number(p.volumen_cantidad)
-  if (!Number.isFinite(cantidad)) return ""
-  const numero = cantidad.toLocaleString("es-AR", { maximumFractionDigits: 3 })
-  return p.volumen_unidad ? `${numero} ${p.volumen_unidad}` : numero
-}
-
-/**
- * ¿El nombre del producto ya dice su volumen?
- *
- * «Lavandina x 5 lt» con volumen 5 lt no tiene que terminar siendo
- * «Lavandina x 5 lt · 5 lt». Se comparan los NÚMEROS del nombre con el del
- * volumen, no el texto: así «Citrus x 1,5 lt» reconoce su 1,5 escrito con coma,
- * y «Agua 500» no se confunde con un volumen de 5.
- */
-function nombreYaDiceElVolumen(nombre: string, p: ClienteProducto): boolean {
-  if (p.volumen_cantidad == null) return false
-  const cantidad = Number(p.volumen_cantidad)
-  if (!Number.isFinite(cantidad)) return false
-  const numeros = (nombre.match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => Number(n.replace(",", ".")))
-  return numeros.some((n) => n === cantidad)
-}
-
-/**
- * Qué texto ve el usuario por cada producto del desplegable.
- *
- * VA EL NOMBRE Y EL TAMAÑO. La lámina ("Blco 31", "Cristal 24") es el material
- * con el que se fabrica la etiqueta: no es algo que reconozca quien carga la
- * orden, y venía pegada al nombre haciendo ruido ("Lavandina x 5 lt · Blco 58").
- *
- * EL TAMAÑO SÍ VA SIEMPRE que esté cargado. Un cliente de bebidas tiene «Agua»,
- * «Agua sport», «Agua con gas», y lo único que las distingue de verdad es de
- * cuántos mililitros son. Antes el volumen aparecía sólo cuando dos productos
- * se llamaban IGUAL, así que «Agua sport» —que es única— se quedaba sin su
- * tamaño aunque lo tuviera cargado.
- *
- * No se repite cuando el nombre ya lo dice (ver `nombreYaDiceElVolumen`).
+ * El nombre del producto para el desplegable. La lógica vive en
+ * `lib/producto.ts` porque la ficha impresa —un componente de SERVIDOR— tiene
+ * que nombrarlo exactamente igual, y no puede importar nada de acá.
  */
 function etiquetaDeProducto(p: ClienteProducto): string {
-  const nombre = (p.nombre ?? "").trim()
-  if (!nombre) return `Producto #${p.id}`
-  const volumen = volumenLegible(p)
-  if (!volumen || nombreYaDiceElVolumen(nombre, p)) return nombre
-  return `${nombre} · ${volumen}`
+  return nombreDeProducto(p.nombre, p, `Producto #${p.id}`)
 }
 
 function ProductoSelector({ productos, value, onSelect, subrayado = false }: {
@@ -1384,8 +1343,18 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                 >
                   <span className={`h-[4px] rounded-full ${isCurrent ? "bg-gold" : isDone ? "bg-gold/50" : "bg-white/20"}`} />
                   <span className={`flex items-center gap-2 text-[12.5px] font-extrabold ${isCurrent ? "text-white" : isDone ? "text-white/80" : "text-white/45"}`}>
+                    {/* El check de paso cumplido va en `text-brand-yellow`, no
+                        en `text-gold`: este stepper vive en el header
+                        `bg-brand` (#292d96), que está definido fuera de los
+                        bloques de tema y queda azul en claro Y en oscuro (de
+                        ahí el `text-white` de al lado). `text-gold` resuelve
+                        `--gold-text` = oliva #8a7200 en tema claro, y sobre el
+                        `bg-gold/20` de este círculo (#525387) daría 1,52:1.
+                        `--etiplast-500` (#f5eb4a) da 5,72:1 en los dos temas.
+                        `bg-gold`/`border-gold` quedan: usan `--gold`, que no
+                        cambia entre temas. */}
                     <span className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 ${
-                      isCurrent ? "border-gold bg-gold text-gold-foreground" : isDone ? "border-gold/60 bg-gold/20 text-gold" : "border-white/35"
+                      isCurrent ? "border-gold bg-gold text-gold-foreground" : isDone ? "border-gold/60 bg-gold/20 text-brand-yellow" : "border-white/35"
                     }`}>
                       {isDone ? <Check className="h-3.5 w-3.5" /> : <s.icon className="h-3.5 w-3.5" strokeWidth={2.4} />}
                     </span>

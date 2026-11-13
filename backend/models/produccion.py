@@ -188,6 +188,19 @@ class OrdenTrabajo(Base):
             # El nombre del producto: el que está en la máquina necesita
             # saber QUÉ está haciendo, y hasta ahora la ficha no lo decía.
             "producto_nombre":  pr.nombre if pr else None,
+            # El TAMAÑO, que es lo único que distingue un producto de otro del
+            # mismo cliente. En producción hay 244 grupos de productos que se
+            # llaman igual dentro del mismo cliente —«2 pinos» tiene tres
+            # «Agua»— y lo que los separa es el volumen: 500 ml, 1,5 lt, 6 lt.
+            # Cada uno lleva otro cilindro y otra lámina, así que una ficha que
+            # dice sólo «Agua» manda al operario a adivinar. El volumen está
+            # cargado en el 98% de los productos.
+            # Van los dos campos crudos y no un texto armado: quien lo muestra
+            # ya tiene la lógica de cómo escribirlo (ver `etiquetaDeProducto`).
+            "producto_volumen_cantidad": (
+                float(pr.volumen_cantidad) if (pr and pr.volumen_cantidad) else None
+            ),
+            "producto_volumen_unidad":   pr.volumen_unidad if pr else None,
             # OK / NOOK. Si la muestra está rechazada, mandar a imprimir
             # 20.000 etiquetas es tirar el trabajo: tiene que verse.
             "producto_muestra": pr.muestra if pr else None,

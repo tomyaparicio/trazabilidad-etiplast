@@ -177,25 +177,6 @@
   color: rgba(255,255,255,.75);
 }
 
-.ot-qr-label {
-  font-size: 7.5px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  line-height: 1.25;
-  text-align: right;
-  color: rgba(255,255,255,.75);
-  max-width: 78px;
-  margin-top: 2px;
-}
-
-.ot-qr-lote {
-  font-size: 8.5px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  color: #f5eb4a;
-}
-
 /* El QR SIEMPRE negro sobre blanco, aunque esté sobre la banda
    azul: el margen blanco de alrededor no es decoración, sin él el
    lector no engancha el código aunque en pantalla se vea perfecto. */
@@ -407,40 +388,67 @@
 .ot-bobinas { display: flex; flex-direction: column; gap: 3px; }
 
 .ot-bobinas-rot {
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: center;
 }
 
-.ot-bobinas-tabla { border-collapse: collapse; width: 100%; }
-
-.ot-bobinas-tabla th {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0 4px 2px;
-  border-bottom: 1.4px solid #000;
+/* La grilla de bobinas: 4×4 rayas sueltas, como el papel. No es una tabla —
+   no hay encabezados ni numeración— así que tampoco se marca como tal: son
+   casilleros donde se escribe con lapicera. */
+.ot-bob-grilla {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  /* El hueco entre rayas, bien marcado como en el papel: cada raya es un
+     casillero propio y tiene que verse separada de la de al lado, si no se
+     lee como una sola línea cortada. */
+  column-gap: 17px;
+  /* OJO AL TOCAR ESTO: la grilla de bobinas es MÁS ALTA que la columna de la
+     izquierda, así que es ella la que fija el alto de la sección Extrusión.
+     Con row-gap 17 y min-height 23 la hoja se iba a 302,49 mm y salía una
+     segunda página en blanco. El techo es 297. */
+  row-gap: 12px;
+  margin-top: 4px;
 }
 
-.ot-bobinas-tabla td {
-  border-bottom: 1.2px solid #000;
-  height: 22px;
-  padding: 0 4px;
-  font-size: 14px;
+.ot-bob-casillero {
+  border-bottom: 1.3px solid #000;
+  min-height: 20px;
+  font-size: 15px;
   font-weight: 700;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
-.ot-bobinas-tabla td:first-child {
-  width: 20px;
-  font-size: 10px;
+/* MÁQUINA ① ② — se marca con lapicera cuál de las dos extrusoras se usó. */
+.ot-bob-maquina {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 11px;
+}
+
+.ot-bob-maquina-rot {
+  font-size: 13px;
   font-weight: 800;
-  border-bottom-color: transparent;
-  text-align: right;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ot-bob-opcion {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid #000;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 /* ══ COLORES ═════════════════════════════════════════════════
@@ -465,7 +473,7 @@
 /* ══ OBSERVACIONES ═══════════════════════════════════════════
    El papel tiene una raya sola. Acá va recuadro: el de la máquina
    escribe una o dos frases y necesita caja, no renglón. */
-.ot-obs { display: flex; align-items: flex-start; gap: 9px; }
+.ot-obs { display: flex; align-items: flex-end; gap: 9px; }
 
 .ot-obs-rotulo {
   font-size: 12.5px;
@@ -473,15 +481,20 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
-  padding-top: 5px;
 }
 
 .ot-obs-area {
   flex: 1;
-  border: 1.4px solid #000;
-  min-height: 58px;
-  max-height: 24mm;
-  padding: 4px 7px;
+  /* Una RAYA, no un recuadro. Un cuadro vacío invita a llenarlo y se come
+     alto de hoja aunque nadie escriba; la raya es lo mismo que ya hacen
+     «Operario» y «Fecha ext» en esta misma ficha, y es lo que hay en el papel.
+     Si viene texto cargado, se apoya sobre la raya igual. */
+  border-bottom: 1.2px solid #000;
+  /* Aire ARRIBA de la raya: se escribe sobre la línea, así que lo que hace
+     falta es alto libre encima. Con 21px la raya quedaba pegada al rótulo y no
+     entraba un renglón escrito a mano. */
+  min-height: 38px;
+  padding: 0 4px 2px;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.3;
@@ -522,16 +535,23 @@
   line-height: 1.1;
 }
 
-/* La cuenta de los metros, abajo del número y chica: no es el dato
-   sino de dónde sale. El que quiere verificar el total la lee ahí
-   mismo en vez de rehacerla a mano. */
-.ot-pie-cuenta {
-  font-size: 10.5px;
-  font-weight: 700;
-  text-align: right;
-  padding-top: 3px;
-  letter-spacing: 0.01em;
+/* Segunda fila del pie: la que llena escritorio a mano. Mismo cuerpo de
+   letra que la de arriba —se lee de lejos y la completa gente grande— y
+   `margin-top` fijo que PISA el `auto` de `.ot-pie`: si heredara el auto,
+   las dos filas se pelearían el blanco sobrante y quedarían separadas por
+   media hoja. Tiene que ir DESPUÉS de `.ot-pie`: misma especificidad,
+   gana la última. */
+.ot-pie--mano {
+  margin-top: 15px;
+  align-items: baseline;
 }
+
+/* BULTOS va hasta el margen derecho. No siempre es un número solo: en la
+   planta se anota CÓMO se armó la entrega —«3 cajas + 2 bolsas»— y en la
+   raya corta de los demás valores eso no entra escrito a mano. Gana por
+   especificidad (0,2,0) al `min-width` de `.ot-pie-valor`. */
+.ot-pie--bultos .ot-pie-dato { flex: 1; }
+.ot-pie--bultos .ot-pie-valor { flex: 1; }
 
 /* ══ BOTONES (sólo pantalla) ═════════════════════════════════ */
 .ot-print-btn-wrapper {

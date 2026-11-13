@@ -62,10 +62,16 @@ export default function NuevaOrdenPage() {
       {maquina && (
         <div className={eligiendo ? "hidden" : undefined}>
           <div className="bg-brand-strong sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b-2 border-gold/40 px-5 py-3 text-white sm:px-8 lg:px-10">
+            {/* `text-brand-yellow` y no `text-gold`: esta barra es
+                `bg-brand-strong` (`--primary-700`, #1d206b), definido fuera de
+                los bloques de tema, así que es azul oscuro en claro Y en
+                oscuro. `text-gold` resuelve `--gold-text`, oliva (#8a7200) en
+                tema claro, y daría 3,05:1 sobre este azul. `--etiplast-500`
+                (#f5eb4a) da 11,46:1 y no cambia con el tema. */}
             <p className="flex items-center gap-2.5 text-[15px] font-extrabold">
-              <Printer className="h-5 w-5 shrink-0 text-gold" strokeWidth={2.4} />
+              <Printer className="h-5 w-5 shrink-0 text-brand-yellow" strokeWidth={2.4} />
               Se imprime en
-              <span className="text-[19px] font-extrabold text-gold">{maquina.label}</span>
+              <span className="text-[19px] font-extrabold text-brand-yellow">{maquina.label}</span>
             </p>
             <button
               type="button"

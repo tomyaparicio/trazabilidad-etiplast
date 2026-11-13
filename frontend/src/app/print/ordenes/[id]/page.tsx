@@ -2,6 +2,7 @@
  * Página de impresión / PDF — Orden de Trabajo  v2
  */
 import { apiFetchServer } from "@/lib/api/server"
+import { nombreDeProducto } from "@/lib/producto"
 import type { OrdenTrabajo } from "@/lib/api/types"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
@@ -43,11 +44,20 @@ async function origenDelSitio(): Promise<string> {
  * `texto` es para las celdas que llevan una frase y no un número: se alinean a
  * la izquierda y con cuerpo más chico.
  */
-function Caja({ campos }: {
+function Caja({ campos, ancho }: {
   campos: { label: string; value?: string | null; flex?: number; texto?: boolean }[]
+  /** Ancho en px. Sin esto la caja se estira a toda la columna, y una de tres
+      celdas queda con sus valores nadando en blanco. Va `width` y no solo
+      `maxWidth` porque dentro de un contenedor flex —así se centra la de
+      IMPRESIÓN— la caja se achica al contenido y parte rótulos como
+      «Cilindro Ø» al medio. `flexShrink: 0` la defiende de lo mismo. */
+  ancho?: number
 }) {
   return (
-    <div className="ot-caja">
+    <div
+      className="ot-caja"
+      style={ancho ? { width: ancho, maxWidth: "100%", flexShrink: 0 } : undefined}
+    >
       {campos.map((c, i) => (
         <div
           key={i}
@@ -167,11 +177,16 @@ export default async function PrintOrdenPage({ params }: Props) {
 
   const colores   = Array.from({ length: 6 }, (_, i) => orden.impresion_colores?.[i] ?? "")
   const bobinas   = orden.bobinas ?? []
-  // Siempre mostrar al menos 6 filas en la tabla de bobinas
-  const filasBob  = bobinas.length >= 6 ? bobinas : [
-    ...bobinas,
-    ...Array.from({ length: 6 - bobinas.length }, () => ({ metros: null, kg_bob: null })),
-  ]
+  // 16 casilleros en una grilla de 4×4, como el «KG/BOB.» del papel: ahí no
+  // hay encabezados ni numeración, son rayas sueltas donde se anota el peso de
+  // cada bobina. Si alguna vez se cargan desde el sistema, el número se imprime
+  // y la raya queda abajo igual; hoy nadie los carga (cero filas en las dos
+  // bases), así que en la práctica salen todos en blanco.
+  const CASILLEROS_BOB = 16
+  const casillerosBob = Array.from(
+    { length: Math.max(CASILLEROS_BOB, bobinas.length) },
+    (_, i) => bobinas[i]?.kg_bob ?? null,
+  )
 
   // El plazo pactado con el cliente va EN EL PAPEL: la ficha es lo que el
   // operario tiene en la mano en la máquina, y hasta ahora ningún formulario
@@ -249,8 +264,6 @@ export default async function PrintOrdenPage({ params }: Props) {
                 {comprometidaStr && (
                   <span className="ot-comprometida">Entregar: {comprometidaStr}</span>
                 )}
-                <span className="ot-qr-label">Escaneá antes de empezar</span>
-                {orden.lote && <span className="ot-qr-lote">{orden.lote}</span>}
               </div>
               {/* SVG generado en el servidor, no entra nada del usuario. */}
               <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
@@ -269,7 +282,17 @@ export default async function PrintOrdenPage({ params }: Props) {
             <div className="ot-renglon">
               <span className="ot-renglon-rotulo">Producto</span>
               <span className="ot-renglon-valor">
-                {orden.producto_nombre ?? ""}
+                {/* NOMBRE Y TAMAÑO. En producción hay 244 grupos de
+                    productos que se llaman igual dentro del mismo cliente:
+                    «2 pinos» tiene tres «Agua» —500 ml, 1,5 lt y 6 lt— y cada
+                    una lleva otro cilindro y otra lámina. Una ficha que dice
+                    sólo «Agua» manda al operario a adivinar cuál de las tres.
+                    Misma función que el desplegable al cargar la orden, así
+                    las dos pantallas nombran igual la misma cosa. */}
+                {nombreDeProducto(orden.producto_nombre, {
+                  volumen_cantidad: orden.producto_volumen_cantidad,
+                  volumen_unidad: orden.producto_volumen_unidad,
+                })}
                 {/* La muestra del producto. NOOK significa que está rechazada:
                     imprimir 20.000 etiquetas así es tirar el trabajo. */}
                 {muestra && (
@@ -305,8 +328,15 @@ export default async function PrintOrdenPage({ params }: Props) {
                   <Mano label="Operario" />
                   <FechaVacia label="Fecha ext" />
                   <Caja
+                    /* Tres celdas cortas: sin tope se estiran a toda la columna
+                       y los valores quedan nadando en blanco. 300 px le dan a
+                       cada una lo que necesita y nada más. */
+                    ancho={300}
                     campos={[
-                      { label: "Ancho", value: orden.extrusion_ancho != null ? `${fmt(orden.extrusion_ancho)} mm` : "" },
+                      /* Sin la unidad: el rótulo ya dice ANCHO y en extrusión siempre
+                         son milímetros. Repetirla gasta ancho de celda en algo
+                         que el que está en la máquina ya sabe. */
+                      { label: "Ancho", value: fmt(orden.extrusion_ancho) },
                       { label: "Color", value: orden.extrusion_color },
                       { label: "Espesor", value: orden.extrusion_espesor != null ? `${fmt(orden.extrusion_espesor, 0)} µ` : "60 µ" },
                       /* La formulación sólo cuando dice algo que el color y el
@@ -314,35 +344,37 @@ export default async function PrintOrdenPage({ params }: Props) {
                       ...(formulacionAporta(orden.extrusion_formulacion, orden.extrusion_ancho)
                         ? [{ label: "Formulación", value: orden.extrusion_formulacion, flex: 1.4 }]
                         : []),
-                      /* «Tratamiento» es el rótulo más largo de la fila y con
-                         el cuerpo subido no entraba: se le da más ancho en vez
-                         de abreviarlo, que en planta se lee peor. */
-                      { label: "Tratamiento", value: null, flex: 1.5 },
-                      { label: "Bobinas", value: null, flex: 1.1 },
                     ]}
                   />
                 </div>
 
-                {/* La grilla de bobinas, como el «KG/BOB.» del papel. */}
-                {/* Más ancha que antes: son seis renglones que se llenan a mano
-                    con lapicera, parado al lado de la extrusora. Una raya corta
-                    se llena con la letra apretada y después no se lee. */}
-                <div className="ot-bobinas" style={{ width: 236 }}>
+                {/* El «KG/BOB.» calcado del papel: el rótulo arriba y una
+                    grilla de rayas sueltas, sin encabezados de columna ni
+                    numeración de fila. El operario anota el peso de cada
+                    bobina mientras extrude, parado al lado de la máquina — no
+                    lee una tabla, llena un renglón. Las rayas van anchas por lo
+                    mismo: una raya corta se llena con la letra apretada y
+                    después no se lee. */}
+                <div className="ot-bobinas" style={{ width: 320 }}>
                   <span className="ot-bobinas-rot">Kg / Bob.</span>
-                  <table className="ot-bobinas-tabla">
-                    <thead>
-                      <tr><th /><th>Metros</th><th>Kg</th></tr>
-                    </thead>
-                    <tbody>
-                      {filasBob.map((b, i) => (
-                        <tr key={i}>
-                          <td>{i + 1}</td>
-                          <td>{b.metros ?? ""}</td>
-                          <td>{b.kg_bob ?? ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="ot-bob-grilla">
+                    {casillerosBob.map((kg, i) => (
+                      <span key={i} className="ot-bob-casillero">
+                        {kg ?? "\u00A0"}
+                      </span>
+                    ))}
+                  </div>
+                  {/* En qué extrusora se hizo. El papel lo resuelve con dos
+                      círculos para marcar con lapicera, y el sistema no lo
+                      guarda: `ETAPAS_CON_MAQUINA` es sólo impresión, porque en
+                      extrusión las máquinas son intercambiables para el
+                      tablero. Para el que está en planta sí importa, así que
+                      la ficha lo pregunta como lo preguntaba el papel. */}
+                  <div className="ot-bob-maquina">
+                    <span className="ot-bob-maquina-rot">Máquina</span>
+                    <span className="ot-bob-opcion">1</span>
+                    <span className="ot-bob-opcion">2</span>
+                  </div>
                 </div>
               </div>
 
@@ -352,35 +384,48 @@ export default async function PrintOrdenPage({ params }: Props) {
             <div className="ot-sep" />
 
             {/* ═══ ② IMPRESIÓN ═══ */}
+            {/* Calcado del papel: a la IZQUIERDA el título con el operario y
+                la fecha debajo; a la DERECHA la caja del cilindro y, abajo,
+                los colores. Antes la caja ocupaba un renglón propio a todo el
+                ancho y empujaba todo hacia abajo — el papel la pone al lado
+                del título justamente porque es angosta. */}
             <div className="ot-etapa">
-              <div className="ot-etapa-head">
-                <span className="ot-paso-num">2</span>
-                <span className="ot-paso-title">Impresión</span>
-              </div>
-
-              {/* Operario, fecha y colores NO se cargan en pantalla y nunca se
-                  imprimen con dato: los escribe a mano el que está en la
-                  máquina. El escaneo del QR sí los guarda —para el tablero y la
-                  trazabilidad—, pero el papel conserva la raya en blanco.
-
-                  Dos excepciones que SÍ salen impresas: el CILINDRO, que ya
-                  viene en la ficha del producto, y el RETROVERSO, que lo carga
-                  la oficina — raro, pero cuando va, va escrito. */}
-              <Caja
-                campos={[
-                  { label: "Cilindro Ø", value: orden.impresion_cilindro != null ? `${fmt(orden.impresion_cilindro)} mm` : "", flex: 0.8 },
-                  { label: "Frente", value: orden.impresion_frente, flex: 2, texto: true },
-                  { label: "Retrov.", value: orden.impresion_retroverso, flex: 1.4, texto: true },
-                ]}
-              />
-
               <div style={{ display: "flex", gap: 22, alignItems: "flex-start" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 9, width: 190 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9, width: 196 }}>
+                  <div className="ot-etapa-head">
+                    <span className="ot-paso-num">2</span>
+                    <span className="ot-paso-title">Impresión</span>
+                  </div>
+                  {/* Operario y fecha NO se cargan en pantalla y nunca se
+                      imprimen con dato: los escribe a mano el que está en la
+                      máquina. El escaneo del QR sí los guarda —para el tablero
+                      y la trazabilidad—, pero el papel conserva la raya. */}
                   <Mano label="Operario" />
                   <FechaVacia label="Fecha imp" />
                 </div>
+
                 <div style={{ flex: 1 }}>
-                  <span className="ot-mano-rotulo" style={{ display: "block", marginBottom: 5 }}>Colores</span>
+                  {/* Dos que SÍ salen impresas: el CILINDRO, que viene en la
+                      ficha del producto, y el RETROVERSO, que carga la oficina
+                      — raro, pero cuando va, va escrito. */}
+                  {/* Centrada en su columna. Pegada a la izquierda quedaba
+                      colgando del título y dejaba todo el blanco de un solo
+                      lado; centrada reparte el aire y queda sobre los colores. */}
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <Caja
+                      /* Con tope: sin él los tres recuadros se estiran a toda la
+                         columna y quedan enormes y vacíos, porque FRENTE y
+                         RETROV. casi nunca traen dato cargado. En el papel son
+                         angostos y parejos. */
+                      ancho={340}
+                      campos={[
+                        { label: "Cilindro Ø", value: orden.impresion_cilindro != null ? `${fmt(orden.impresion_cilindro)} mm` : "", flex: 1 },
+                        { label: "Frente", value: orden.impresion_frente, flex: 1.2, texto: true },
+                        { label: "Retrov.", value: orden.impresion_retroverso, flex: 1, texto: true },
+                      ]}
+                    />
+                  </div>
+                  <span className="ot-mano-rotulo" style={{ display: "block", margin: "9px 0 5px" }}>Colores</span>
                   <div className="ot-colores">
                     {colores.map((c, i) => (
                       <span key={i} className="ot-color">
@@ -430,9 +475,16 @@ export default async function PrintOrdenPage({ params }: Props) {
 
             {/* ═══ PIE ═══
                 «CANTIDAD ___ · TOTAL FINAL ___» en el papel. El total en pesos
-                no va: el precio no se decide en un papel de máquina. En su
-                lugar, LA CUENTA que hace la planta — cuántos metros de film
-                salen de esa cantidad— con el detalle abajo para verificarla. */}
+                no va: el precio no se decide en un papel de máquina. Los
+                metros de film tampoco: ya salen arriba, al lado del título de
+                EXTRUSIÓN, y repetirlos acá era el mismo número dos veces. */}
+            {/* CANTIDAD y CANTIDAD FINAL enfrentadas en el mismo renglón: una
+                es lo que se pidió y la otra lo que salió, y la única forma de
+                que la diferencia salte a la vista es que se lean juntas. La de
+                la derecha, más BULTOS abajo, las completa escritorio a mano
+                cuando la orden se cierra — el sistema no tiene ninguna de las
+                dos: no hay escaneo ni pantalla que las cargue, y el bulto
+                además se arma recién al empaquetar. */}
             <div className="ot-pie">
               <span className="ot-pie-dato">
                 <span className="ot-pie-rotulo">Cantidad</span>
@@ -440,19 +492,17 @@ export default async function PrintOrdenPage({ params }: Props) {
                   {orden.cantidad != null ? fmt(orden.cantidad, 0) : "\u00A0"}
                 </span>
               </span>
-              <div>
-                <span className="ot-pie-dato">
-                  <span className="ot-pie-rotulo">Metros de film</span>
-                  <span className="ot-pie-valor">
-                    {orden.extrusion_metros != null ? `${fmt(orden.extrusion_metros, 0)} m` : "\u00A0"}
-                  </span>
-                </span>
-                {orden.extrusion_metros != null && orden.cantidad != null && orden.troquelado_alto != null && (
-                  <div className="ot-pie-cuenta">
-                    {fmt(orden.cantidad, 0)} × {fmt(Number(orden.troquelado_alto) / 100, 2)} m + 400 de margen
-                  </div>
-                )}
-              </div>
+              <span className="ot-pie-dato">
+                <span className="ot-pie-rotulo">Cantidad final</span>
+                <span className="ot-pie-valor">&nbsp;</span>
+              </span>
+            </div>
+
+            <div className="ot-pie ot-pie--mano ot-pie--bultos">
+              <span className="ot-pie-dato">
+                <span className="ot-pie-rotulo">Bultos</span>
+                <span className="ot-pie-valor">&nbsp;</span>
+              </span>
             </div>
 
           </div>{/* /ot-cuerpo */}
