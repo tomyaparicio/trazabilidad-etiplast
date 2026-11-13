@@ -48,7 +48,7 @@ export function Pagination({
         {pages.map((p) => (
           <Button
             key={p} variant="outline" size="icon"
-            className={`h-8 w-8 rounded-lg text-xs tabular-nums ${p === page ? "border-brand/30 bg-brand/10 font-semibold text-brand" : ""}`}
+            className={`h-8 w-8 rounded-lg text-xs tabular-nums ${p === page ? "border-brand/30 bg-brand/10 font-semibold text-brand dark:border-primary-200/30 dark:bg-primary-200/15 dark:text-primary-200" : ""}`}
             onClick={() => onPageChange(p)} aria-current={p === page ? "page" : undefined}
           >
             {p}

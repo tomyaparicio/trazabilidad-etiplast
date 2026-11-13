@@ -199,10 +199,18 @@ export function OrdenesTable({ initialOrdenes, initialTotal }: Props) {
       cell: (orden) => {
         const maquina = ubicaciones.get(orden.id)
         if (!maquina) {
-          return <span className="text-muted-foreground text-xs">—</span>
+          return <span className="text-muted-foreground text-sm">—</span>
         }
         return (
-          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
+          // MISMO chip que la columna equivalente del tablero de planificación
+          // (`tabla-recorrido.tsx`, tono «planta»): las dos pantallas dicen lo
+          // mismo —en qué máquina está la orden— y se aprenden una sola vez.
+          //
+          // EL `dark:` NO ES DECORACIÓN: `text-brand` es #292d96 FIJO, no cambia
+          // con el tema, así que sobre el fondo oscuro medía 1,64:1 de contraste
+          // —el mínimo de WCAG AA es 4,5— y el nombre de la máquina directamente
+          // no se leía.
+          <span className="rounded-md bg-brand/10 px-2 py-0.5 text-sm font-bold text-brand dark:bg-primary-200/15 dark:text-primary-200">
             {maquina}
           </span>
         )

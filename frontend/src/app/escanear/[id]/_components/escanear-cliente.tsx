@@ -209,7 +209,7 @@ export function EscanearCliente({ ordenId, etapaInicial }: Props) {
   if (cargando) {
     return (
       <Pantalla>
-        <Loader2 className="h-14 w-14 animate-spin text-brand" />
+        <Loader2 className="h-14 w-14 animate-spin text-brand dark:text-primary-200" />
         <p className="text-xl font-bold text-foreground">Abriendo la orden…</p>
       </Pantalla>
     )
@@ -668,7 +668,7 @@ function BotonGrande(
     >
       {texto}
       {cargando && (
-        <Loader2 className={`h-7 w-7 shrink-0 animate-spin ${tono === "cierre" ? "text-white" : "text-brand"}`} />
+        <Loader2 className={`h-7 w-7 shrink-0 animate-spin ${tono === "cierre" ? "text-white" : "text-brand dark:text-primary-200"}`} />
       )}
     </button>
   )

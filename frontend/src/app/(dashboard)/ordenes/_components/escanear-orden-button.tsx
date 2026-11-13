@@ -273,7 +273,7 @@ export function EscanearOrdenButton() {
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-            <ScanLine className="w-4 h-4 text-brand" />
+            <ScanLine className="w-4 h-4 text-brand dark:text-primary-200" />
             Escanear hoja de pedido
           </DialogTitle>
 
@@ -337,7 +337,7 @@ export function EscanearOrdenButton() {
           {/* ── Fase: procesando ── */}
           {fase === "procesando" && (
             <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-brand" />
+              <Loader2 className="w-8 h-8 animate-spin text-brand dark:text-primary-200" />
               <p className="text-sm text-muted-foreground">Leyendo documento…</p>
             </div>
           )}
