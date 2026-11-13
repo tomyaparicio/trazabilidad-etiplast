@@ -11,7 +11,7 @@ from .produccion import (
     OrdenBobinaSchema, OrdenUpdateSchema, OrdenCreateSchema, EscaneoEtapaSchema,
     RehacerOrdenSchema,
 )
-from .comercial import PresupuestoItemSchema, PresupuestoCreateSchema, PresupuestoUpdateSchema, FacturaCreateSchema, FacturaUpdateSchema, RemitoItemSchema, RemitoCreateSchema, RemitoUpdateSchema
+from .comercial import PresupuestoItemSchema, PresupuestoCreateSchema, PresupuestoUpdateSchema, FacturaCreateSchema, FacturaUpdateSchema, RemitoItemSchema, RemitoCreateSchema, RemitoUpdateSchema, CobranzaCreateSchema, CobranzaUpdateSchema
 from .stock import StockItemCreateSchema, StockItemUpdateSchema, StockMovimientoCreateSchema
 from .calidad import QcPlantillaItemSchema, QcPlantillaCreateSchema, QcPlantillaUpdateSchema, QcRegistroItemSchema, QcRegistroCreateSchema, QcRegistroUpdateSchema
 from .catalogos import MaquinaUpdateSchema, MaquinaCreateSchema
@@ -34,6 +34,8 @@ __all__ = [
     "RemitoItemSchema",
     "RemitoCreateSchema",
     "RemitoUpdateSchema",
+    "CobranzaCreateSchema",
+    "CobranzaUpdateSchema",
     "StockItemCreateSchema",
     "StockItemUpdateSchema",
     "StockMovimientoCreateSchema",

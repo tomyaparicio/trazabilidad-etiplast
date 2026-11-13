@@ -15,7 +15,12 @@ from .produccion import (
     ETAPA_CIERRE, ETAPAS_ESCANEABLES,
     OrdenTrabajo, OrdenExtrusionBobina, PlanProduccion,
 )
-from .comercial import Presupuesto, PresupuestoItem, Factura, Remito, RemitoItem
+from .comercial import (
+    MEDIO_DIFERIDO, MEDIOS_COBRANZA, MEDIOS_CONTADO,
+    CHEQUE_ACREDITADO, CHEQUE_EN_CARTERA, CHEQUE_RECHAZADO,
+    ESTADOS_CHEQUE, ESTADOS_CHEQUE_PENDIENTE,
+    Presupuesto, PresupuestoItem, Factura, Remito, RemitoItem, Cobranza,
+)
 from .stock import StockItem, StockMovimiento
 from .calidad import QcPlantilla, QcPlantillaItem, QcRegistro, QcRegistroItem
 
@@ -47,6 +52,15 @@ __all__ = [
     "Factura",
     "Remito",
     "RemitoItem",
+    "Cobranza",
+    "MEDIO_DIFERIDO",
+    "MEDIOS_COBRANZA",
+    "MEDIOS_CONTADO",
+    "CHEQUE_ACREDITADO",
+    "CHEQUE_EN_CARTERA",
+    "CHEQUE_RECHAZADO",
+    "ESTADOS_CHEQUE",
+    "ESTADOS_CHEQUE_PENDIENTE",
     "StockItem",
     "StockMovimiento",
     "QcPlantilla",

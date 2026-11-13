@@ -17,6 +17,7 @@ const RUTA_VISTA: { prefix: string; vista: string; adminOnly?: boolean }[] = [
   { prefix: "/ordenes", vista: "ordenes" },
   { prefix: "/presupuestos", vista: "presupuestos" },
   { prefix: "/facturas", vista: "facturas" },
+  { prefix: "/cobranzas", vista: "cobranzas" },
   { prefix: "/stock", vista: "stock" },
   { prefix: "/remitos", vista: "remitos" },
   { prefix: "/reportes", vista: "reportes" },

@@ -6,7 +6,7 @@ import { api } from "@/lib/api"
 import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard, Users, LogOut, Shield, ShieldCheck, ClipboardList, Building2, Tag, Package, Cog,
-  FileText, Boxes, Truck, BarChart3, ClipboardCheck, ScrollText, Receipt,
+  FileText, Boxes, Truck, BarChart3, ClipboardCheck, ScrollText, Receipt, HandCoins,
   Briefcase, Factory, Warehouse, Library, ChevronRight,
 } from "lucide-react"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -27,6 +27,7 @@ const menu: NavEntry[] = [
     { name: "Clientes", href: "/clientes", icon: Users, vista: "clientes" },
     { name: "Presupuestos", href: "/presupuestos", icon: FileText, vista: "presupuestos" },
     { name: "Facturas", href: "/facturas", icon: Receipt, vista: "facturas" },
+    { name: "Cobranzas", href: "/cobranzas", icon: HandCoins, vista: "cobranzas" },
   ] },
   { group: "Producción", icon: Factory, items: [
     { name: "Órdenes de Trabajo", href: "/ordenes", icon: ClipboardList, vista: "ordenes" },
@@ -109,8 +110,17 @@ function NavItem({
           : "text-white/70 hover:bg-white/[0.07] hover:text-white"
       }`}
     >
+      {/* `text-brand-yellow` y no `text-gold` en TODO este archivo (acá y en
+          NavGroup). El sidebar se pinta con `bg-sidebar`, que es el único token
+          de tema que NO se aclara: #292d96 en claro y #0b0d1e en oscuro. Es
+          azul oscuro en los dos, de ahí el `text-white` del contenedor.
+          `text-gold` resuelve `--gold-text`, que en tema claro es oliva
+          (#8a7200): sobre el item activo (#292d96 + `bg-white/12` = #4346a3)
+          daría 1,70:1 — el ícono desaparece. `--etiplast-500` (#f5eb4a) es el
+          mismo hex en los dos temas y da 6,38:1 activo / 8,83:1 en reposo.
+          No "unificar" con el resto de la app: acá el fondo no sigue al tema. */}
       <Icon
-        className={`h-[18px] w-[18px] shrink-0 transition-colors ${active ? "text-gold" : "text-white/55 group-hover:text-white"}`}
+        className={`h-[18px] w-[18px] shrink-0 transition-colors ${active ? "text-brand-yellow" : "text-white/55 group-hover:text-white"}`}
         strokeWidth={active ? 2.2 : 1.8}
       />
       {/* Icono fijo; el texto se revela con fade (no se corre nada) */}
@@ -151,7 +161,7 @@ function NavGroup({
         className="group flex w-full items-center gap-3 rounded-[11px] px-3 py-2.5 text-[13.5px] font-medium text-white/70 outline-none transition-colors duration-200 hover:bg-white/[0.07] hover:text-white focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/70"
       >
         <Icon
-          className={`h-[18px] w-[18px] shrink-0 transition-colors ${hasActive ? "text-gold" : "text-white/55 group-hover:text-white"}`}
+          className={`h-[18px] w-[18px] shrink-0 transition-colors ${hasActive ? "text-brand-yellow" : "text-white/55 group-hover:text-white"}`}
           strokeWidth={1.8}
         />
         <span className="flex-1 truncate text-left">{group}</span>

@@ -116,6 +116,9 @@ export type OrdenTrabajo = {
   lote: string | null
   /** Nombre del producto: lo que el operario necesita saber que está haciendo */
   producto_nombre: string | null
+  /** El TAMAÑO: lo único que distingue un «Agua» de otro del mismo cliente. */
+  producto_volumen_cantidad: number | null
+  producto_volumen_unidad: string | null
   /** Estado de la muestra del producto: "OK" | "NOOK" | null */
   producto_muestra: string | null
   /** Código del envase en el depósito (ej. STAR-260011) */
@@ -313,6 +316,76 @@ export type FacturasListResponse = {
   /** Totales del listado ya filtrado (para la cabecera de la pantalla). */
   monto_total: number
   monto_cobrado: number
+}
+
+// ─── Cobranzas ─────────────────────────────────────────────────────────────
+
+export type MedioCobranza = "efectivo" | "transferencia" | "cheque"
+
+/** El recorrido del cheque. `acreditado` es el único estado que es PLATA. */
+export type EstadoCheque = "en_cartera" | "depositado" | "acreditado" | "rechazado"
+
+export type Cobranza = {
+  id: number
+  numero: string
+  cliente_id: number
+  /** La marca del cliente, resuelta por el `to_dict()` del backend. */
+  cliente_nombre?: string | null
+  fecha: string | null
+  medio: MedioCobranza
+  importe: number | null
+  observaciones: string | null
+  /** Sólo con `medio === "cheque"`; en los otros medios viene en null. */
+  cheque_numero: string | null
+  cheque_banco: string | null
+  cheque_fecha_pago: string | null
+  cheque_estado: EstadoCheque | null
+  factura_id: number | null
+  factura_numero?: string | null
+  orden_trabajo_id: number | null
+  orden_numero?: string | null
+  creador_nombre?: string | null
+  created_at?: string | null
+}
+
+/** Un mes del calendario de acreditaciones (`mes` viene como «2026-12»). */
+export type CobranzaPorAcreditar = {
+  mes: string
+  total: number
+  cantidad: number
+}
+
+/**
+ * Los números del panel. La distinción que ordena todo el módulo:
+ * `entrado` es plata que YA está (efectivo + transferencia + cheques
+ * acreditados); `en_cartera` es una promesa con fecha, no plata.
+ */
+export type CobranzasResumen = {
+  entrado: { mes: number; anio: number }
+  en_cartera: { total: number; cantidad: number }
+  por_acreditar: CobranzaPorAcreditar[]
+  rechazados: { total: number; cantidad: number }
+  /** Qué mes midió el backend (por defecto, el actual). */
+  periodo?: { year: number; month: number }
+}
+
+export type CobranzasListResponse = Paginated<Cobranza> & {
+  /** Totales del listado YA FILTRADO. Vienen los dos a propósito: `monto_total`
+   *  es todo lo cargado y `monto_entrado` sólo la plata que ya está. */
+  monto_total: number
+  monto_entrado: number
+}
+
+export type CobranzasListParams = {
+  page?: number
+  per_page?: number
+  cliente_id?: number
+  medio?: MedioCobranza | ""
+  cheque_estado?: EstadoCheque | ""
+  desde?: string
+  hasta?: string
+  /** Número de cobranza, N° de cheque o marca del cliente. */
+  search?: string
 }
 
 // ─── Stock ─────────────────────────────────────────────────────────────────

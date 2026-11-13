@@ -13,6 +13,7 @@ import type {
   OrdenTrabajo, OrdenesListResponse, OrdenesListParams, CreateOrdenRequest,
   Paginated, Maquina,
   Presupuesto, StockItem, StockMovimiento, Remito, Factura, FacturasListResponse,
+  Cobranza, CobranzasListParams, CobranzasListResponse, CobranzasResumen,
   QcPlantilla, QcRegistro, Notificacion, AuditEntry,
   RoleCatalogo, RolePermisos, MisPermisos, RoleInput,
   ReporteResumen, ReporteProduccion, ReporteTiempos, ReporteOrdenesSeries,
@@ -377,6 +378,26 @@ export const api = {
     create: (data: object) => post<Factura>("/api/facturas", data),
     update: (id: number, data: object) => put<Factura>(`/api/facturas/${id}`, data),
     delete: (id: number) => del<void>(`/api/facturas/${id}`),
+  },
+  /**
+   * Cobranzas: el acto de RECIBIR la plata, aguas abajo de la factura.
+   *
+   * Vive aparte de `facturas` a propósito: la factura va a tener que
+   * reescribirse cuando entre ARCA (numeración y CAE asignados por el fisco,
+   * inmutabilidad), y la cobranza le da lo mismo de dónde salió el
+   * comprobante. Además el cheque es plata CON FECHA: `resumen` separa lo que
+   * ya entró de lo que todavía es una promesa.
+   */
+  cobranzas: {
+    list: (params?: CobranzasListParams) => {
+      const p = params as Record<string, string | number | undefined> | undefined
+      return get<CobranzasListResponse>("/api/cobranzas", p)
+    },
+    create: (data: object) => post<Cobranza>("/api/cobranzas", data),
+    update: (id: number, data: object) => put<Cobranza>(`/api/cobranzas/${id}`, data),
+    delete: (id: number) => del<void>(`/api/cobranzas/${id}`),
+    /** Los números del panel, calculados en SQL por el backend. */
+    resumen: () => get<CobranzasResumen>("/api/cobranzas/resumen"),
   },
   /** Control de calidad */
   calidad: {

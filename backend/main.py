@@ -9,7 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from core.middleware import SecurityHeadersMiddleware, limiter
 from routers import (
-    admin, auth, calidad, catalogos, clientes, dashboard, notificaciones,
+    admin, auth, calidad, catalogos, clientes, cobranzas, dashboard, notificaciones,
     facturas, ordenes, presupuestos, produccion, razones_sociales, remitos,
     reportes, roles, stock,
 )
@@ -29,6 +29,7 @@ app = FastAPI(
         {"name": "dashboard", "description": "Estadísticas y filtros"},
         {"name": "presupuestos", "description": "Presupuestos y cotizaciones"},
         {"name": "facturas", "description": "Facturas emitidas (alimenta el dashboard)"},
+        {"name": "cobranzas", "description": "Plata que entra: efectivo, transferencias y cheques"},
         {"name": "stock", "description": "Inventario y movimientos de stock"},
         {"name": "remitos", "description": "Remitos de entrega"},
         {"name": "calidad", "description": "Control de calidad"},
@@ -96,6 +97,7 @@ app.include_router(produccion.router)
 app.include_router(dashboard.router)
 app.include_router(presupuestos.router)
 app.include_router(facturas.router)
+app.include_router(cobranzas.router)
 app.include_router(stock.router)
 app.include_router(remitos.router)
 app.include_router(calidad.router)

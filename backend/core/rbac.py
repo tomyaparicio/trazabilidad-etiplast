@@ -18,6 +18,7 @@ VISTAS = [
     ("ordenes", "Órdenes de trabajo"),
     ("presupuestos", "Presupuestos"),
     ("facturas", "Facturas"),
+    ("cobranzas", "Cobranzas"),
     ("stock", "Stock"),
     ("remitos", "Remitos"),
     ("reportes", "Reportes"),
@@ -38,6 +39,11 @@ MODULOS = [
     ("presupuestos", "Presupuestos", ["ver", "crear", "editar", "borrar", "aprobar"]),
     # Facturas: sólo admin por defecto (no se suma a los roles user/operario).
     ("facturas", "Facturas", ["ver", "crear", "editar", "borrar"]),
+    # Cobranzas (la plata que entra): sólo admin por defecto, por pedido expreso
+    # del dueño. El permiso existe acá para que se pueda DAR o QUITAR desde
+    # /admin/roles — si no estuviera en el catálogo, el router de roles lo
+    # filtraría como basura y nunca se podría asignar.
+    ("cobranzas", "Cobranzas", ["ver", "crear", "editar", "borrar"]),
     ("stock", "Stock", ["ver", "crear", "editar", "borrar"]),
     ("remitos", "Remitos", ["ver", "crear", "editar", "borrar"]),
     ("calidad", "Calidad", ["ver", "crear", "editar", "borrar"]),

@@ -1401,6 +1401,68 @@ MIGRATIONS_OT_REHACER = [
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Cobranzas — la plata que entra
+# ──────────────────────────────────────────────────────────────────────────────
+# Hasta acá el sistema no sabía nada de plata: cero facturas cargadas, cero
+# presupuestos y ninguna columna de costo. Y la mayoría de los clientes paga con
+# CHEQUE, que es plata con fecha: el estado binario de `facturas`
+# (pendiente | cobrada | anulada) no tiene cómo representar un cheque a 60 días
+# —marcarla cobrada miente, dejarla pendiente también—.
+#
+# Módulo aparte y no una columna de `facturas` porque cuando entre ARCA hay que
+# reescribir `facturas` entera (numeración y CAE del organismo, IVA
+# discriminado, inmutabilidad). La cobranza está aguas abajo de todo eso: es el
+# acto de recibir plata, y le da lo mismo de dónde salió el comprobante.
+#
+# Los FK a facturas y a ordenes_trabajo son SET NULL a propósito: la plata que
+# entró NO se va con el comprobante.
+
+MIGRATIONS_COBRANZAS = [
+    ("Crear tabla cobranzas",
+     """
+     CREATE TABLE IF NOT EXISTS cobranzas (
+         id                SERIAL PRIMARY KEY,
+         numero            VARCHAR(20) UNIQUE,
+         cliente_id        INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+         fecha             DATE NOT NULL,
+         medio             VARCHAR(20) DEFAULT 'efectivo',
+         importe           NUMERIC(14, 2) NOT NULL,
+         observaciones     TEXT,
+         cheque_numero     VARCHAR(50),
+         cheque_banco      VARCHAR(100),
+         cheque_fecha_pago DATE,
+         cheque_estado     VARCHAR(20),
+         factura_id        INTEGER REFERENCES facturas(id) ON DELETE SET NULL,
+         orden_trabajo_id  INTEGER REFERENCES ordenes_trabajo(id) ON DELETE SET NULL,
+         created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+         created_at        TIMESTAMPTZ DEFAULT NOW(),
+         updated_at        TIMESTAMPTZ DEFAULT NOW()
+     );
+     CREATE INDEX IF NOT EXISTS ix_cobranzas_cliente_id        ON cobranzas (cliente_id);
+     CREATE INDEX IF NOT EXISTS ix_cobranzas_fecha             ON cobranzas (fecha);
+     CREATE INDEX IF NOT EXISTS ix_cobranzas_medio             ON cobranzas (medio);
+     CREATE INDEX IF NOT EXISTS ix_cobranzas_cheque_estado     ON cobranzas (cheque_estado);
+     CREATE INDEX IF NOT EXISTS ix_cobranzas_cheque_fecha_pago ON cobranzas (cheque_fecha_pago);
+     CREATE INDEX IF NOT EXISTS ix_cobranzas_factura_id        ON cobranzas (factura_id);
+     CREATE INDEX IF NOT EXISTS ix_cobranzas_orden_trabajo_id  ON cobranzas (orden_trabajo_id);
+     """),
+
+    # El rol admin está protegido, así que ya pasa todo por el bypass; esto es
+    # para que la matriz de /admin/roles muestre los checkboxes marcados y el
+    # permiso se pueda DAR o QUITAR a los demás roles. A user y operario NO se
+    # les suma: la plata la ven sólo los administradores.
+    ("RBAC: sumar permisos de cobranzas al rol admin",
+     """
+     UPDATE roles
+     SET vistas   = (SELECT jsonb_agg(DISTINCT v) FROM jsonb_array_elements(vistas   || '["cobranzas"]'::jsonb) v),
+         acciones = (SELECT jsonb_agg(DISTINCT a) FROM jsonb_array_elements(acciones ||
+                     '["cobranzas:ver","cobranzas:crear","cobranzas:editar","cobranzas:borrar"]'::jsonb) a)
+     WHERE clave = 'admin';
+     """),
+]
+
+
 def _ensure_tracking_table(conn):
     """Tabla de control de migraciones ya aplicadas (para saltearlas en re-runs)."""
     conn.execute(text("""
@@ -1430,7 +1492,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER + MIGRATIONS_COBRANZAS
 
     aplicadas = 0
     salteadas = 0
