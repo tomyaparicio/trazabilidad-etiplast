@@ -85,3 +85,24 @@ export function desdeHaceCorto(iso: string | null): string {
   const dias = Math.floor(horas / 24)
   return dias === 1 ? "1 día" : `${dias} días`
 }
+
+/**
+ * «06/11»: el día y el mes, sin el año.
+ *
+ * Es la fecha de una celda de la tabla del tablero de planta, donde hay cinco
+ * de estas en el mismo renglón. `fechaCorta` mete el año en las cinco —
+ * «06/11/2026» cuatro veces es ruido, y en una columna angosta envuelve.
+ *
+ * Reusa `fechaCorta` en vez de volver a partir el string: las dos trampas de
+ * zona horaria (el día suelto que `new Date` retrocede y el momento UTC que
+ * hay que pasar a local) están resueltas ahí y una sola vez. Recortar el año
+ * del resultado es más tonto que repetir esa lógica, y no se puede
+ * desincronizar.
+ */
+export function diaCorto(iso: string | null): string {
+  const completa = fechaCorta(iso)
+  // `fechaCorta` puede devolver el ISO tal cual si no lo pudo interpretar: en
+  // ese caso no hay «dd/mm/aaaa» que recortar y se devuelve lo que vino.
+  const m = /^(\d{2})\/(\d{2})\/\d{4}$/.exec(completa)
+  return m ? `${m[1]}/${m[2]}` : completa
+}

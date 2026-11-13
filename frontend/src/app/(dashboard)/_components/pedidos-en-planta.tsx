@@ -100,6 +100,13 @@ export function PedidosEnPlanta() {
   // las 20 MÁS RECIENTES de cada paso, así que lo que puede faltar es
   // justamente lo más viejo — que es lo que esta pantalla ordena primero.
   const truncada = filas.length < total ? filas.length : null
+  // `?.` aunque el tipo diga que `resumen` viene siempre: `normalizar()` en
+  // `use-tablero` le pone default a `maquinas`, `etapas`, `pendientes`… pero
+  // NO a `resumen`. Vercel y Railway se deployan por separado, así que hay una
+  // ventana en la que esta pantalla ya es nueva y la API todavía no manda la
+  // clave; sin esto el bloque entero se cae. Misma defensa que `Canceladas` en
+  // `OrdenesPorEtapa`.
+  const sinUbicar = datos.resumen?.sin_ubicar ?? 0
 
   return (
     <Marco total={total} truncada={truncada} cabecera={filas.length > 0}>
@@ -126,12 +133,12 @@ export function PedidosEnPlanta() {
           una orden sin arrancar es normal, una EN PRODUCCIÓN sin un solo
           escaneo es un agujero en el seguimiento y hay que decirlo aparte.
           Este aviso venía de «En planta ahora» y se conserva tal cual. */}
-      {datos.resumen.sin_ubicar > 0 && (
+      {sinUbicar > 0 && (
         <p className="m-5 flex items-center gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-base font-bold text-amber-700 sm:mx-6 dark:text-amber-300">
           <CircleSlash aria-hidden className="size-5 shrink-0" />
-          {datos.resumen.sin_ubicar === 1
+          {sinUbicar === 1
             ? "1 orden en producción sin escanear: no se sabe dónde está."
-            : `${nf.format(datos.resumen.sin_ubicar)} órdenes en producción sin escanear: no se sabe dónde están.`}
+            : `${nf.format(sinUbicar)} órdenes en producción sin escanear: no se sabe dónde están.`}
         </p>
       )}
     </Marco>
