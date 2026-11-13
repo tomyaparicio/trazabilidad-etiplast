@@ -280,8 +280,17 @@ export function ClienteNuevoDialog({ open, onClose, onCreated, filtros, razonSoc
                 >
                   <span className={`h-[5px] rounded-full ${act ? "bg-gold" : done ? "bg-gold/50" : "bg-white/20"}`} />
                   <span className={`flex items-center gap-2 text-[14px] font-extrabold ${act ? "text-white" : done ? "text-white/80" : "text-white/50"}`}>
+                    {/* `text-brand-yellow` y no `text-gold`: el header de este
+                        wizard se pinta con `background: var(--color-brand)`
+                        inline (#292d96), que no sigue al tema — queda azul en
+                        claro Y en oscuro. `text-gold` resuelve `--gold-text`,
+                        oliva (#8a7200) en tema claro, y sobre el `bg-gold/20`
+                        del círculo (#525387) daría 1,52:1. `--etiplast-500`
+                        (#f5eb4a) da 5,72:1 y es el mismo en los dos temas.
+                        El `bg-gold`/`border-gold` se quedan: usan `--gold`,
+                        constante entre temas. */}
                     <span className={`grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[13px] ${
-                      act ? "border-gold bg-gold text-gold-foreground" : done ? "border-gold/60 bg-gold/20 text-gold" : "border-white/35"
+                      act ? "border-gold bg-gold text-gold-foreground" : done ? "border-gold/60 bg-gold/20 text-brand-yellow" : "border-white/35"
                     }`}>
                       {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
                     </span>

@@ -175,7 +175,15 @@
   --input: #e7e8f2;
   --ring: #292d96;
   --gold: #f5eb4a;
-  --gold-text: #8a7200;
+  /* Dorado para TEXTO en claro. El valor anterior (#8a7200) daba 4,37:1 sobre
+     --background #f6f7fb: por debajo del 4,5 de AA. #806900 es la misma hue
+     (49°) y la misma saturación, dos puntos de luminosidad más abajo — sigue
+     leyéndose dorado, no marrón — y pasa AA sobre TODAS las superficies claras:
+       #ffffff card 5,33:1 · #f6f7fb background 4,98:1 · #eef0ff accent 4,71:1
+       #eef0f7 secondary 4,68:1 · #f0f1f8 muted 4,73:1
+     Sobre bg-brand (#292d96) da 2,06:1, pero bg-brand NO sigue el tema: ahí va
+     text-brand-yellow (--etiplast-500), no text-gold. */
+  --gold-text: #806900;
   --gold-foreground: #141733;
   --chart-1: #292d96;
   --chart-2: #4f54d6;
@@ -205,11 +213,39 @@
   }
 }
 
-/* text-gold legible: usa --gold-text (oscurece a #9a7d00 en light) en vez de
-   --gold (que se mantiene brillante para fills bg-gold/border-gold/ring-gold).
-   En dark --gold-text == --gold, así que no cambia nada. */
+/* ── text-gold legible, y por qué el `&&` ─────────────────────────────────────
+   --color-gold en el @theme hace que Tailwind genere `text-gold` en el mismo
+   lote que `bg-gold`, `border-gold`, `ring-gold` y `accent-gold`. Un token no
+   alcanza para los dos usos: el RELLENO necesita el amarillo brillante y el
+   TEXTO necesita el oscuro (#f5eb4a sobre blanco da 1,25:1 — invisible). Por
+   eso esta utility pisa SOLO el color de texto con --gold-text; en oscuro los
+   dos tokens valen #f5eb4a, así que ahí no cambia nada.
+
+   El problema que arregla el `&&`: Tailwind emite las DOS reglas `.text-gold`
+   dentro de @layer utilities, primero esta y después la del @theme. Misma capa
+   y misma especificidad ⇒ ganaba la última, y esta utility era código muerto
+   desde que se escribió. `&&` duplica la clase (`.text-gold.text-gold`), así
+   que gana por ESPECIFICIDAD en vez de por orden, que es justo lo único que
+   Tailwind no nos deja controlar.
+
+   Las otras tres rutas se probaron en el navegador y son peores:
+   · Sacar --color-gold del @theme elimina la colisión, pero borra 31 de los 50
+     selectores gold compilados: se lleva TODOS los modificadores de opacidad
+     (bg-gold/10, border-gold/40, ring-gold/15…, ~160 usos), porque una
+     @utility estática no acepta `/NN`.
+   · Una regla sin @layer le gana a las capas… y también a las VARIANTES: deja
+     `text-gold data-[selected=true]:text-white` (command-palette) en dorado en
+     vez de blanco.
+   · !important: igual de roto, y encima deja la trampa para el que venga.
+
+   De yapa, Tailwind aplica el `&&` también a las variantes, así que
+   `hover:text-gold`, `group-hover:text-gold` y `dark:text-gold` (12 usos)
+   quedan arreglados solos — las otras rutas sólo arreglan la clase pelada. Y
+   como la base queda en (0,2,0) y las variantes de OTROS colores se emiten más
+   abajo en la misma capa, `hover:text-white` y `data-[selected=true]:text-white`
+   siguen pisando a text-gold. */
 @utility text-gold {
-  color: var(--gold-text);
+  && { color: var(--gold-text); }
 }
 /* Tipografía display de marca — títulos, métricas y wordmark. En Tailwind v4 los
    utilities custom se declaran con @utility (no @layer utilities, que no emitía el peso). */

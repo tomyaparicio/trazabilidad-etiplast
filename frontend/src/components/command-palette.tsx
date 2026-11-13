@@ -226,9 +226,23 @@ export function CommandPalette({ isAdmin }: CommandPaletteProps) {
                   key={cli.id}
                   value={`cliente-${cli.id}`}
                   onSelect={() => go(`/clientes/${cli.id}`)}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-brand data-[selected=true]:text-white"
+                  className="group flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-brand data-[selected=true]:text-white"
                 >
-                  <UserRound className="h-4 w-4 shrink-0 text-gold" />
+                  {/* Los íconos de la paleta caen sobre DOS fondos: en reposo el
+                      `bg-background` del panel (sigue al tema) y seleccionados
+                      el `bg-brand` del item (#292d96, azul en los dos temas).
+                      Ninguno de los dos dorados sirve para ambos: `text-gold`
+                      (oliva #8a7200 en claro) da 2,35:1 sobre el azul, y
+                      `text-brand-yellow` (#f5eb4a) da 1,25:1 sobre el blanco.
+                      Por eso el reposo se queda en `text-gold` y el estado
+                      seleccionado pasa a blanco (10,99:1).
+                      Va `group-data-[selected=true]:` y NO `data-[selected=true]:`:
+                      cmdk pone `data-selected` en el ITEM, no en el `<svg>`, y
+                      el modificador sin `group-` compila a `&[data-selected]`
+                      — se mira a sí mismo y nunca matchea (verificado en el
+                      navegador: el ícono quedaba oliva sobre el azul). De ahí
+                      también el `group` en el className del item. */}
+                  <UserRound className="h-4 w-4 shrink-0 text-gold group-data-[selected=true]:text-white" />
                   <span className="min-w-0 flex-1 truncate font-semibold">{cli.marca || cli.razon_social || `Cliente #${cli.id_cliente}`}</span>
                   <span className="max-w-[45%] truncate text-[11px] font-medium text-muted-foreground">
                     {[cli.id_cliente != null ? `#${cli.id_cliente}` : null, cli.localidad || cli.rubro].filter(Boolean).join(" · ")}
@@ -284,9 +298,12 @@ function PaletteItem({ item, accent }: { item: Item; accent?: boolean }) {
     <Command.Item
       value={`${item.label} ${item.keywords ?? ""}`}
       onSelect={item.run}
-      className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-brand data-[selected=true]:text-white"
+      className="group flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-brand data-[selected=true]:text-white"
     >
-      <Icon className={`h-4 w-4 shrink-0 ${accent ? "text-gold" : "text-muted-foreground"} data-[selected=true]:text-white`} />
+      {/* `group-data-[selected=true]:` y no `data-[selected=true]:` — ver el
+          comentario del ícono de clientes más arriba: el atributo lo pone cmdk
+          en el item, así que el modificador sin `group-` era código muerto. */}
+      <Icon className={`h-4 w-4 shrink-0 ${accent ? "text-gold" : "text-muted-foreground"} group-data-[selected=true]:text-white`} />
       <span className="flex-1">{item.label}</span>
       {item.hint && (
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
