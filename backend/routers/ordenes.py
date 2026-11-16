@@ -5,6 +5,7 @@ CRUD completo de órdenes de trabajo con manejo de bobinas de extrusión.
 Genera números correlativos tipo OT-0001.
 """
 import json
+import logging
 from datetime import date, datetime, timezone
 from typing import Dict, List, Optional
 
@@ -25,6 +26,8 @@ from schemas import (
 from services import auditoria
 from services.extrusion import calcular_metros_extrusion
 from services.numeracion import generar_numero
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["ordenes"])
 
@@ -121,6 +124,52 @@ def _alto_del_producto(db: Session, cliente_producto_id) -> Optional[float]:
         .first()
     )
     return _to_float(pr.alto) if pr else None
+
+
+def _aprender_maquina_del_producto(db: Session, cliente_producto_id, nombre_maquina) -> None:
+    """Le guarda al producto la impresora con la que se hace, si todavía no tiene.
+
+    POR QUÉ EXISTE: borrar una máquina del catálogo vacía
+    `cliente_productos.maquina_impresora_id` en TODOS los productos que la
+    usaban —la FK es `ON DELETE SET NULL`— y no hay backup del que sacarlo de
+    vuelta. En vez de un script que adivine, el dato se repuebla trabajando:
+    la primera orden que se carga eligiendo impresora se la deja grabada al
+    producto, y de ahí en más el alta ya no tiene que preguntarla.
+
+    NUNCA PISA UNA MÁQUINA YA GUARDADA. Que una orden se haya hecho por
+    excepción en otra impresora no puede cambiar en qué máquina va ese
+    producto de acá en adelante: eso se cambia en la ficha del producto, a
+    mano y a propósito. Acá sólo se llena lo que está vacío.
+
+    No falla nunca de cara al que carga la orden: `nombre_maquina` ya viene
+    validado contra el catálogo por `_resolver_maquina_impresion`, y si por lo
+    que fuera no se encontrara la fila, la orden se guarda igual. Esto es una
+    mejora del dato, no un requisito del alta.
+    """
+    if not cliente_producto_id or not nombre_maquina:
+        return
+
+    producto = (
+        db.query(ClienteProducto)
+        .filter(ClienteProducto.id == cliente_producto_id)
+        .first()
+    )
+    if producto is None or producto.maquina_impresora_id is not None:
+        return
+
+    maquina = (
+        db.query(Maquina)
+        .filter(Maquina.nombre == nombre_maquina, Maquina.tipo == "impresion")
+        .first()
+    )
+    if maquina is None:
+        return
+
+    producto.maquina_impresora_id = maquina.id
+    logger.info(
+        "Producto %s aprendió su impresora: %s (id=%s)",
+        cliente_producto_id, maquina.nombre, maquina.id,
+    )
 
 
 def _metros_extrusion(metros_enviados, cantidad, alto_cm) -> Optional[float]:
@@ -287,6 +336,9 @@ def crear_orden(
         datos.get("extrusion_metros"), datos.get("cantidad"), alto_cm
     )
 
+    # El producto aprende la impresora de esta orden si todavía no tenía ninguna.
+    _aprender_maquina_del_producto(db, cliente_producto_id, impresion_maquina)
+
     orden = OrdenTrabajo(
         numero=numero,
         cliente_id=cliente_id,
@@ -436,6 +488,8 @@ def actualizar_orden(
 
     if "impresion_maquina" in datos:
         orden.impresion_maquina = _resolver_maquina_impresion(db, datos["impresion_maquina"])
+        # La impresora se puede elegir después, editando: ahí también se aprende.
+        _aprender_maquina_del_producto(db, orden.cliente_producto_id, orden.impresion_maquina)
 
     if "impresion_colores" in datos:
         colores = datos["impresion_colores"]
