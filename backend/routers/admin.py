@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from core.database import get_db
-from models import User, Rubro, Cliente, Envase, ClienteProducto, Maquina, AuditLog, Role
+from models import (User, Rubro, Cliente, Envase, ClienteProducto, Maquina, AuditLog,
+                    PlanProduccion, Role)
 from core.security import verify_admin
 from schemas import MaquinaCreateSchema, MaquinaUpdateSchema
 from services import auditoria
@@ -436,21 +437,142 @@ def actualizar_maquina(
     return m.to_dict()
 
 
-@router.delete("/maquinas/{maquina_id}", summary="Eliminar máquina")
-def eliminar_maquina(
+@router.get("/maquinas/{maquina_id}/uso", summary="Qué se lleva puesto borrar esta máquina")
+def uso_de_maquina(
     maquina_id: int,
     admin: dict = Depends(verify_admin),
     db: Session = Depends(get_db),
 ):
+    """Para poder avisar ANTES, no después.
+
+    La pantalla pregunta esto antes de ofrecer el borrado: con los números en
+    la mano puede decir qué pasa en vez de un «se eliminará» a secas.
+    """
     m = db.query(Maquina).filter(Maquina.id == maquina_id).first()
     if not m:
         raise HTTPException(status_code=404, detail="Máquina no encontrada")
-    auditoria.registrar(db, admin, "eliminar", "maquina", m.id, f"Eliminó máquina {m.codigo} ({m.nombre})",
-                        datos={"codigo": m.codigo, "nombre": m.nombre, "tipo": m.tipo})
+    return {
+        "maquina": m.to_dict(),
+        "productos": _productos_de(db, maquina_id).count(),
+        "pases": _pases_de(db, maquina_id).count(),
+        "destinos": [
+            x.to_dict() for x in db.query(Maquina)
+            .filter(Maquina.id != maquina_id, Maquina.tipo == m.tipo,
+                    Maquina.activa.is_(True))
+            .order_by(Maquina.nombre).all()
+        ],
+    }
+
+
+def _productos_de(db: Session, maquina_id: int):
+    return db.query(ClienteProducto).filter(
+        ClienteProducto.maquina_impresora_id == maquina_id
+    )
+
+
+def _pases_de(db: Session, maquina_id: int):
+    return db.query(PlanProduccion).filter(PlanProduccion.maquina_id == maquina_id)
+
+
+@router.delete("/maquinas/{maquina_id}", summary="Dar de baja o eliminar una máquina")
+def eliminar_maquina(
+    maquina_id: int,
+    reasignar_a: Optional[int] = Query(
+        None, description="A qué máquina pasan los productos que usaban ésta"),
+    admin: dict = Depends(verify_admin),
+    db: Session = Depends(get_db),
+):
+    """Sacar una máquina del catálogo SIN llevarse puesto nada.
+
+    ESTO SE ESCRIBIÓ DESPUÉS DE UN INCIDENTE. Antes acá había un `db.delete(m)`
+    pelado, y Postgres propagaba por dos caminos que nadie veía:
+
+        cliente_productos.maquina_impresora_id  ON DELETE SET NULL  → se vació
+        plan_produccion.maquina_id              ON DELETE CASCADE   → se BORRÓ
+
+    El primero dejó productos sin impresora. El segundo borró los pases de
+    producción, que son el registro de por qué máquina pasó cada orden —la
+    trazabilidad, el motivo por el que existe este sistema— y no hay backup:
+    el plan de Railway es Hobby y la pestaña Backups dice «No Backups».
+
+    LOS DOS CASOS NO SE TRATAN IGUAL, y es la decisión importante de acá:
+
+      · los PRODUCTOS se reasignan. Son configuración: decir «de ahora en más
+        este producto va en la otra» es verdad, y es lo que la empresa quiere
+        cuando saca una máquina de la línea.
+
+      · los PASES NO se reasignan. Son historia. Moverlos diría que una orden
+        pasó por una máquina por la que no pasó, y un sistema de trazabilidad
+        que miente sobre el pasado no sirve para nada. Si hay pases, la máquina
+        NO se borra: se da de baja (`activa = False`), desaparece de los
+        selectores y las filas le siguen apuntando.
+
+    Una máquina que no usa nadie sí se borra de verdad — el catálogo de
+    producción tiene troqueladoras duplicadas que hay que poder limpiar.
+    """
+    m = db.query(Maquina).filter(Maquina.id == maquina_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Máquina no encontrada")
+
+    productos = _productos_de(db, maquina_id).count()
+    pases     = _pases_de(db, maquina_id).count()
+
+    # Hay productos y no dijeron a dónde van: no se toca nada y se explica.
+    if productos > 0 and reasignar_a is None:
+        raise HTTPException(status_code=409, detail={
+            "codigo": "en_uso",
+            "productos": productos,
+            "pases": pases,
+            "mensaje": (f"{productos} producto(s) se imprimen en {m.nombre}. "
+                        "Elegí a qué máquina pasan antes de sacarla."),
+        })
+
+    reasignados = 0
+    if reasignar_a is not None:
+        if reasignar_a == maquina_id:
+            raise HTTPException(status_code=400,
+                                detail="No se puede reasignar a la misma máquina")
+        destino = db.query(Maquina).filter(Maquina.id == reasignar_a).first()
+        if not destino:
+            raise HTTPException(status_code=400, detail="La máquina destino no existe")
+        if not destino.activa:
+            raise HTTPException(status_code=400,
+                                detail=f"{destino.nombre} está dada de baja")
+        # MISMO TIPO: los productos guardan una IMPRESORA. Mandarlos a una
+        # troqueladora deja un dato que no significa nada y que nadie va a
+        # mirar hasta que alguien imprima una orden con la máquina equivocada.
+        if destino.tipo != m.tipo:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{destino.nombre} es de {destino.tipo} y {m.nombre} es de {m.tipo}")
+        reasignados = _productos_de(db, maquina_id).update(
+            {ClienteProducto.maquina_impresora_id: reasignar_a},
+            synchronize_session=False)
+
+    # Con historia de producción NO se borra: se da de baja.
+    if pases > 0:
+        m.activa = False
+        auditoria.registrar(
+            db, admin, "dar_de_baja", "maquina", m.id,
+            f"Dio de baja la máquina {m.codigo} ({m.nombre})",
+            datos={"codigo": m.codigo, "nombre": m.nombre, "tipo": m.tipo,
+                   "pases": pases, "productos_reasignados": reasignados,
+                   "reasignados_a": reasignar_a})
+        db.commit()
+        logger.info("Admin %s dio de baja la máquina '%s' (id=%s): tiene %s pases",
+                    admin["email"], m.nombre, maquina_id, pases)
+        return {"ok": True, "dada_de_baja": True, "pases": pases,
+                "productos_reasignados": reasignados}
+
+    auditoria.registrar(
+        db, admin, "eliminar", "maquina", m.id,
+        f"Eliminó máquina {m.codigo} ({m.nombre})",
+        datos={"codigo": m.codigo, "nombre": m.nombre, "tipo": m.tipo,
+               "productos_reasignados": reasignados, "reasignados_a": reasignar_a})
     db.delete(m)
     db.commit()
     logger.info("Admin %s eliminó máquina '%s' (id=%s)", admin["email"], m.nombre, maquina_id)
-    return {"ok": True}
+    return {"ok": True, "eliminada": True, "productos_reasignados": reasignados}
 
 
 # ─── Auditoría ────────────────────────────────────────────────────────────────

@@ -196,7 +196,28 @@ export const api = {
       list: (tipo?: string) => get<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }[]>("/api/admin/maquinas", tipo ? { tipo } : undefined),
       create: (data: { nombre: string; tipo?: string }) => post<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }>("/api/admin/maquinas", data),
       update: (id: number, data: { nombre?: string; tipo?: string; activa?: boolean }) => put<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }>(`/api/admin/maquinas/${id}`, data),
-      delete: (id: number) => del<{ ok: boolean }>(`/api/admin/maquinas/${id}`),
+      /** Qué se lleva puesto borrarla: productos que la usan y pases de producción. */
+      uso: (id: number) => get<{
+        maquina: { id: number; codigo: string; nombre: string; tipo: string; activa: boolean }
+        productos: number
+        pases: number
+        destinos: { id: number; codigo: string; nombre: string; tipo: string; activa: boolean }[]
+      }>(`/api/admin/maquinas/${id}/uso`),
+      /**
+       * `reasignarA` es a qué máquina pasan los productos que usaban ésta. Sin
+       * eso, el backend devuelve 409 si hay alguno: no se borra a ciegas.
+       *
+       * `dada_de_baja` en la respuesta significa que la máquina NO se eliminó
+       * —tiene pases de producción y borrarla se llevaría la trazabilidad—,
+       * sino que quedó inactiva.
+       */
+      delete: (id: number, reasignarA?: number | null) => del<{
+        ok: boolean
+        eliminada?: boolean
+        dada_de_baja?: boolean
+        pases?: number
+        productos_reasignados?: number
+      }>(`/api/admin/maquinas/${id}${reasignarA != null ? `?reasignar_a=${reasignarA}` : ""}`),
     },
     /** Auditoría del sistema (solo admin) */
     auditoria: {

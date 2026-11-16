@@ -11,7 +11,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { PageHeader } from "@/components/ui/page-header"
 import { DataTable, type ColumnDef } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -121,7 +120,18 @@ function MaquinaFormDialog({
   )
 }
 
-// ─── Eliminar dialog ───────────────────────────────────────────────────────────
+// ─── Sacar del catálogo: el cartel ────────────────────────────────────────────
+/**
+ * EL CARTEL QUE NO ESTABA. Antes acá había un `ConfirmDialog` que decía «se
+ * eliminará» y avisaba de una sola consecuencia: que los productos quedaban sin
+ * impresora. Callaba la grave — `plan_produccion.maquina_id` es `ON DELETE
+ * CASCADE`, así que borrar la máquina BORRABA los pases de producción, que son
+ * el registro de por qué máquina pasó cada orden.
+ *
+ * Pasó en producción y no hay backup. Ahora el diálogo pregunta primero qué se
+ * lleva puesto, lo dice con números, y obliga a decir a dónde pasan los
+ * productos antes de dejar seguir.
+ */
 function EliminarMaquinaDialog({
   maquina,
   onClose,
@@ -131,25 +141,136 @@ function EliminarMaquinaDialog({
   onClose: () => void
   onDeleted: () => void
 }) {
+  const [uso, setUso] = useState<{
+    productos: number
+    pases: number
+    destinos: { id: number; nombre: string }[]
+  } | null>(null)
+  const [destino, setDestino] = useState("")
+  const [cargando, setCargando] = useState(true)
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    let vigente = true
+    api.admin.maquinas
+      .uso(maquina.id)
+      .then((u) => { if (vigente) { setUso(u); setCargando(false) } })
+      .catch((e) => {
+        if (!vigente) return
+        setError(e instanceof Error ? e.message : "No se pudo averiguar quién la usa")
+        setCargando(false)
+      })
+    return () => { vigente = false }
+  }, [maquina.id])
+
+  const hayProductos = (uso?.productos ?? 0) > 0
+  const hayPases     = (uso?.pases ?? 0) > 0
+  // Con pases NO se borra: se da de baja. El botón tiene que decir lo que hace.
+  const etiqueta     = hayPases ? "Dar de baja" : "Eliminar"
+  const sinDestino   = hayProductos && !destino
+
+  const confirmar = async () => {
+    if (guardando || sinDestino) return
+    setGuardando(true); setError("")
+    try {
+      const r = await api.admin.maquinas.delete(maquina.id, destino ? Number(destino) : null)
+      toast.success(
+        r.dada_de_baja
+          ? `${maquina.nombre} quedó dada de baja (tiene ${r.pases} pases de producción)`
+          : `${maquina.nombre} eliminada`,
+      )
+      onDeleted()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo sacar del catálogo")
+      setGuardando(false)
+    }
+  }
+
   return (
-    <ConfirmDialog
-      open
-      onOpenChange={(open) => { if (!open) onClose() }}
-      title="Eliminar máquina"
-      description={
-        <>
-          Se eliminará <span className="font-semibold text-foreground">{maquina.nombre}</span>.
-          Si un producto la tenía asignada como impresora, quedará sin impresora (no se borran productos).
-        </>
-      }
-      confirmLabel="Eliminar"
-      variant="destructive"
-      onConfirm={async () => {
-        await api.admin.maquinas.delete(maquina.id)
-        toast.success("Máquina eliminada")
-        onDeleted()
-      }}
-    />
+    <Dialog open onOpenChange={(open) => { if (!open && !guardando) onClose() }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Sacar {maquina.nombre} del catálogo</DialogTitle>
+          <DialogDescription>
+            {cargando ? "Viendo quién la usa…" : "Esto es lo que se lleva puesto."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {cargando ? (
+          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Cargando…
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 py-1">
+            {/* Lo que NO se puede reasignar, y por qué. Va primero: es lo que
+                de verdad se pierde si alguien insiste en borrar. */}
+            {hayPases && (
+              <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-400" strokeWidth={2.2} />
+                <div className="text-sm">
+                  <p className="font-bold text-foreground">
+                    Esta máquina NO se puede eliminar.
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    Tiene <span className="font-bold text-foreground">{uso?.pases} pase(s) de producción</span>:
+                    órdenes que ya pasaron por ella. Borrarla los borraría, y ése es el
+                    registro de por dónde pasó cada pedido. Se va a <span className="font-bold text-foreground">dar de baja</span>:
+                    deja de aparecer para elegir y el historial queda intacto.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {hayProductos ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-bold text-foreground">{uso?.productos} producto(s)</span> se
+                  imprimen en {maquina.nombre}. No quedan sin impresora: decí a cuál pasan.
+                </p>
+                <label className="flex flex-col gap-1.5 text-sm font-semibold text-foreground">
+                  Pasan a
+                  <Select value={destino} onChange={(e) => setDestino(e.target.value)}>
+                    <option value="">Elegí una máquina…</option>
+                    {uso?.destinos.map((d) => (
+                      <option key={d.id} value={d.id}>{d.nombre}</option>
+                    ))}
+                  </Select>
+                </label>
+                {uso?.destinos.length === 0 && (
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    No hay otra máquina activa del mismo tipo para pasarlos. Creá una primero.
+                  </p>
+                )}
+              </div>
+            ) : (
+              !hayPases && (
+                <p className="text-sm text-muted-foreground">
+                  No la usa ningún producto ni tiene pases de producción. Se elimina y listo.
+                </p>
+              )
+            )}
+
+            {error && <p className="text-sm font-semibold text-red-500">{error}</p>}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={guardando}>
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant={hayPases ? "default" : "destructive"}
+            onClick={confirmar}
+            disabled={cargando || guardando || sinDestino}
+          >
+            {guardando && <Loader2 className="size-4 animate-spin" />}
+            {etiqueta}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
