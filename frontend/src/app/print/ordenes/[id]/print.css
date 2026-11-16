@@ -502,7 +502,22 @@
 }
 
 /* Lo que va a la derecha del título: operario y fecha en troquelado. */
-.ot-etapa-head-der { margin-left: auto; display: flex; align-items: baseline; gap: 18px; }
+/* OPERARIO Y FECHA APILADOS, no uno al lado del otro.
+   En fila median 107,57 mm. Con los circulitos de maquina ocupando sus 49,81 a
+   la izquierda, el renglon terminaba en 231,17 mm cuando el borde util de la
+   hoja esta en 198: «FECHA TROQ» se cortaba contra el filo. Habia dos salidas,
+   achicar las rayas para escribir —dejandolas inutiles— o apilarlas. El papel
+   las tiene apiladas, asi que apiladas.
+
+   Columna: el ancho pasa a ser el del mas largo de los dos —unos 47 mm— en vez
+   de la suma, y el renglon entero cierra en 172. */
+.ot-etapa-head-der {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
 
 /* ══ LO QUE SE ESCRIBE A MANO ════════════════════════════════
    Rótulo y raya en la misma línea. La raya es de puntos cortos
