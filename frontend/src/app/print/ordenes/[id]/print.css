@@ -78,14 +78,12 @@
      de la pagina, asi que SOLO esa banda gastaba como dos paginas y media
      normales — en cada orden que se imprime.
 
-     GRIS CLARO Y NO BLANCO: la banda tiene que seguir siendo un bloque, que es
-     lo que hace que la hoja se reconozca de lejos y que la cabecera se lea como
-     cabecera. #ededed es ~7% de cobertura: los mismos 66 cm2 pasan de gastar
-     como 67 cm2 de negro macizo a unos 4,6. Mas claro que esto el gris se lava
-     y la banda deja de leerse como banda. La que DE VERDAD separa la cabecera
-     del resto es la raya negra de abajo, asi que el gris puede ser apenas una
-     insinuacion. */
-  background: #ededed;
+     Y DESPUES SE FUE TAMBIEN EL GRIS: #ededed era ~7% de cobertura, poco, pero
+     seguia siendo relleno en los 66 cm2 de la banda. Lo que DE VERDAD separa la
+     cabecera del resto nunca fue el fondo sino la RAYA NEGRA de abajo y el
+     cuerpo de la tipografia; el gris era un recuerdo de la banda azul. Sin
+     relleno la cabecera gasta solo lo que dibuja —letras, filete y QR—. */
+  background: #fff;
   color: #000;
   border-bottom: 2.4px solid #000;
   margin: -13mm -12mm 0;
@@ -94,11 +92,34 @@
      adentro de la banda. El alto de la banda lo manda él. */
   padding: 0 0 0 12mm;
   display: grid;
-  /* Dos columnas: el titulo y el bloque de la derecha. La del logo se fue
-     —el logo ahora vive adentro del bloque derecho—. Con la inicial de
-     maquina se agrega una tercera por delante (`.ot-header--inicial`). */
-  grid-template-columns: 1fr auto;
+  /* `1fr auto 1fr` Y NO `auto 1fr auto`: esto es lo unico que centra el titulo
+     en la HOJA y no en el hueco que le dejan los vecinos.
+
+     Con `auto 1fr auto` cada costado se quedaba con lo que pedia su contenido
+     —26 mm el recuadro de la maquina, 69 el bloque del QR— y el titulo caia en
+     el medio de lo que sobraba: su centro quedaba en 83,44 mm cuando el de la
+     hoja esta en 105. Corrido 21,56 mm, y se notaba.
+
+     Con `1fr auto 1fr` las dos columnas de los costados son IGUALES por
+     definicion, el titulo toma su ancho natural y queda clavado en el centro
+     sin que nadie calcule nada. Cada costado recibe 58,12 mm; adentro, la
+     izquierda usa 49,11 (recuadro + fecha y logo) y la derecha 46 (el QR).
+     Los dos entran con aire, y el que sobra cae del lado de adentro, lejos de
+     los filos de la hoja. */
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
+  gap: 16px;
+}
+
+
+/* El costado izquierdo: el recuadro de la maquina pegado al filo y el membrete
+   a su derecha, ARRIBA. `align-items: flex-start` alinea el logo con el borde
+   de arriba de la banda; el recuadro se estira igual porque tiene su propio
+   `align-self: stretch`. */
+.ot-header-izq {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-start;
   gap: 16px;
 }
 
@@ -111,16 +132,19 @@
    La banda NO crece: el bloque se estira a lo alto con `align-self: stretch` y
    el alto lo sigue mandando el QR, igual que antes. La hoja está en 297,00 mm
    exactos y una segunda página en blanco no es una opción. */
+/* Con recuadro de maquina el relleno izquierdo se va a cero: el recuadro YA
+   llega al filo de la hoja y es el que hace de margen. Sin recuadro —una
+   maquina que no conocemos— la banda conserva sus 12 mm para que la fecha no
+   quede pegada al borde. */
 .ot-header--inicial {
-  grid-template-columns: auto 1fr auto;
   padding-left: 0;
 }
 
-/* AMARILLO DE FONDO Y LETRA AZUL, no al revés.
-   Pasado a blanco y negro el amarillo #f5eb4a sube a un gris casi blanco y el
-   azul #0f0c44 cae a casi negro: queda una letra NEGRA sobre un rectángulo
-   CLARO, que es la combinación de los carteles de ruta y la que más aguanta de
-   lejos y fotocopiada.
+/* LETRA OSCURA SOBRE FONDO CLARO, no al revés.
+   Se probó con el amarillo de marca de fondo, pero pasado a blanco y negro el
+   #f5eb4a sube a un gris casi blanco: el resultado era el mismo que deja el
+   papel sin imprimir, gratis. Letra NEGRA sobre claro es la combinación de los
+   carteles de ruta y la que más aguanta de lejos y fotocopiada.
 
    Y resuelve el problema que tenía el cuadradito: el logo de Etiplast es
    blanco calado, así que en gris una forma amarilla MACIZA al lado del logo
@@ -128,54 +152,93 @@
    rectángulo sino la letra oscura de adentro, que el logo no tiene. */
 .ot-inicial {
   align-self: stretch;
+  /* Es item de grilla y su columna mide 58,11 mm —la mitad de lo que sobra—,
+     asi que sin esto se estiraria y la letra quedaria flotando en el medio.
+     Pegado al filo izquierdo, que es donde el operario la busca. */
+  justify-self: start;
   width: 26mm;
-  /* RECUADRO CALADO Y NO RELLENO: un bloque negro de 22 x 46 mm son 10,1 cm2
-     mas de tinta en cada hoja. Calado gasta el borde y la letra, y de lejos se
-     ve igual — lo que el ojo agarra a tres metros es la LETRA, que es enorme,
-     no el fondo que tiene detras. */
-  /* BLANCA sobre el gris: el papel sin imprimir ES el color del recuadro, asi
-     que la marca de maquina —lo unico que el operario busca de lejos— sale
-     gratis y ademas es lo mas claro de toda la hoja. Recorta sola. */
+  /* SIN RELLENO: el papel sin imprimir ES el recuadro, asi que la marca de
+     maquina —lo unico que el operario busca de lejos— sale gratis. Un bloque
+     negro de 22 x 46 mm serian 10,1 cm2 mas de tinta en CADA hoja. Calado
+     gasta el borde y la letra, y de lejos se ve igual: lo que el ojo agarra a
+     tres metros es la LETRA, no el fondo que tiene detras. */
   background: #fff;
   color: #000;
-  /* ENCAJONADO EN NEGRO por los tres lados que dan al papel (el cuarto es el
-     filo de la hoja, donde la impresora no llega). Sin el filete, el recuadro
-     de Reinaflex —gris claro— quedaba a 16 niveles de la banda y se le fundía:
-     parecía que esa orden no tenía marca de máquina.
-
-     Con el cajón, el relleno ya no tiene que diferenciarse de la banda, sólo
-     de los otros rellenos. Eso libera toda la escala para separar máquinas y
-     de paso deja usar tonos claros, que son los que menos tinta gastan. */
+  /* ENCAJONADO EN NEGRO por los tres lados que dan al papel; el cuarto es el
+     filo de la hoja, donde la impresora no llega. Sin el filete el recuadro se
+     funde con el resto y parece que la orden no tiene marca de maquina. */
   border-top: 2.4px solid #000;
   border-right: 2.4px solid #000;
   border-bottom: 2.4px solid #000;
+  /* COLUMNA: la letra arriba y el nombre de la maquina abajo. Antes el nombre
+     vivia al lado del titulo, a 26 px, y decia dos veces lo mismo que la letra
+     a treinta centimetros de distancia. Juntos se leen como UNA sola marca: de
+     lejos entra la letra, de cerca el nombre la confirma. */
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* 52 px ≈ 14 mm de altura de letra: se lee cruzando la planta. Entra porque
-     el logo dejó libre su columna de la izquierda y el título heredó ese aire.
+  gap: 2mm;
+  padding: 0 1.5mm;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 
-     EL TECHO NO ES EL ALTO SINO EL ANCHO: la banda tiene 47 mm y la letra usa
-     23, así que a lo alto sobra. Lo que frena es la columna del título — si el
-     recuadro le roba más de 6 mm, ORDEN DE TRABAJO se parte en dos renglones,
-     la banda crece y la hoja se va de los 297 mm. */
-  /* OTRA FAMILIA QUE EL RESTO DE LA HOJA, a proposito: la letra de maquina no
-     es texto, es un simbolo, y leerse distinto ayuda a que el ojo la separe del
-     resto antes de leer nada.
+/* 76 px ~ 20 mm de altura de letra: se lee cruzando la planta.
+   EL TECHO NO ES EL ALTO SINO EL ANCHO: la banda tiene 46 mm y antes la letra
+   usaba 23, asi que a lo alto sobraba. Ahora comparte la caja con el nombre,
+   que se come unos 4 mm, y por eso baja de 86 a 76 px. Lo que frena de verdad
+   es la columna del titulo: si el recuadro le roba mas de 6 mm, ORDEN DE
+   TRABAJO se parte en dos renglones, la banda crece y la hoja se va de 297 mm.
 
-     NADA DE FUENTE WEB: esta hoja se imprime desde la PC de la oficina. Si el
-     archivo no baja, el navegador cae a lo que sea SIN AVISAR y el simbolo que
-     sale impreso NO es el que vimos en pantalla. Trebuchet MS viene con Windows
-     y con Mac desde hace veinte anios, asi que no hay nada que instalar; detras
-     quedan dos sans anchas por si apareciera una maquina rara. */
+   OTRA FAMILIA QUE EL RESTO DE LA HOJA, a proposito: la letra de maquina no es
+   texto, es un simbolo, y leerse distinto ayuda a que el ojo la separe antes de
+   leer nada.
+
+   NADA DE FUENTE WEB: esta hoja se imprime desde la PC de la oficina. Si el
+   archivo no baja, el navegador cae a lo que sea SIN AVISAR y el simbolo que
+   sale impreso NO es el que vimos en pantalla. Trebuchet MS viene con Windows y
+   con Mac desde hace veinte anios; detras quedan dos sans anchas por si
+   apareciera una maquina rara. */
+.ot-inicial-letra {
   font-family: 'Trebuchet MS', 'Lucida Grande', Verdana, sans-serif;
-  font-size: 86px;
+  font-size: 76px;
   font-weight: 700;
   line-height: 1;
   /* Sin `letter-spacing`: es UNA letra y el espaciado la descentra. */
   letter-spacing: 0;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
+}
+
+/* El nombre, chico, abajo de la letra. CHICO A PROPOSITO: no es un dato que se
+   busque de lejos —para eso esta la letra—, es la confirmacion de cerca.
+
+   PARTE EN DOS RENGLONES SI HACE FALTA y no se recorta: adentro de 23 mm utiles
+   «VENUS» y «REINAFLEX» entran de una, pero «AUTOADHESIVA» no, y una maquina
+   con el nombre cortado es peor que una sin nombre. */
+.ot-inicial-maquina {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4mm;
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  color: #000;
+}
+
+/* El codigo de catalogo —«IMP-001»— abajo del nombre y mas chico todavia: lo
+   usa la oficina para cruzar con el sistema, no el operario que esta parado
+   frente a la maquina. */
+.ot-inicial-maquina small {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #3a3a3a;
 }
 
 /* El archivo del logo YA es blanco sobre transparente: está hecho
@@ -193,39 +256,65 @@
    Lo que queda es lo barato y lo que no falla: el cajón negro, que ubica el
    recuadro, y la letra. Entre los dos no llegan a 2 cm². */
 
-/* El archivo es blanco calado sobre transparente, hecho para la banda azul.
-   Sobre papel blanco seria invisible. `brightness(0)` lleva los tres canales a
-   cero sin tocar el alfa: mismo dibujo, en negro. Asi no hace falta un segundo
-   archivo que despues alguien se olvide de actualizar. */
+/* 18 mm: UNA FIRMA, NO UN TITULO.
+   Arranco ocupando la columna entera —33,08 mm, exactamente lo que mide
+   «OT-0003»— y quedaban dos bloques del mismo ancho, uno arriba del otro, con
+   el de abajo mas denso: el logo pesaba igual que el numero de orden, que es
+   EL dato de la hoja. 18 mm es el 54% del numero.
+
+   ESTE ES EL PISO, y no es opinion. Medido sobre el archivo (1606 px de ancho)
+   y rasterizado a 600 dpi con umbral, que es lo que hace un laser:
+
+     ancho    «etiplast»   ARGENTINA   trazo de ARGENTINA
+     24 mm      3,89 mm      0,72 mm     0,150 mm = 3,5 puntos
+     20 mm      3,24 mm      0,60 mm     0,125 mm = 2,9 puntos
+     18 mm      2,91 mm      0,54 mm     0,112 mm = 2,7 puntos   <-- aca estamos
+     16 mm      2,59 mm      0,48 mm     0,100 mm = 2,4 puntos   <-- se empasta
+
+   Abajo de ~2 puntos el laser corta la linea. A 16 mm las contraformas de
+   ARGENTINA ya se empiezan a cerrar; a 18 todavia salen enteras. Si alguna vez
+   hay que achicarlo MAS, no se escala: hay que pedirle a la empresa el logo
+   sin la bajada, porque a ese tamano los dos renglones de abajo dejan de ser
+   texto y pasan a ser suciedad.
+
+   Y SI HAY QUE AGRANDARLO, la palanca no es la columna del titulo —tiene
+   9,48 mm de aire antes de que «ORDEN DE TRABAJO» se parta en dos renglones, y
+   todo ese aire compra 0,23 mm de altura de x—. Es achicar el QR, que mide
+   46 mm cuando con 25 ya se escanea. */
 .ot-logo {
-  height: 24px;
-  width: auto;
+  /* ANCHO EN MILIMETROS Y NO `100%`: la columna que lo contiene es `auto` en
+     la grilla, o sea que la mide su contenido. Con `width: 100%` el porcentaje
+     se resuelve contra un ancho que todavia no existe, gana el ancho intrinseco
+     del PNG —1606 px— y el logo se come la hoja: «ORDEN DE TRABAJO» se parte en
+     tres renglones. En milimetros el que manda es el logo y la columna lo
+     sigue, que es lo que queremos. */
+  /* 25 mm Y NO MAS, y el tope es geometrico, no estetico: la columna izquierda
+     mide 58,11 mm —la mitad de lo que le sobra a la hoja despues del titulo— y
+     el recuadro de maquina se lleva 26 con 4,23 de separacion. Quedan 27,88.
+     Si el logo los pasa, la columna crece, los dos `1fr` dejan de ser iguales y
+     el titulo se va del centro de la hoja. Con 25 quedan 2,88 mm de colchon. */
+  width: 25mm;
+  height: auto;
   display: block;
+  /* Un pelo abajo del filete de arriba, para que no quede calcado al borde. */
+  margin-top: 1.5mm;
+  /* El archivo viene en gris #303030 sobre transparente. `brightness(0)` lleva
+     los tres canales a cero sin tocar el alfa: mismo dibujo, en negro puro, que
+     es el unico color que usa el resto de la hoja y el que mejor define un
+     laser. Asi no hace falta un segundo archivo que alguien se olvide de
+     actualizar el dia que cambie el logo. */
   filter: brightness(0);
 }
 
-/* La marca: el logotipo calado más el nombre escrito, abajo de la fecha. */
-.ot-marca {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 3px;
-}
-
-.ot-marca-nombre {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: lowercase;
-  color: #000;
-  line-height: 1;
-}
-
+/* La columna del medio: membrete, titulo, numero y fecha, todo centrado y todo
+   del mismo ancho de caja. `gap` chico porque son hasta cinco renglones y la
+   banda mide 46 mm; si crece, la banda crece con ella y la hoja se pasa de los
+   297 mm. */
 .ot-titulo-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
 /* «ORDEN DE TRABAJO» con su raya abajo, igual que el papel — pero
@@ -247,35 +336,6 @@
   color: #000;
 }
 
-/* La máquina: la palabra sola, en amarillo. En el papel el
-   formulario se llama directamente «VENUS» y es lo primero que mira
-   el operario para saber si la hoja es suya.
-
-   `text-indent` compensa el espacio que el tracking deja colgando
-   después de la última letra; sin él la palabra queda corrida. */
-.ot-maquina {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 0.3em;
-  text-indent: 0.3em;
-  text-transform: uppercase;
-  color: #000;
-  line-height: 1.15;
-}
-
-/* El código de la impresora, cuando el nombre lo trae
-   («IMP-001 (Venus)»). Chico: lo que se lee de lejos es el nombre. */
-.ot-maquina small {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-indent: 0;
-  opacity: 0.65;
-}
-
 /* Número, fecha y QR, a la derecha. */
 /* El QR ocupa la esquina superior derecha entera: es lo que el operario
    apunta con el celular antes de arrancar cada etapa, muchas veces con la
@@ -283,31 +343,24 @@
 
    `align-self: stretch` lo hace tan alto como la banda; el número y la fecha
    quedan a su izquierda, centrados contra él. */
-.ot-header-der {
-  align-self: stretch;
-  display: flex;
-  align-items: stretch;
-  gap: 16px;
-}
-
-.ot-header-num {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 5px;
-  padding: 4mm 0;
-}
 
 .ot-numero {
-  font-size: 25px;
+  /* Vive abajo del titulo, centrado. Al salir de la esquina derecha dejo de
+     pelear con la fecha y el logo por el mismo rincon, asi que puede crecer:
+     28 px lo dejan a la par del titulo, que es el peso que le corresponde —la
+     orden se nombra por el numero, no por el titulo, que dice lo mismo en
+     todas las hojas. */
+  font-size: 28px;
   font-weight: 900;
   letter-spacing: 0.05em;
+  text-indent: 0.05em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   color: #000;
 }
 
+/* Abajo del numero, centrada. Gris y no negra: es el dato mas blando de los
+   cuatro que hay en esta columna y no tiene que pelearle al numero. */
 .ot-fecha {
   font-size: 12px;
   font-weight: 700;
@@ -324,6 +377,21 @@
    blanco del borde— ya viene DENTRO del SVG (ver `margin: 4` al generarlo).
    Ese blanco es parte del símbolo: es lo que separa el código del fondo azul
    y lo que el lector usa para encontrar dónde empieza la grilla. */
+/* El costado derecho tiene UN solo inquilino, el QR, y le sobra ancho porque la
+   columna mide lo mismo que la de enfrente. `flex-end` lo empuja contra el filo
+   de la hoja y el aire que sobra queda del lado de adentro, entre el QR y el
+   titulo, donde hace de separacion en vez de verse como un margen torcido.
+
+   SIN ESTA REGLA el div del QR deja de ser item flex, pasa a ser un bloque
+   suelto en la celda de la grilla y se estira a los 58,12 mm de la columna: el
+   QR sale 26% mas grande de lo que tiene que salir y come tinta al pedo. */
+.ot-header-der {
+  align-self: stretch;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
 .ot-qr-img {
   background: #fff;
   padding: 0;
@@ -569,6 +637,14 @@
   margin-top: 11px;
 }
 
+/* En el renglon del titulo de la etapa —troquelado— y no debajo de una grilla
+   —extrusion—: sin el margen de arriba, y separado del titulo. */
+.ot-bob-maquina--linea {
+  margin-top: 0;
+  margin-left: 18px;
+  gap: 7px;
+}
+
 .ot-bob-maquina-rot {
   font-size: 13px;
   font-weight: 800;
@@ -750,17 +826,32 @@
    sólo negrita porque la cabecera ya tiene tres líneas de texto chico y una
    cuarta se perdería entre ellas. */
 .ot-comprometida {
-  display: block;
+  /* APILADO: el rotulo arriba, la fecha abajo. De corrido medi­a 39,11 mm —mas
+     que el recuadro de la maquina— y era lo unico que decidia el ancho de esta
+     columna; con el, la izquierda pasaba de 58,11 a 69,34 mm y la grilla ya no
+     podia centrar el titulo. */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   margin-top: 2px;
-  padding: 1px 5px;
-  /* `currentColor` y no negro: el recuadro vive en la cabecera azul oscuro de
-     la ficha, donde el texto es blanco. Un borde negro ahí es invisible —y en
-     la impresión en blanco y negro también, porque el fondo sale casi negro.
-     Siguiendo al texto, el recuadro se ve en los dos casos. */
+  padding: 2px 5px;
+  /* `currentColor` sigue estando bien, pero ya no por lo de antes: la banda
+     dejo de ser azul y ahora todo el texto de la cabecera es negro, asi que el
+     borde es negro igual. Se deja atado al color del texto para que no haya que
+     tocar dos lugares si alguna vez la cabecera vuelve a tener fondo. */
   border: 1.2pt solid currentColor;
   border-radius: 3px;
   font-size: 9.5pt;
   font-weight: 800;
   letter-spacing: 0.01em;
+  line-height: 1.15;
   white-space: nowrap;
+}
+
+/* El rotulo, mas chico que la fecha: lo que se lee es el dia. */
+.ot-comprometida small {
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }

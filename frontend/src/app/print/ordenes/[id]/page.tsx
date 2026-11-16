@@ -263,43 +263,47 @@ export default async function PrintOrdenPage({ params }: Props) {
                 `aria-hidden` porque es la inicial de algo que el lector de
                 pantalla ya va a leer entero dos elementos más adelante: suelta
                 diría «A» y no significa nada. */}
+            {/* COSTADO IZQUIERDO: el recuadro de la maquina pegado al filo y, a su
+                derecha y arriba de todo, el membrete. */}
+            <div className="ot-header-izq">
             {inicialMaquina && (
-              <span className="ot-inicial" aria-hidden="true">{inicialMaquina}</span>
+              <div className="ot-inicial">
+                {/* `aria-hidden` en la LETRA sola: es la inicial de un nombre
+                    que está escrito justo abajo, y suelta el lector de pantalla
+                    diría «V» sin que signifique nada. El nombre sí se lee. */}
+                <span className="ot-inicial-letra" aria-hidden="true">{inicialMaquina}</span>
+                {maquinaNombre && (
+                  <span className="ot-inicial-maquina">
+                    {maquinaNombre}
+                    {maquinaCodigo && <small>{maquinaCodigo}</small>}
+                  </span>
+                )}
+              </div>
             )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-etiplast.png" alt="Etiplast Argentina" className="ot-logo" />
+            </div>
+
+            {/* TODO LO QUE IDENTIFICA A LA ORDEN, EN UNA SOLA COLUMNA CENTRADA.
+                La fecha con el logo colgando abajo era una torre de dos cosas
+                que no tienen nada que ver entre si —una es un dato de la orden,
+                la otra es la marca de la fabrica— apretadas en una columna de
+                18 mm. Separadas, cada una va donde le corresponde: el logo
+                arriba de todo, como el membrete de un papel con membrete, y la
+                fecha abajo del numero, que es el otro dato de la orden. */}
             <div className="ot-titulo-block">
               <span className="ot-titulo">Orden de Trabajo</span>
-              {maquinaNombre && (
-                <span className="ot-maquina">
-                  {maquinaCodigo && <small>{maquinaCodigo}</small>}
-                  {maquinaNombre}
+              <span className="ot-numero">{orden.numero}</span>
+              <span className="ot-fecha">{fechaStr}</span>
+              {comprometidaStr && (
+                <span className="ot-comprometida">
+                  <small>Entregar</small>
+                  {comprometidaStr}
                 </span>
               )}
             </div>
 
-            {/* Número, fecha y QR. UN solo QR para toda la orden: el operario
-                lo escanea y la pantalla le pregunta qué paso va a hacer. */}
             <div className="ot-header-der">
-              <div className="ot-header-num">
-                <span className="ot-numero">{orden.numero}</span>
-                <span className="ot-fecha">{fechaStr}</span>
-                {comprometidaStr && (
-                  <span className="ot-comprometida">Entregar: {comprometidaStr}</span>
-                )}
-                {/* La marca, abajo de la fecha. Se fue de la izquierda porque
-                    ahí ahora va la inicial de la máquina, que es el dato que
-                    el operario busca de lejos; el logo no lo busca nadie —ya
-                    sabe en qué fábrica trabaja— así que acompaña al número y
-                    la fecha, que es la esquina de los datos de la orden.
-
-                    `alt` vacío y `aria-hidden` en la imagen: el nombre está
-                    escrito al lado, y con `alt="Etiplast"` el lector de
-                    pantalla diría «Etiplast Etiplast». */}
-                <span className="ot-marca">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/logoSOLO.png" alt="" aria-hidden="true" className="ot-logo" />
-                  <span className="ot-marca-nombre">Etiplast</span>
-                </span>
-              </div>
               {/* SVG generado en el servidor, no entra nada del usuario. */}
               <div className="ot-qr-img" dangerouslySetInnerHTML={{ __html: qrOrden }} />
             </div>
@@ -481,12 +485,31 @@ export default async function PrintOrdenPage({ params }: Props) {
 
             {/* ═══ ③ TROQUELADO ═══ */}
             <div className="ot-etapa">
-              {/* Sin campo MÁQUINA: en troquelado son intercambiables, no se
-                  elige ninguna ni al cargar la orden ni al escanear el QR. Una
-                  raya que nadie completa nunca es un campo de menos, no de más. */}
               <div className="ot-etapa-head">
                 <span className="ot-paso-num">3</span>
                 <span className="ot-paso-title">Troquelado</span>
+                {/* CUATRO TROQUELADORAS, con los circulitos para marcar a mano.
+                    Esto estuvo sacado un tiempo con el argumento de que en
+                    troquelado las maquinas son intercambiables y el sistema no
+                    guarda cual se uso —`ETAPAS_CON_MAQUINA` es solo impresion—,
+                    asi que era una raya que nadie completaba. El argumento era
+                    del SISTEMA, no de la planta: el formulario de papel las
+                    tiene, numeradas del 1 al 4, y el que esta parado en la
+                    maquina las marca. La ficha copia al papel.
+
+                    VA EN EL RENGLON DEL TITULO, no abajo como en extrusion,
+                    porque asi esta en el papel: «TROQUELADO · MAQUINA 1 2 3 4»
+                    a la izquierda y operario y fecha a la derecha. Y no empuja
+                    nada: los circulitos miden 22 px y el numero de paso que ya
+                    estaba en ese renglon mide 23, asi que el alto del renglon
+                    —y el de la hoja— no se mueve. */}
+                <span className="ot-bob-maquina ot-bob-maquina--linea">
+                  <span className="ot-bob-maquina-rot">Máquina</span>
+                  <span className="ot-bob-opcion">1</span>
+                  <span className="ot-bob-opcion">2</span>
+                  <span className="ot-bob-opcion">3</span>
+                  <span className="ot-bob-opcion">4</span>
+                </span>
                 <span className="ot-etapa-head-der">
                   <Mano label="Operario" ancho={92} />
                   <FechaVacia label="Fecha troq" />
@@ -500,9 +523,14 @@ export default async function PrintOrdenPage({ params }: Props) {
               <Caja
                 campos={[
                   { label: "Alto", value: orden.troquelado_alto != null ? `${fmt(orden.troquelado_alto)} cm` : "", flex: 0.8 },
-                  // «Cierre (int)» y no «Cierre» a secas: es como lo nombra la planta,
-                  // y el papel tiene que decir lo mismo que dice la gente.
-                  { label: "Cierre (int)", value: orden.troquelado_cierre != null ? fmt(orden.troquelado_cierre) : "", flex: 0.8 },
+                  // El «int» va PEGADO AL NUMERO y no en el rotulo, igual que el «cm»
+                  // de Alto, que es la celda de al lado. En el rotulo —«CIERRE
+                  // (INT)»— parecia parte del nombre del campo; al lado del valor
+                  // se lee por lo que es, la aclaracion de con que criterio esta
+                  // tomada esa medida. CON PARENTESIS y no suelto como el «cm»:
+                  // «cm» es la unidad y «(int)» es una aclaracion sobre la medida
+                  // —interior—, que no es lo mismo, y los parentesis lo dicen.
+                  { label: "Cierre", value: orden.troquelado_cierre != null ? `${fmt(orden.troquelado_cierre)} (int)` : "", flex: 0.8 },
                   { label: "Envase", value: orden.troquelado_envase, flex: 1.4 },
                   { label: "Código envase", value: orden.envase_codificado, flex: 1.2 },
                   { label: "Ubicación", value: orden.envase_ubicacion, flex: 1.2 },
