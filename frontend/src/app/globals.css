@@ -377,33 +377,61 @@
   background: #ffffff;
   color: #111;
   border-radius: 12px;
-  padding: 18px;
+  padding: 26px 26px 22px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  /* SIN `gap`: la separación entre secciones la hace la raya punteada, igual
+     que en el papel. Un gap además de la raya deja el renglón flotando. */
+  gap: 0;
 }
 
+/* EL CAMBIO DE FONDO DE ESTA PANTALLA, y el porqué.
+   Cada sección era una CAJA con borde y una BANDA NAVY MACIZA de título. El
+   archivo de al lado —`print.css`— no usa nada de eso: en el papel los títulos
+   son texto negro grande con una raya abajo, y lo que separa una etapa de la
+   siguiente es una raya punteada. O sea que la hoja de pantalla decía ser la
+   hoja impresa y usaba el lenguaje contrario.
+
+   Y encima el navy del título es EL MISMO que el fondo de la aplicación, así
+   que la tarjeta blanca parecía perforada: se veía el fondo a través de cada
+   banda. Sacarlas devuelve el papel entero y, de paso, cada sección arranca
+   unos 30 px más arriba — que es lo que hacía falta, porque había pasos con
+   tres campos y media pantalla vacía. */
 .ficha-seccion {
-  border: 1.5px solid #d0d3e0;
-  border-radius: 6px;
-  /* SIN `overflow: hidden`, aunque el papel lo use: en pantalla recortaría los
-     desplegables que se abren dentro de la sección (el buscador de marca
-     quedaba cortado contra la banda de la sección siguiente). Las esquinas de
-     la cabecera se redondean abajo, que es para lo único que servía. */
+  border: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 18px;
+  margin-top: 18px;
+  border-top: 2px dotted #c7cbdb;
 }
 
+/* La primera no lleva raya arriba: separa secciones, no abre la hoja. */
+.ficha-seccion:first-of-type {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+
+/* `align-self: flex-start` para que la raya mida lo que mide el texto y no
+   todo el ancho: así es en el papel, y una raya de borde a borde abajo de dos
+   palabras se lee como un separador más, no como el título de lo que sigue. */
 .ficha-seccion > header {
-  background: #0f0c44;
-  border-radius: 4.5px 4.5px 0 0;
-  padding: 7px 14px;
-  font-size: 11px;
+  align-self: flex-start;
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 2.5px solid #0f0c44;
+  padding: 0 2px 4px;
+  margin-bottom: 16px;
+  font-size: 15px;
   font-weight: 800;
-  color: #fff;
-  letter-spacing: 0.3em;
+  color: #0f0c44;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.ficha-cuerpo { padding: 14px; }
+.ficha-cuerpo { padding: 0; }
 
 /* Más grande y más oscuro que en el papel A PROPÓSITO: #888 sobre blanco da
    3,54:1 y el mínimo accesible para texto chico es 4,5:1. En papel la tinta se
@@ -411,12 +439,15 @@
    da 6,37:1. */
 .ficha-rotulo {
   display: block;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #5a5f6e;
-  letter-spacing: 0.18em;
+  font-size: 12px;
+  font-weight: 800;
+  /* #5a5f6e daba 6,37:1 y alcanzaba el mínimo, pero el mínimo no es la meta
+     con los usuarios grandes de la planta: #3a3f52 da 9,9:1 y el rótulo deja
+     de ser un gris que hay que buscar. */
+  color: #3a3f52;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  margin-bottom: 3px;
+  margin-bottom: 5px;
 }
 
 /* El campo editable con la misma pinta que el valor impreso: una línea abajo.
@@ -430,9 +461,11 @@
 .ficha select.ficha-campo,
 .ficha textarea.ficha-campo {
   width: 100%;
-  min-height: 30px !important;
-  font-size: 15px !important;
-  font-weight: 600;
+  min-height: 34px !important;
+  /* 17 px y no 15: el valor impreso mide 16,5 y esta pantalla la usa gente
+     grande. El rótulo puede ser chico —es una etiqueta—; el DATO no. */
+  font-size: 17px !important;
+  font-weight: 700;
   color: #111 !important;
   background: transparent !important;
   border: 0 !important;
