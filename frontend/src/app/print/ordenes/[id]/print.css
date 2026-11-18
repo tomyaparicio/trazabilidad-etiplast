@@ -821,9 +821,19 @@
   display: flex;
   justify-content: center;
   padding: 9px 18px;
-  background: rgba(243, 244, 246, 0.94);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid #b9bec6;
+  /* AZUL DE MARCA, y acá sí se puede: esta barra es SÓLO PANTALLA —se va con
+     `no-print`— así que no gasta un miligramo de tóner. Es la diferencia con
+     la cabecera de la hoja, que fue de azul maciza a tinta negra justamente
+     porque sí se imprime: esa banda sola gastaba como dos páginas y media por
+     orden y en una láser en blanco y negro salía como un manchón gris.
+
+     Del token, no hardcodeado: `--color-brand` sale de `globals.css`, que es
+     la fuente de verdad del color de marca, y llega hasta acá porque la página
+     cuelga del layout raíz. El valor de respaldo es por si alguna vez se
+     imprime esta hoja fuera de la app. */
+  background: var(--color-brand, #292d96);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 10px rgba(15, 12, 68, 0.22);
 }
 
 /* Misma medida que la hoja, para que los botones terminen donde
@@ -837,37 +847,52 @@
   gap: 10px;
 }
 
+/* AMARILLO DE MARCA SOBRE EL AZUL, no azul sobre azul.
+   El botón era #0f0c44, que contra la barra azul quedaba casi invisible.
+   El amarillo es el par que la propia app ya usa sobre `bg-brand` —está
+   escrito en globals.css: «sobre bg-brand va text-brand-yellow»— y con
+   texto casi negro encima da un contraste altísimo, que es lo que hace
+   falta: los usuarios finales de este sistema son gente grande. */
 .ot-print-btn {
-  background: #0f0c44;
+  background: var(--color-brand-yellow, #f5eb4a);
   white-space: nowrap;
-  color: #fff;
+  color: #16162e;
   border: none;
   padding: 8px 18px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   border-radius: 10px;
   cursor: pointer;
   letter-spacing: 0.05em;
   font-family: inherit;
-  box-shadow: 0 2px 8px rgba(15,12,68,.28);
-  transition: background .15s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  transition: filter .15s;
 }
 
-.ot-print-btn:hover { background: #2a2580; }
+.ot-print-btn:hover { filter: brightness(1.08); }
 
+/* «Cerrar» es la acción secundaria: fantasma sobre el azul, con el borde
+   y el texto en blanco translúcido para que se lea sin competirle al
+   amarillo. */
 .ot-close-btn {
   background: transparent;
-  color: #555;
-  border: 1.5px solid #ccc;
+  color: rgba(255, 255, 255, 0.92);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
   padding: 8px 16px;
   font-size: 13px;
+  font-weight: 600;
   border-radius: 10px;
   cursor: pointer;
   font-family: inherit;
   transition: background .15s;
 }
 
-.ot-close-btn:hover { background: #f3f4f6; }
+/* Hover claro sobre azul: con #f3f4f6 el fondo se ponia casi blanco y
+   el texto, que ahora tambien es blanco, desaparecia. */
+.ot-close-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.75);
+}
 
 /* ══ IMPRESIÓN ═══════════════════════════════════════════════ */
 @media print {
