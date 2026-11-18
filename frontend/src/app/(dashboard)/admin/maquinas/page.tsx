@@ -93,22 +93,35 @@ function MaquinaFormDialog({
     setLoading(true)
     setError("")
     try {
-      /* Sólo las impresoras tienen hoja con colores. Si alguien cambia el tipo
-         a extrusión, el número se manda en null para no dejar un dato colgado
-         que no significa nada en una troqueladora. */
-      const fichaColores =
-        tipo === "impresion" && colores.trim() !== "" ? Number(colores) : null
-      /* Lo mismo con la hoja: una troqueladora no imprime ninguna, así que no
-         le queda un «film» colgado que no significa nada. */
-      const fichaTipo: FichaTipo = tipo === "impresion" ? hoja : null
+      /* LA HOJA Y LOS COLORES SÓLO VIAJAN SI LA MÁQUINA ES UNA IMPRESORA, y
+         cuando no lo es la clave NO SE MANDA — que no es lo mismo que mandarla
+         en null.
+
+         Antes se mandaban en null, y eso BORRABA el dato sin avisar: bastaba
+         que el select «Tipo» se moviera sin querer —una flecha del teclado con
+         el foco puesto, la rueda del mouse— para que «Impresora Autoadhesiva»
+         perdiera su hoja al guardar. El formulario no decía que había una hoja
+         cargada, la fila dejaba de mostrarla, y al volver a poner Impresión el
+         desplegable aparecía en «film». La autoadhesiva volvía a imprimir la
+         hoja de film, con la sección de extrusión que esa máquina no hace, y
+         no se autocuraba: la migración que siembra el valor ya está anotada y
+         no vuelve a correr.
+
+         El PUT usa `exclude_unset`, así que omitir la clave significa «no
+         toques eso». Cambiar el tipo deja de ser una forma de perder datos. */
+      const hojaYColores =
+        tipo === "impresion"
+          ? {
+              ficha_colores: colores.trim() !== "" ? Number(colores) : null,
+              ficha_tipo: hoja as FichaTipo,
+            }
+          : {}
       if (isEdit) {
         await api.admin.maquinas.update(maquina.id, {
-          nombre: n, tipo, activa, ficha_colores: fichaColores, ficha_tipo: fichaTipo,
+          nombre: n, tipo, activa, ...hojaYColores,
         })
       } else {
-        await api.admin.maquinas.create({
-          nombre: n, tipo, ficha_colores: fichaColores, ficha_tipo: fichaTipo,
-        })
+        await api.admin.maquinas.create({ nombre: n, tipo, ...hojaYColores })
       }
       toast.success(isEdit ? "Máquina actualizada" : "Máquina creada")
       onSaved()
