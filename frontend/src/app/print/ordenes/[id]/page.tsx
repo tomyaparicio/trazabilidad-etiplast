@@ -482,6 +482,12 @@ export default async function PrintOrdenPage({ params }: Props) {
    */
   return (
     <div className="ot-fondo">
+
+      {/* La barra va ANTES de la hoja: se apoya con `sticky`, y sticky se
+          ancla del lado hacia el que se scrollea. Puesta después quedaría
+          pegada abajo, que es el problema que vino a resolver. */}
+      <PrintButtons />
+
       <div className="ot-page">
 
           {/* ══════════════════ CABECERA ══════════════════
@@ -996,8 +1002,6 @@ export default async function PrintOrdenPage({ params }: Props) {
           </div>{/* /ot-cuerpo */}
 
       </div>{/* /ot-page */}
-
-      <PrintButtons />
     </div>
   )
 }

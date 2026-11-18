@@ -800,27 +800,56 @@
 .ot-pie--bultos .ot-pie-dato { flex: 1; }
 .ot-pie--bultos .ot-pie-valor { flex: 1; }
 
-/* ══ BOTONES (sólo pantalla) ═════════════════════════════════ */
-.ot-print-btn-wrapper {
-  width: 210mm;
-  margin: 20px auto;
+/* ══ BARRA DE HERRAMIENTAS (sólo pantalla) ═══════════════════
+   Arriba, a la derecha, y acompaña el scroll.
+
+   Antes los botones iban SUELTOS debajo de la hoja, y la hoja
+   mide 297 mm: había que scrollear hasta el fondo para encontrar
+   «Imprimir». Se probó una píldora flotando en la esquina de la
+   ventana y quedaba peor: en una pantalla ancha flota lejos de la
+   hoja, sin relación con nada, y en una angosta cae justo encima
+   del QR —medido, se solapaban— que se escanea DE LA PANTALLA.
+
+   Barra, entonces: ocupa el ancho completo, se apoya arriba con
+   `sticky` y se lee como la herramienta del visor, no como un
+   botón perdido. El fondo casi opaco y la línea de abajo la
+   separan de la hoja cuando ésta pasa por debajo. */
+.ot-barra {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
-  gap: 12px;
   justify-content: center;
+  padding: 9px 18px;
+  background: rgba(243, 244, 246, 0.94);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #b9bec6;
+}
+
+/* Misma medida que la hoja, para que los botones terminen donde
+   termina el papel. El fondo de la barra sí va de punta a punta. */
+.ot-barra-centro {
+  width: 210mm;
+  max-width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
 }
 
 .ot-print-btn {
   background: #0f0c44;
+  white-space: nowrap;
   color: #fff;
   border: none;
-  padding: 12px 28px;
-  font-size: 14px;
+  padding: 8px 18px;
+  font-size: 13px;
   font-weight: 700;
   border-radius: 10px;
   cursor: pointer;
   letter-spacing: 0.05em;
   font-family: inherit;
-  box-shadow: 0 4px 16px rgba(15,12,68,.35);
+  box-shadow: 0 2px 8px rgba(15,12,68,.28);
   transition: background .15s;
 }
 
@@ -830,8 +859,8 @@
   background: transparent;
   color: #555;
   border: 1.5px solid #ccc;
-  padding: 12px 22px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 13px;
   border-radius: 10px;
   cursor: pointer;
   font-family: inherit;
