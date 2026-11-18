@@ -1274,7 +1274,29 @@ MIGRATIONS_MAQUINA_FICHA_TIPO = [
      "AND LOWER(tipo) = 'impresion' "
      "AND (REPLACE(LOWER(nombre), ' ', '') LIKE '%autoadhesiva%' "
      "     OR REPLACE(LOWER(nombre), ' ', '') LIKE '%taurus%' "
-     "     OR REPLACE(LOWER(COALESCE(codigo, '')), ' ', '') LIKE '%impauto%')"),
+     "     OR REPLACE(REPLACE(LOWER(COALESCE(codigo, '')), ' ', ''), '-', '')"
+     "        LIKE '%impauto%')"),
+    # LA CLÁUSULA POR CÓDIGO NO MATCHEABA NADA. Se escribió como red por si
+    # algún día renombran la máquina, pero sacaba sólo los ESPACIOS: el código
+    # real es «IMP-AUTO», que normalizado quedaba «imp-auto» y nunca contiene
+    # «impauto». Medido contra el catálogo: daba falso en las cuatro
+    # impresoras, incluida la que tenía que encontrar.
+    #
+    # No rompió nada —las dos filas de la autoadhesiva las agarraron las
+    # cláusulas por NOMBRE—, pero una red que no sostiene es peor que ninguna:
+    # el que la lee cree que está cubierto. Arriba se le agrega el guión.
+    #
+    # Este paso vuelve a correr el UPDATE ya corregido, porque el de arriba
+    # quedó registrado en `schema_migrations` por su descripción y no se repite
+    # solo. Es idempotente: sólo toca filas con `ficha_tipo` en NULL.
+    ("Maquinas: reintento del marcado de hoja autoadhesiva (el codigo con guion no matcheaba)",
+     "UPDATE maquinas SET ficha_tipo = 'autoadhesiva' "
+     "WHERE ficha_tipo IS NULL "
+     "AND LOWER(tipo) = 'impresion' "
+     "AND (REPLACE(LOWER(nombre), ' ', '') LIKE '%autoadhesiva%' "
+     "     OR REPLACE(LOWER(nombre), ' ', '') LIKE '%taurus%' "
+     "     OR REPLACE(REPLACE(LOWER(COALESCE(codigo, '')), ' ', ''), '-', '')"
+     "        LIKE '%impauto%')"),
 ]
 
 
