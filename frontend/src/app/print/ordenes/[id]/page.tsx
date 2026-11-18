@@ -103,22 +103,55 @@ function sinPrefijoGenerico(nombre: string): string {
  * Una ficha con la estructura de una máquina y los colores de otra es el peor
  * de los dos mundos.
  */
+/** Mínimo de caracteres para que un nombre pueda matchear por coincidencia
+ *  parcial. Ver abajo: sin esto, un nombre corto se come todas las órdenes. */
+const LARGO_MINIMO_PARA_PARCIAL = 3
+
 function hojaDeLaMaquina(maquinas: Maquina[], nombreEnLaOrden?: string | null): Hoja {
   const buscado = normalizarNombre(nombreEnLaOrden?.trim() ?? "")
   if (!buscado) return HOJA_POR_DEFECTO
-  const maquina = maquinas.find((m) => {
-    const nombre = normalizarNombre(m.nombre ?? "")
-    // `includes` en los dos sentidos: en producción la misma máquina figura
-    // como «Venus» y como «IMP-001 (Venus)», y la orden guarda cualquiera de
-    // las dos formas según cuándo se cargó.
-    return nombre === buscado || nombre.includes(buscado) || buscado.includes(nombre)
-  })
-  if (!maquina) return HOJA_POR_DEFECTO
+
+  // NOMBRES VACÍOS AFUERA, PRIMERO QUE NADA. Una máquina llamada «---» o «  »
+  // normaliza a cadena vacía, y `"loquesea".includes("")` es SIEMPRE true: esa
+  // fila matcheaba TODAS las órdenes y le dictaba la hoja a cada una.
+  // Reproducido: con una máquina así en el catálogo, una orden de Venus salía
+  // impresa como autoadhesiva.
+  const candidatas = maquinas
+    .map((m) => ({ m, nombre: normalizarNombre(m.nombre ?? "") }))
+    .filter((c) => c.nombre !== "")
+
+  // 1) NOMBRE IDÉNTICO. No hay nada que interpretar y no depende del orden en
+  //    que el backend haya devuelto el catálogo.
+  let elegida = candidatas.find((c) => c.nombre === buscado)?.m
+
+  // 2) COINCIDENCIA PARCIAL, y gana EL NOMBRE MÁS LARGO.
+  //
+  //    La parcial hace falta de verdad: en producción la misma máquina figura
+  //    como «Venus» y como «IMP-001 (Venus)», y la orden guardó una u otra
+  //    según cuándo se cargó. Pero tiene dos filos.
+  //
+  //    - Antes se tomaba la PRIMERA del array, así que quién ganaba dependía
+  //      del `ORDER BY` del backend. Ahora gana la más específica, que es una
+  //      regla del dato y no del orden en que llegó.
+  //    - Y se exige un largo mínimo: una máquina llamada «A» matchearía
+  //      cualquier orden que tenga una «a» en el nombre.
+  //
+  //    Si nada matchea se cae al default, que es la hoja de film —la que el
+  //    sistema imprimió siempre—. Equivocarse hacia el default es recuperable;
+  //    imprimir la hoja de otra máquina, no.
+  if (!elegida) {
+    elegida = candidatas
+      .filter((c) => c.nombre.length >= LARGO_MINIMO_PARA_PARCIAL)
+      .filter((c) => c.nombre.includes(buscado) || buscado.includes(c.nombre))
+      .sort((a, b) => b.nombre.length - a.nombre.length)[0]?.m
+  }
+
+  if (!elegida) return HOJA_POR_DEFECTO
   return {
-    colores: maquina.ficha_colores ?? COLORES_POR_DEFECTO,
+    colores: elegida.ficha_colores ?? COLORES_POR_DEFECTO,
     // NULL = film, que es la hoja que el sistema venía imprimiendo para todas:
     // ninguna máquina ya cargada cambia de hoja sola por culpa de esta función.
-    tipo: maquina.ficha_tipo === "autoadhesiva" ? "autoadhesiva" : "film",
+    tipo: elegida.ficha_tipo === "autoadhesiva" ? "autoadhesiva" : "film",
   }
 }
 
@@ -316,7 +349,13 @@ export default async function PrintOrdenPage({ params }: Props) {
   // renglones de color en vez de ocho.
   let maquinas: Maquina[] = []
   try {
-    maquinas = await apiFetchServer<Maquina[]>("/api/maquinas")
+    // `incluir_inactivas=true` NO es un detalle. La ficha describe una orden YA
+    // CARGADA, y la máquina en la que se hizo puede estar dada de baja hoy: el
+    // sistema la da de baja a propósito cuando tiene pases de producción,
+    // porque esa historia no se borra. Sin las inactivas, el nombre guardado
+    // deja de encontrarse, la hoja cae al default, y una orden hecha en la
+    // autoadhesiva se reimprime con una sección de extrusión que nunca tuvo.
+    maquinas = await apiFetchServer<Maquina[]>("/api/maquinas?incluir_inactivas=true")
   } catch {
     maquinas = []
   }
