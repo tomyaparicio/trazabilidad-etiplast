@@ -944,29 +944,20 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                 />
               </div>
 
-              {/* El plazo pactado con el cliente. Va acá, al lado del
-                  responsable, porque es parte del compromiso de la orden y no
-                  una fecha de producción: las `fecha_*` de etapa las llena el
-                  escaneo, ésta la carga quien toma el pedido.
+              {/* ACÁ IBA «FECHA COMPROMETIDA CON EL CLIENTE», y se sacó de la
+                  pantalla a pedido.
 
-                  Opcional a propósito: hay pedidos que entran sin plazo
-                  acordado, y obligar a inventar uno arruinaría el indicador de
-                  cumplimiento, que es justo para lo que existe el campo. */}
-              <label>
-                <span className="ficha-rotulo">Fecha comprometida con el cliente</span>
-                <Input
-                  type="date"
-                  value={form.fecha_comprometida}
-                  min={form.fecha}
-                  onChange={(e) => set("fecha_comprometida", e.target.value)}
-                  className="ficha-campo"
-                />
-                <span className="mt-1 block text-[13px] font-semibold text-[#5a5f6e]">
-                  {form.fecha_comprometida
-                    ? "Contra esta fecha se mide si el pedido salió en término."
-                    : "Sin plazo cargado la orden no entra al indicador de cumplimiento."}
-                </span>
-              </label>
+                  LO QUE SE SACÓ ES EL CAMPO, NO EL DATO. `fecha_comprometida`
+                  sigue en el estado del formulario y sigue viajando en el
+                  payload, así que editar una orden que ya tiene plazo cargado
+                  NO se lo borra. La columna, el reporte de cumplimiento de
+                  plazos y el «Entregar» de la ficha impresa quedan intactos.
+
+                  LO QUE SÍ CAMBIA: esta pantalla era el ÚNICO lugar donde el
+                  plazo se cargaba —el panel de la orden lo muestra, no lo
+                  edita—, así que las órdenes nuevas van a entrar sin plazo y
+                  el indicador de cumplimiento se queda sin datos frescos.
+                  Volver a ponerlo es descomentar un bloque. */}
             </div>
 
             <div className="mt-5">
