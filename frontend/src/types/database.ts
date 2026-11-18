@@ -29,6 +29,22 @@ export interface Maquina {
    * `null` = todavía no lo cargaron, y la ficha usa su valor por defecto.
    */
   ficha_colores: number | null
+  /**
+   * QUÉ HOJA imprime esta máquina. Distinto de `ficha_colores`, que sólo dice
+   * cuántos renglones de color dejarle: acá cambia la ESTRUCTURA de la ficha,
+   * porque el proceso no es el mismo.
+   *
+   * `"film"` — Venus y ReinaFlex. El film se EXTRUDE acá adentro, así que el
+   * paso 1 pide ancho, color, espesor y los kilos de cada bobina.
+   *
+   * `"autoadhesiva"` — el material se COMPRA en bobina (OPP blanco, papel): no
+   * hay nada que extrudar. El paso 1 pregunta qué material es y de qué ancho
+   * vino; el 2 agrega barniz y laminación; el 3 pide el troquel en alto×largo
+   * y hacia dónde se bobina.
+   *
+   * `null` = `"film"`, que es la hoja que el sistema imprimía para todas.
+   */
+  ficha_tipo: "film" | "autoadhesiva" | null
 }
 
 export interface RazonSocial {

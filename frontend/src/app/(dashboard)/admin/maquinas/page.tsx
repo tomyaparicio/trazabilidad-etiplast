@@ -25,12 +25,33 @@ interface MaquinaRow {
   activa: boolean
   /** Espacios de color de la hoja de papel de esta impresora. */
   ficha_colores: number | null
+  /** Cuál de las dos hojas de papel imprime. `null` = la de film. */
+  ficha_tipo: FichaTipo
 }
+
+type FichaTipo = "film" | "autoadhesiva" | null
 
 const TIPOS: { value: TipoMaquina; label: string }[] = [
   { value: "impresion", label: "Impresión" },
   { value: "extrusion", label: "Extrusión" },
   { value: "troquelado", label: "Troquelado" },
+]
+
+/**
+ * Las dos hojas de papel.
+ *
+ * NO es «cuántos colores»: es QUÉ HOJA, porque el proceso no es el mismo.
+ * Venus y ReinaFlex extruden el film acá adentro, así que su hoja arranca por
+ * EXTRUSIÓN. La autoadhesiva compra el material en bobina —OPP blanco, papel—
+ * y no tiene nada que extrudar: su hoja arranca por MATERIAL, suma barniz y
+ * laminación, y termina pidiendo el troquel en alto×largo y hacia dónde se
+ * bobina.
+ */
+const HOJAS: { value: Exclude<FichaTipo, null>; label: string; ayuda: string }[] = [
+  { value: "film", label: "Film (extrusión)",
+    ayuda: "Arranca por extrusión: ancho, color, espesor y kilos por bobina. Es la de Venus y ReinaFlex." },
+  { value: "autoadhesiva", label: "Autoadhesiva",
+    ayuda: "Arranca por material comprado (OPP, papel). Suma barniz y laminación, y el troquel va en alto × largo." },
 ]
 
 function labelTipo(t: string) {
@@ -56,6 +77,12 @@ function MaquinaFormDialog({
   const [colores, setColores] = useState(
     maquina?.ficha_colores != null ? String(maquina.ficha_colores) : "",
   )
+  /* `null` en la base significa «la de film», que es la que el sistema venía
+     imprimiendo para todas. Acá se muestra elegida para que el que edita VEA
+     cuál le va a salir, en vez de un desplegable en blanco que no dice nada. */
+  const [hoja, setHoja] = useState<Exclude<FichaTipo, null>>(
+    maquina?.ficha_tipo ?? "film",
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -71,12 +98,17 @@ function MaquinaFormDialog({
          que no significa nada en una troqueladora. */
       const fichaColores =
         tipo === "impresion" && colores.trim() !== "" ? Number(colores) : null
+      /* Lo mismo con la hoja: una troqueladora no imprime ninguna, así que no
+         le queda un «film» colgado que no significa nada. */
+      const fichaTipo: FichaTipo = tipo === "impresion" ? hoja : null
       if (isEdit) {
         await api.admin.maquinas.update(maquina.id, {
-          nombre: n, tipo, activa, ficha_colores: fichaColores,
+          nombre: n, tipo, activa, ficha_colores: fichaColores, ficha_tipo: fichaTipo,
         })
       } else {
-        await api.admin.maquinas.create({ nombre: n, tipo, ficha_colores: fichaColores })
+        await api.admin.maquinas.create({
+          nombre: n, tipo, ficha_colores: fichaColores, ficha_tipo: fichaTipo,
+        })
       }
       toast.success(isEdit ? "Máquina actualizada" : "Máquina creada")
       onSaved()
@@ -114,6 +146,28 @@ function MaquinaFormDialog({
               ))}
             </Select>
           </div>
+          {/* CUÁL de las dos hojas imprime. Va ANTES que los colores a
+              propósito: es la pregunta grande —qué estructura tiene la ficha—
+              y la de los colores es un detalle adentro de esa estructura. */}
+          {tipo === "impresion" && (
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+                Hoja de la orden de trabajo
+              </label>
+              <Select
+                aria-label="Hoja de la orden de trabajo"
+                value={hoja}
+                onChange={(e) => setHoja(e.target.value as Exclude<FichaTipo, null>)}
+              >
+                {HOJAS.map((h) => (
+                  <option key={h.value} value={h.value}>{h.label}</option>
+                ))}
+              </Select>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {HOJAS.find((h) => h.value === hoja)?.ayuda}
+              </p>
+            </div>
+          )}
           {/* La hoja de papel. Sólo tiene sentido en una impresora: la orden de
               trabajo de ReinaFlex trae ocho espacios de color y la de las otras
               no son iguales, así que el número vive acá —lo carga la empresa— y
@@ -341,7 +395,21 @@ export default function AdminMaquinasPage() {
     {
       key: "tipo",
       header: "Tipo",
-      cell: (r) => <span className="text-sm text-muted-foreground">{labelTipo(r.tipo)}</span>,
+      /* En las impresoras se dice también QUÉ HOJA sale, porque es el dato que
+         alguien viene a verificar acá: la ficha impresa cambia de estructura
+         según esto y, sin verlo en la lista, hay que abrir cada máquina de a
+         una para saber cuál quedó con cuál. */
+      cell: (r) => (
+        <span className="text-sm text-muted-foreground">
+          {labelTipo(r.tipo)}
+          {r.tipo === "impresion" && (
+            <span className="block text-xs text-muted-foreground/70">
+              Hoja {r.ficha_tipo === "autoadhesiva" ? "autoadhesiva" : "de film"}
+              {r.ficha_colores != null && ` · ${r.ficha_colores} colores`}
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: "activa",

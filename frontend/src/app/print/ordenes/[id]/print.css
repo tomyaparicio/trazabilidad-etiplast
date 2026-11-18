@@ -877,3 +877,71 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+/* ══ HOJA DE LA AUTOADHESIVA ═════════════════════════════════
+   Piezas que sólo existen en la hoja de esa máquina. No se
+   tocan desde la de film: ahí ni se renderizan. */
+
+/* SÍ / NO no entran en un círculo de 22 px. Píldora en vez de
+   círculo, con el mismo trazo y el mismo cuerpo de letra: se
+   marca igual con la lapicera y no desentona con los
+   circulitos numerados de al lado. */
+.ot-bob-opcion--ancha {
+  width: auto;
+  min-width: 34px;
+  border-radius: 11px;
+  padding: 0 8px;
+}
+
+/* BARNIZ · LAMINACIÓN · ANCHO encajonados, como el recuadro del
+   papel: son los acabados, se deciden juntos y se marcan de una
+   pasada. El `margin-left` que `--linea` trae para separarse del
+   título de la etapa acá sobra — adentro de la caja el que
+   reparte es el `gap`. */
+.ot-acabados {
+  display: flex;
+  align-items: center;
+  /* 16 y no 26: con el gap grande los tres no entran en los 485 px de
+     la columna —se pasan por 25— y ANCHO se caia a un segundo renglon.
+     En el papel van los tres en una sola linea. */
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 13px;
+  padding: 7px 12px;
+  border: 1.5px solid #000;
+}
+
+.ot-acabados .ot-bob-maquina--linea { margin-left: 0; }
+
+/* Los dos sentidos de bobinado, uno debajo del otro y alineados
+   a la izquierda entre sí, para que los numeritos queden en
+   columna y se comparen de un vistazo. */
+.ot-bobinados {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 2px;
+}
+
+.ot-bobinados .ot-bob-maquina--linea {
+  margin-left: 0;
+  justify-content: flex-start;
+}
+
+/* El rótulo a ancho fijo: sin esto «Bobinado int.» y «Bobinado
+   ext.» miden distinto y los circulitos de las dos filas
+   arrancan corridos. */
+.ot-bobinados .ot-bob-maquina-rot {
+  min-width: 112px;
+}
+
+/* Nombre de máquina largo: se achica en vez de partirse. El recuadro
+   mide 22 mm y «AUTOADHESIVA» no entra a 11 px — con el
+   `overflow-wrap: anywhere` del bloque de arriba salía cortado al
+   medio («AUTOADHESI / VA»), que en una hoja impresa se lee como un
+   defecto de impresión y no como un nombre. Sin letter-spacing por lo
+   mismo: a este cuerpo de letra ya separa bastante. */
+.ot-inicial-maquina--largo {
+  font-size: 9px;
+  letter-spacing: 0;
+}

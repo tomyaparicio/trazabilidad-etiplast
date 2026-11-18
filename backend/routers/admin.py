@@ -400,7 +400,8 @@ def crear_maquina(
         raise HTTPException(status_code=400, detail="nombre es requerido")
     codigo = _siguiente_codigo_maquina(db, nombre)
     m = Maquina(codigo=codigo, nombre=nombre, tipo=tipo, activa=True,
-                ficha_colores=payload.ficha_colores)
+                ficha_colores=payload.ficha_colores,
+                ficha_tipo=payload.ficha_tipo)
     db.add(m)
     db.flush()
     auditoria.registrar(db, admin, "crear", "maquina", m.id, f"Creó máquina {m.codigo} ({m.nombre})",
@@ -422,7 +423,7 @@ def actualizar_maquina(
     if not m:
         raise HTTPException(status_code=404, detail="Máquina no encontrada")
     antes = {"nombre": m.nombre, "tipo": m.tipo, "activa": m.activa,
-             "ficha_colores": m.ficha_colores}
+             "ficha_colores": m.ficha_colores, "ficha_tipo": m.ficha_tipo}
 
     datos = payload.model_dump(exclude_unset=True)
     for campo in ("nombre", "tipo"):
@@ -436,12 +437,15 @@ def actualizar_maquina(
     # dejarlo en blanco es un caso real.
     if "ficha_colores" in datos:
         m.ficha_colores = datos["ficha_colores"]
+    if "ficha_tipo" in datos:
+        m.ficha_tipo = datos["ficha_tipo"]
 
     auditoria.registrar(db, admin, "actualizar", "maquina", m.id, f"Actualizó máquina {m.codigo}",
                         datos={"antes": antes,
                                "despues": {"nombre": m.nombre, "tipo": m.tipo,
                                            "activa": m.activa,
-                                           "ficha_colores": m.ficha_colores}})
+                                           "ficha_colores": m.ficha_colores,
+                                           "ficha_tipo": m.ficha_tipo}})
     db.commit()
     db.refresh(m)
     return m.to_dict()

@@ -71,6 +71,20 @@ class Maquina(Base):
     # número y la hoja sale bien sin que nadie toque nada.
     # NULL = todavía no lo cargaron → la ficha usa su valor por defecto.
     ficha_colores = Column(Integer)
+    # QUÉ HOJA imprime esta máquina. Distinto de `ficha_colores`, que sólo dice
+    # cuántos renglones de color dejarle: acá cambia la ESTRUCTURA de la ficha,
+    # porque el proceso no es el mismo.
+    #
+    #   'film'         → Venus y ReinaFlex. El film se EXTRUDE acá adentro, así
+    #                    que el paso 1 pide ancho, color, espesor y los kilos de
+    #                    cada bobina que sale de la extrusora.
+    #   'autoadhesiva' → el material se COMPRA en bobina (OPP blanco, papel): no
+    #                    hay nada que extrudar. El paso 1 pide qué material es y
+    #                    de qué ancho vino, y el 3 pide el troquel en alto×largo
+    #                    y hacia dónde se bobina.
+    #
+    # NULL = 'film', que es la hoja que el sistema imprimía para todas.
+    ficha_tipo = Column(String(20))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def to_dict(self) -> dict:
@@ -81,4 +95,5 @@ class Maquina(Base):
             "tipo":          self.tipo,
             "activa":        self.activa,
             "ficha_colores": self.ficha_colores,
+            "ficha_tipo":    self.ficha_tipo,
         }

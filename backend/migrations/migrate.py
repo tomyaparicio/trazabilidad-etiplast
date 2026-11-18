@@ -1246,6 +1246,38 @@ MIGRATIONS_MAQUINA_FICHA_COLORES = [
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Qué HOJA imprime cada máquina (no cuántos colores: cuál hoja)
+# ──────────────────────────────────────────────────────────────────────────────
+# `ficha_colores` alcanzaba mientras las tres hojas eran la misma con más o
+# menos renglones de color. No lo son: la de la AUTOADHESIVA es otra hoja,
+# porque es otro proceso. Venus y ReinaFlex EXTRUDEN el film acá adentro —el
+# paso 1 pide ancho, color, espesor y los kilos de cada bobina que sale de la
+# extrusora—; la autoadhesiva COMPRA el material en bobina (OPP blanco, papel)
+# y no tiene nada que extrudar: su paso 1 pregunta qué material es y de qué
+# ancho vino. El 2 agrega barniz y laminación, y el 3 pide el troquel en
+# alto×largo y hacia dónde se bobina.
+#
+# Imprimirle a esa máquina la hoja de film le pone al operario una sección de
+# extrusión entera que no aplica.
+#
+# Se siembran las DOS filas de la autoadhesiva: está cargada dos veces en el
+# catálogo —«Impresora Autoadhesiva» (IMP-AUTO) y «Taurus»— y el dueño confirmó
+# que son la misma máquina. NULL = 'film', que es la hoja que el sistema venía
+# imprimiendo para todas, así que Venus y ReinaFlex no se tocan.
+MIGRATIONS_MAQUINA_FICHA_TIPO = [
+    ("Maquinas: Agregar que hoja de papel imprime cada maquina",
+     "ALTER TABLE maquinas ADD COLUMN IF NOT EXISTS ficha_tipo VARCHAR(20)"),
+    ("Maquinas: la autoadhesiva (y Taurus, que es la misma) usan su propia hoja",
+     "UPDATE maquinas SET ficha_tipo = 'autoadhesiva' "
+     "WHERE ficha_tipo IS NULL "
+     "AND LOWER(tipo) = 'impresion' "
+     "AND (REPLACE(LOWER(nombre), ' ', '') LIKE '%autoadhesiva%' "
+     "     OR REPLACE(LOWER(nombre), ' ', '') LIKE '%taurus%' "
+     "     OR REPLACE(LOWER(COALESCE(codigo, '')), ' ', '') LIKE '%impauto%')"),
+]
+
+
 MIGRATIONS_OT_MAQUINA_IMPRESION = [
     ("OT: Agregar máquina de impresión a ordenes_trabajo",
      "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS impresion_maquina VARCHAR(100)"),
@@ -1515,7 +1547,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER + MIGRATIONS_COBRANZAS + MIGRATIONS_MAQUINA_FICHA_COLORES
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER + MIGRATIONS_COBRANZAS + MIGRATIONS_MAQUINA_FICHA_COLORES + MIGRATIONS_MAQUINA_FICHA_TIPO
 
     aplicadas = 0
     salteadas = 0

@@ -21,12 +21,36 @@ interface Props { params: Promise<{ id: string }> }
  * cuatro, y la ficha del sistema imprimía seis para todas. Un trabajo de siete
  * u ocho colores no entraba en el papel.
  *
- * El número sale del CATÁLOGO, no de un `if` con nombres de máquina adentro.
- * `ordenes_trabajo.impresion_maquina` guarda el nombre como texto suelto —no
- * hay FK— así que se cruza por nombre normalizado, que es lo mismo que ya hace
- * el selector de máquina del alta.
+ *  2. QUÉ ESTRUCTURA, que es más grave. La hoja de la AUTOADHESIVA es otra
+ *     hoja, porque es otro proceso. Venus y ReinaFlex EXTRUDEN el film acá
+ *     adentro, así que su paso 1 pide ancho, color, espesor y los kilos de
+ *     cada bobina que sale de la extrusora. La autoadhesiva COMPRA el material
+ *     en bobina —OPP blanco, papel— y no tiene nada que extrudar: su paso 1
+ *     pregunta qué material es y de qué ancho vino, el 2 suma barniz y
+ *     laminación, y el 3 pide el troquel en alto×largo y hacia dónde se
+ *     bobina. Imprimirle a esa máquina la hoja de film le pone al operario una
+ *     sección de extrusión entera que no aplica.
+ *
+ * LOS DOS DATOS SALEN DEL CATÁLOGO, no de un `if` con nombres de máquina
+ * adentro: hardcodear `{"ReinaFlex": 8}` se rompe en silencio la primera vez
+ * que alguien renombra una impresora o carga una nueva, y nadie se entera
+ * hasta que la hoja sale impresa. `ordenes_trabajo.impresion_maquina` guarda
+ * el nombre como texto suelto —no hay FK— así que se cruza por nombre
+ * normalizado, que es lo mismo que ya hace el selector de máquina del alta.
  */
 const COLORES_POR_DEFECTO = 6
+
+type HojaTipo = "film" | "autoadhesiva"
+
+interface Hoja {
+  /** Cuántos renglones de color dejarle al operario. */
+  colores: number
+  /** Qué estructura tiene la ficha. `"film"` es la de siempre. */
+  tipo: HojaTipo
+}
+
+/** La hoja de una máquina que el catálogo no conoce: la de siempre. */
+const HOJA_POR_DEFECTO: Hoja = { colores: COLORES_POR_DEFECTO, tipo: "film" }
 
 function normalizarNombre(texto: string): string {
   return texto
@@ -36,9 +60,51 @@ function normalizarNombre(texto: string): string {
     .replace(/[^a-z0-9]/g, "")
 }
 
-function coloresDeLaHoja(maquinas: Maquina[], nombreEnLaOrden?: string | null): number {
+/**
+ * Le saca al nombre de la máquina el sustantivo genérico de adelante.
+ *
+ * «Impresora Autoadhesiva» se llama así en el catálogo, pero lo que la
+ * identifica es AUTOADHESIVA: «Impresora» lo son todas. Sin esto, el recuadro
+ * del filo izquierdo —que existe para que el operario vea de lejos si la orden
+ * es para SU máquina— le imprimía una «I» que no distingue nada, con el nombre
+ * cortado al medio abajo («IMPRESORA AUTOADHESI / VA») porque no entra.
+ *
+ * Se recorta el NOMBRE, no sólo la letra, para que la inicial siga sin poder
+ * contradecir al nombre que está impreso justo debajo: dicen los dos lo mismo.
+ *
+ * Sólo si queda algo: una máquina que se llame nada más que «Impresora» sigue
+ * saliendo entera, porque ahí el genérico es todo lo que hay.
+ */
+/* Ya normalizados —sin tildes ni puntuación—, que es con lo que se comparan:
+   poner «máquina» acá no serviría de nada, nunca igualaría. */
+const GENERICOS = ["impresora", "imp", "maquina"]
+
+function sinPrefijoGenerico(nombre: string): string {
+  const limpio = nombre.trim()
+  const palabras = limpio.split(/\s+/)
+  if (palabras.length < 2) return limpio
+  if (!GENERICOS.includes(normalizarNombre(palabras[0]))) return limpio
+  const resto = palabras.slice(1).join(" ")
+  // SÓLO SI LO QUE QUEDA TIENE LETRAS. Una máquina que se llame «Máquina 3»
+  // quedaría como «3», con un «3» gigante en el recuadro: la inicial existe
+  // para distinguirse por FORMA y un número suelto no nombra nada. Ahí vale
+  // más el nombre entero, aunque empiece por el genérico.
+  return /[a-z]/i.test(normalizarNombre(resto)) ? resto : limpio
+}
+
+/**
+ * Resuelve la máquina UNA sola vez y devuelve las dos cosas juntas.
+ *
+ * Juntas y no en dos funciones a propósito: son dos preguntas sobre la MISMA
+ * máquina, y dos búsquedas separadas pueden dar con filas distintas si el
+ * catálogo tiene la misma impresora cargada dos veces —que es exactamente el
+ * caso: la autoadhesiva figura como «Impresora Autoadhesiva» y como «Taurus»—.
+ * Una ficha con la estructura de una máquina y los colores de otra es el peor
+ * de los dos mundos.
+ */
+function hojaDeLaMaquina(maquinas: Maquina[], nombreEnLaOrden?: string | null): Hoja {
   const buscado = normalizarNombre(nombreEnLaOrden?.trim() ?? "")
-  if (!buscado) return COLORES_POR_DEFECTO
+  if (!buscado) return HOJA_POR_DEFECTO
   const maquina = maquinas.find((m) => {
     const nombre = normalizarNombre(m.nombre ?? "")
     // `includes` en los dos sentidos: en producción la misma máquina figura
@@ -46,7 +112,13 @@ function coloresDeLaHoja(maquinas: Maquina[], nombreEnLaOrden?: string | null): 
     // las dos formas según cuándo se cargó.
     return nombre === buscado || nombre.includes(buscado) || buscado.includes(nombre)
   })
-  return maquina?.ficha_colores ?? COLORES_POR_DEFECTO
+  if (!maquina) return HOJA_POR_DEFECTO
+  return {
+    colores: maquina.ficha_colores ?? COLORES_POR_DEFECTO,
+    // NULL = film, que es la hoja que el sistema venía imprimiendo para todas:
+    // ninguna máquina ya cargada cambia de hoja sola por culpa de esta función.
+    tipo: maquina.ficha_tipo === "autoadhesiva" ? "autoadhesiva" : "film",
+  }
 }
 
 /**
@@ -127,6 +199,31 @@ function FechaVacia({ label }: { label: string }) {
       <span className="ot-fecha-vacia">
         <i /><span>/</span><i /><span>/</span><i />
       </span>
+    </span>
+  )
+}
+
+/**
+ * Rótulo + opciones para marcar con lapicera, como los circulitos del papel.
+ *
+ * Es el mismo gesto que «MÁQUINA ① ② ③ ④» de troquelado: el sistema no guarda
+ * el dato, lo decide el que está parado en la máquina, y la hoja le deja dónde
+ * marcarlo. `ancha` es para las que llevan palabra y no un número —SÍ / NO—,
+ * que en un círculo de 22 px no entran.
+ */
+function Marcar({ label, opciones, ancha }: {
+  label: string
+  opciones: string[]
+  ancha?: boolean
+}) {
+  return (
+    <span className="ot-bob-maquina ot-bob-maquina--linea">
+      <span className="ot-bob-maquina-rot">{label}</span>
+      {opciones.map((o) => (
+        <span key={o} className={`ot-bob-opcion${ancha ? " ot-bob-opcion--ancha" : ""}`}>
+          {o}
+        </span>
+      ))}
     </span>
   )
 }
@@ -226,7 +323,8 @@ export default async function PrintOrdenPage({ params }: Props) {
   // Los colores los escribe A MANO el operario en la máquina: el alta no los
   // pide y acá salen en blanco. Lo que cambia por máquina es CUÁNTOS renglones
   // hay que dejarle.
-  const cantidadColores = coloresDeLaHoja(maquinas, orden.impresion_maquina)
+  const hoja = hojaDeLaMaquina(maquinas, orden.impresion_maquina)
+  const cantidadColores = hoja.colores
   const colores   = Array.from({ length: cantidadColores }, (_, i) => orden.impresion_colores?.[i] ?? "")
   // Siempre DOS FILAS, como el papel: seis salen 3+3 y ocho salen 4+4. Un
   // número fijo de columnas dejaría los ocho en 3+3+2, con la última fila
@@ -263,7 +361,9 @@ export default async function PrintOrdenPage({ params }: Props) {
   const maquinaRaw    = orden.impresion_maquina?.trim() ?? ""
   const maquinaPartes = maquinaRaw.match(/^(.*?)\s*\(([^)]+)\)\s*$/)
   const maquinaCodigo = maquinaPartes ? maquinaPartes[1] : ""
-  const maquinaNombre = maquinaPartes ? maquinaPartes[2] : maquinaRaw
+  // Sin el «Impresora» de adelante: lo que identifica a la máquina es lo que
+  // viene después, y es de donde sale la letra grande del filo izquierdo.
+  const maquinaNombre = sinPrefijoGenerico(maquinaPartes ? maquinaPartes[2] : maquinaRaw)
 
   // La INICIAL de la máquina, gigante contra el filo izquierdo de la hoja.
   //
@@ -329,7 +429,12 @@ export default async function PrintOrdenPage({ params }: Props) {
                     diría «V» sin que signifique nada. El nombre sí se lee. */}
                 <span className="ot-inicial-letra" aria-hidden="true">{inicialMaquina}</span>
                 {maquinaNombre && (
-                  <span className="ot-inicial-maquina">
+                  /* Los nombres largos se achican en vez de partirse al medio:
+                     el recuadro mide 22 mm y «AUTOADHESIVA» no entra a 11 px,
+                     así que `overflow-wrap: anywhere` lo cortaba como
+                     «AUTOADHESI / VA». Un corte al medio de la palabra en una
+                     hoja impresa se lee como un defecto de impresión. */
+                  <span className={`ot-inicial-maquina${maquinaNombre.length > 9 ? " ot-inicial-maquina--largo" : ""}`}>
                     {maquinaNombre}
                     {maquinaCodigo && <small>{maquinaCodigo}</small>}
                   </span>
@@ -408,6 +513,176 @@ export default async function PrintOrdenPage({ params }: Props) {
           <div className="ot-sep" />
 
           <div className="ot-cuerpo">
+
+          {/* ╔══════════════════════════════════════════════════════════════╗
+              ║  LA HOJA DE LA AUTOADHESIVA                                  ║
+              ╚══════════════════════════════════════════════════════════════╝
+              No es la de abajo con otra cantidad de colores: es OTRA HOJA,
+              porque es otro proceso. Esta máquina no extrude nada — el
+              material se compra en bobina (OPP blanco, papel), así que el
+              paso 1 no pregunta ancho/color/espesor ni kilos por bobina:
+              pregunta QUÉ material vino y de qué ancho.
+
+              CASI TODO SALE EN BLANCO, y está bien: en el papel de la empresa
+              también está en blanco. El tipo de material, el barniz, la
+              laminación y el bobinado los decide y los escribe el que está
+              parado en la máquina; el sistema no los guarda en ninguna
+              columna, y una ficha que los inventara sería peor que una vacía.
+              Lo que el sistema SÍ sabe —cliente, producto, número de orden,
+              fecha, cantidad y el alto del troquel— sale impreso. */}
+          {hoja.tipo === "autoadhesiva" ? (
+            <>
+
+            {/* ═══ ① MATERIAL ═══ */}
+            <div className="ot-etapa">
+              <div className="ot-etapa-head">
+                <span className="ot-paso-num">1</span>
+                <span className="ot-paso-title">Material</span>
+              </div>
+              {/* Las tres celdas del papel, en blanco: el material lo elige el
+                  depósito según lo que haya en stock, y recién ahí se sabe de
+                  qué ancho vino la bobina. */}
+              <Caja
+                ancho={520}
+                campos={[
+                  { label: "Tipo", value: "", flex: 1.4, texto: true },
+                  { label: "Ancho bobina", value: "", flex: 1 },
+                  { label: "Mts bobina", value: "", flex: 1 },
+                ]}
+              />
+              <Observaciones value={orden.extrusion_observaciones} />
+            </div>
+
+            <div className="ot-sep" />
+
+            {/* ═══ ② IMPRESIÓN ═══ */}
+            <div className="ot-etapa">
+              <div style={{ display: "flex", gap: 22, alignItems: "flex-start" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9, width: 196 }}>
+                  <div className="ot-etapa-head">
+                    <span className="ot-paso-num">2</span>
+                    <span className="ot-paso-title">Impresión</span>
+                  </div>
+                  {/* El papel de esta máquina NO trae operario ni fecha. Acá
+                      van igual, y es la única cosa que esta ficha agrega al
+                      papel a propósito: saber QUIÉN hizo cada paso es la
+                      trazabilidad, que es para lo que existe el sistema. Son
+                      dos rayas en blanco; no cuestan nada y cierran un hueco
+                      que el papel tiene. */}
+                  <Mano label="Operario" />
+                  <FechaVacia label="Fecha imp" />
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  {/* Sin cilindro: la autoadhesiva no imprime con cilindro
+                      grabado como la flexo de film. En el papel de esta
+                      máquina ese recuadro no existe. */}
+                  <span className="ot-mano-rotulo" style={{ display: "block", marginBottom: 5 }}>Colores</span>
+                  <div
+                    className="ot-colores"
+                    style={{ gridTemplateColumns: `repeat(${columnasColores}, 1fr)` }}
+                  >
+                    {colores.map((c, i) => (
+                      <span key={i} className="ot-color">
+                        <span className="ot-color-num">{i + 1}.</span>
+                        <span className="ot-color-raya">{c}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* BARNIZ · LAMINACIÓN · ANCHO, encajonados como en el papel: son
+                  los acabados, se deciden juntos y se marcan de una pasada.
+                  AFUERA de la columna de los colores y a todo el ancho de la
+                  etapa, que es como está en la hoja — adentro de la columna
+                  quedaban 458 px para 478 de contenido y ANCHO se caía a un
+                  segundo renglón. */}
+              <div className="ot-acabados">
+                <Marcar label="Barniz" opciones={["Sí", "No"]} ancha />
+                <Marcar label="Laminación" opciones={["Sí", "No"]} ancha />
+                <Mano label="Ancho" ancho={96} />
+              </div>
+
+              <Observaciones value={orden.impresion_observaciones} />
+            </div>
+
+            <div className="ot-sep" />
+
+            {/* ═══ ③ TROQUELADO ═══ */}
+            <div className="ot-etapa">
+              <div className="ot-etapa-head">
+                <span className="ot-paso-num">3</span>
+                <span className="ot-paso-title">Troquelado</span>
+                <span className="ot-etapa-head-der">
+                  <Mano label="Operario" ancho={92} />
+                  <FechaVacia label="Fecha troq" />
+                </span>
+              </div>
+
+              <div style={{ display: "flex", gap: 26, alignItems: "flex-start" }}>
+                {/* EL TROQUEL VA EN ALTO × LARGO, no en alto/cierre/envase: acá
+                    no hay envase que abrazar — es una etiqueta plana pegada.
+                    El ALTO sale de la ficha del producto; el LARGO el sistema
+                    no lo guarda en ninguna columna, así que queda en blanco
+                    como en el papel. */}
+                <Caja
+                  ancho={320}
+                  campos={[
+                    { label: "Troquel · alto", value: orden.troquelado_alto != null ? `${fmt(orden.troquelado_alto)} cm` : "", flex: 1 },
+                    { label: "Troquel · largo", value: "", flex: 1 },
+                  ]}
+                />
+                {/* HACIA DÓNDE SE BOBINA. El papel lo resuelve con ocho
+                    dibujitos de rollo —cuatro por sentido— porque la dirección
+                    es algo que se ve, no que se lee. Acá van numeradas 1 a 4 en
+                    cada sentido: reproducir los dibujos de memoria y errarle a
+                    uno es peor que numerarlos, porque una tirada bobinada al
+                    revés se tira entera. */}
+                <div className="ot-bobinados">
+                  <Marcar label="Bobinado int." opciones={["1", "2", "3", "4"]} />
+                  <Marcar label="Bobinado ext." opciones={["1", "2", "3", "4"]} />
+                </div>
+              </div>
+
+              <Observaciones value={orden.troquelado_observaciones} />
+            </div>
+
+            {/* ═══ PIE ═══
+                El papel de esta máquina cierra con CANTIDAD · TOTAL FINAL y
+                METROS · METROS FINAL. Los metros van EN BLANCO: la columna que
+                el sistema tiene es `extrusion_metros`, que es la cuenta del
+                film a extrudar —cantidad × alto— y acá no describe nada, porque
+                en autoadhesiva entran varias etiquetas a lo ancho de la banda y
+                los metros lineales no son ese número. Imprimir un número que no
+                es el que el operario necesita es peor que dejarle la raya. */}
+            <div className="ot-pie">
+              <span className="ot-pie-dato">
+                <span className="ot-pie-rotulo">Cantidad</span>
+                <span className="ot-pie-valor">
+                  {orden.cantidad != null ? fmt(orden.cantidad, 0) : " "}
+                </span>
+              </span>
+              <span className="ot-pie-dato">
+                <span className="ot-pie-rotulo">Total final</span>
+                <span className="ot-pie-valor">&nbsp;</span>
+              </span>
+            </div>
+
+            <div className="ot-pie ot-pie--mano">
+              <span className="ot-pie-dato">
+                <span className="ot-pie-rotulo">Metros</span>
+                <span className="ot-pie-valor">&nbsp;</span>
+              </span>
+              <span className="ot-pie-dato">
+                <span className="ot-pie-rotulo">Metros final</span>
+                <span className="ot-pie-valor">&nbsp;</span>
+              </span>
+            </div>
+
+            </>
+          ) : (
+            <>
 
             {/* ═══ ① EXTRUSIÓN ═══ */}
             <div className="ot-etapa">
@@ -636,6 +911,9 @@ export default async function PrintOrdenPage({ params }: Props) {
                 <span className="ot-pie-valor">&nbsp;</span>
               </span>
             </div>
+
+            </>
+          )}
 
           </div>{/* /ot-cuerpo */}
 
