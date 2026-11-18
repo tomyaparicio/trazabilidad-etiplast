@@ -1,6 +1,7 @@
 /**
  * Página de impresión / PDF — Orden de Trabajo  v2
  */
+import type { Metadata } from "next"
 import { apiFetchServer } from "@/lib/api/server"
 import { nombreDeProducto } from "@/lib/producto"
 import type { Maquina, OrdenTrabajo } from "@/lib/api/types"
@@ -274,6 +275,31 @@ function formulacionAporta(
   return resto !== ""
 }
 
+/**
+ * El título de la pestaña, que NO es decoración: cuando el operario hace
+ * «Imprimir → Guardar como PDF», el navegador usa el título del documento como
+ * NOMBRE DEL ARCHIVO. «OT-0004 — Etiplast.pdf» se archiva; «Etiplast ERP.pdf»
+ * se pierde entre otros veinte iguales.
+ *
+ * Antes salía de un `<title>` escrito a mano adentro de un `<head>` propio.
+ * Eso ya no existe —ver el comentario de abajo—, así que va por la API de
+ * metadata de Next, que es la que corresponde. El fetch no se duplica: Next
+ * memoiza por request las llamadas idénticas a `fetch`, y ésta es la misma URL
+ * que pide la página.
+ *
+ * Si la orden no se puede leer, el título no puede inventarse un número: se
+ * cae al genérico y que la página decida el 404.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params
+  try {
+    const orden = await apiFetchServer<OrdenTrabajo>(`/api/ordenes/${id}`)
+    return { title: `${orden.numero} — Etiplast` }
+  } catch {
+    return { title: "Orden de trabajo — Etiplast" }
+  }
+}
+
 export default async function PrintOrdenPage({ params }: Props) {
   const { id } = await params
 
@@ -396,15 +422,28 @@ export default async function PrintOrdenPage({ params }: Props) {
   const muestra = orden.producto_muestra?.trim().toUpperCase() ?? ""
   const muestraMal = muestra !== "" && muestra !== "OK"
 
+  /* ESTA PÁGINA YA NO RENDERIZA SU PROPIO <html>/<body>.
+   *
+   * Lo hacía, y el layout raíz de Next TAMBIÉN: dos <html> y dos <body>
+   * anidados. React los colapsa en uno solo y los atributos chocan, así que
+   * cada carga tiraba «A tree hydrated but some attributes of the server
+   * rendered HTML didn't match the client properties. This won't be patched
+   * up» y el HTML quedaba inválido.
+   *
+   * No era un warning decorativo: el <body> real terminaba con las clases de
+   * la app y la clase `.ot-body` de esta hoja NUNCA llegaba. Por eso el estilo
+   * de la ficha había tenido que mudarse entero a `.ot-page` —si no, el texto
+   * salía casi blanco sobre blanco al imprimir—. Era un parche sobre el
+   * síntoma; esto saca la causa.
+   *
+   * En el App Router SÓLO el layout raíz puede renderizar <html>/<body>; una
+   * página no, ni con un layout propio en el medio. El fondo gris de pantalla,
+   * que antes vivía en `.ot-body`, ahora lo pinta `.ot-fondo`, que es un div
+   * normal y sí existe. El <title> se fue a `generateMetadata`, arriba.
+   */
   return (
-    <html lang="es">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{`OT ${orden.numero} — Etiplast`}</title>
-      </head>
-      <body className="ot-body">
-        <div className="ot-page">
+    <div className="ot-fondo">
+      <div className="ot-page">
 
           {/* ══════════════════ CABECERA ══════════════════
               Logo · ORDEN DE TRABAJO / MÁQUINA · número, fecha y QR.
@@ -917,11 +956,9 @@ export default async function PrintOrdenPage({ params }: Props) {
 
           </div>{/* /ot-cuerpo */}
 
-        </div>{/* /ot-page */}
+      </div>{/* /ot-page */}
 
-        <PrintButtons />
-
-      </body>
-    </html>
+      <PrintButtons />
+    </div>
   )
 }

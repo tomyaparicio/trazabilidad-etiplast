@@ -27,14 +27,25 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* OJO: la clase `.ot-body` NO llega al <body>.
-   Esta página renderiza su propio <html>/<body>, pero el layout raíz de Next
-   también, y gana el del layout: el <body> real termina con las clases de la
-   app (`font-sans antialiased`) y el tema oscuro del dashboard. Por eso la
-   tipografía y el color de la ficha viven en `.ot-page`, que sí existe.
-   Dejarlos acá hacía que el texto se imprimiera casi blanco sobre blanco. */
-.ot-body {
+/* ══ EL FONDO DE PANTALLA ════════════════════════════════════
+   El gris sobre el que "flota" la hoja, como la vista previa de
+   un documento. Es un DIV, no el <body>.
+
+   Antes esto era `.ot-body` y no se aplicaba nunca: la página
+   renderizaba su propio <html>/<body> adentro de los del layout
+   raíz de Next, React los colapsaba en uno y ganaban los del
+   layout. De ahí salía el error de hidratación en cada carga, y
+   por eso la tipografía y el color de la ficha habían tenido que
+   mudarse a `.ot-page` —acá no llegaban y el texto se imprimía
+   casi blanco sobre blanco—.
+
+   Ya no: la página no renderiza <html>/<body> y esta clase vive
+   en un div propio, así que lo que se declara acá se aplica.
+   `min-height: 100vh` para que el gris cubra la pantalla aunque
+   la hoja sea más corta que la ventana. */
+.ot-fondo {
   background: #d1d5db;
+  min-height: 100vh;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
@@ -832,7 +843,13 @@
 /* ══ IMPRESIÓN ═══════════════════════════════════════════════ */
 @media print {
   @page { size: A4 portrait; margin: 0; }
-  .ot-body { background: #fff; }
+  /* El <body> ya NO es de esta pagina: es el del layout raiz, con el tema
+     de la app (fondo oscuro, texto claro). En pantalla queda tapado por
+     `.ot-fondo`, pero si el operario tilda «graficos de fondo» en el
+     dialogo de impresion, ese oscuro podria llegar al papel. Se fuerza
+     blanco y negro: la hoja va a una impresora laser de planta. */
+  html, body { background: #fff !important; color: #000 !important; }
+  .ot-fondo { background: #fff; min-height: 0; }
   .ot-page {
     width: 100%;
     min-height: 100vh;
