@@ -62,13 +62,23 @@ class Maquina(Base):
     nombre     = Column(String(200), nullable=False)
     tipo       = Column(String(50))   # 'extrusion' | 'troquelado' | 'impresion'
     activa     = Column(Boolean, default=True)
+    # Cuántos espacios de color tiene la ORDEN DE TRABAJO EN PAPEL de esta
+    # impresora. La empresa no tiene una hoja: tiene una por máquina, y no son
+    # iguales — la de ReinaFlex trae ocho (1 a 8, dos filas de cuatro) y el
+    # sistema imprimía seis para todas, así que un trabajo de siete u ocho
+    # colores no entraba. Vive acá y no en el código de la ficha porque el
+    # catálogo lo edita la empresa: si mañana cargan otra impresora, le ponen su
+    # número y la hoja sale bien sin que nadie toque nada.
+    # NULL = todavía no lo cargaron → la ficha usa su valor por defecto.
+    ficha_colores = Column(Integer)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def to_dict(self) -> dict:
         return {
-            "id":     self.id,
-            "codigo": self.codigo,
-            "nombre": self.nombre,
-            "tipo":   self.tipo,
-            "activa": self.activa,
+            "id":            self.id,
+            "codigo":        self.codigo,
+            "nombre":        self.nombre,
+            "tipo":          self.tipo,
+            "activa":        self.activa,
+            "ficha_colores": self.ficha_colores,
         }

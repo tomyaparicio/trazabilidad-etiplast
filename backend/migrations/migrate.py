@@ -1223,6 +1223,29 @@ MIGRATIONS_OT_TROQUELADO_CIERRE = [
 ]
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Cuántos colores entran en la hoja de papel de cada impresora
+# ──────────────────────────────────────────────────────────────────────────────
+# La empresa tiene UNA orden de trabajo en papel POR IMPRESORA. Son casi
+# idénticas, pero la de ReinaFlex trae OCHO espacios de color y la ficha del
+# sistema imprimía seis para todas: un trabajo de siete u ocho colores no
+# entraba. El número vive en el catálogo —editable desde Administración— y no
+# hardcodeado en la ficha, así una impresora nueva o renombrada no deja la hoja
+# mintiendo hasta que alguien toque el código.
+#
+# NULL = no lo cargaron todavía → la ficha usa su default. Se siembra sólo
+# ReinaFlex porque es la única hoja que está confirmada contra el papel; las
+# otras las carga la empresa cuando se miren las suyas.
+MIGRATIONS_MAQUINA_FICHA_COLORES = [
+    ("Maquinas: Agregar colores de la hoja de papel",
+     "ALTER TABLE maquinas ADD COLUMN IF NOT EXISTS ficha_colores INTEGER"),
+    ("Maquinas: ReinaFlex imprime 8 colores en su hoja",
+     "UPDATE maquinas SET ficha_colores = 8 "
+     "WHERE ficha_colores IS NULL "
+     "AND REPLACE(LOWER(nombre), ' ', '') LIKE '%reinaflex%'"),
+]
+
+
 MIGRATIONS_OT_MAQUINA_IMPRESION = [
     ("OT: Agregar máquina de impresión a ordenes_trabajo",
      "ALTER TABLE ordenes_trabajo ADD COLUMN IF NOT EXISTS impresion_maquina VARCHAR(100)"),
@@ -1492,7 +1515,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER + MIGRATIONS_COBRANZAS
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER + MIGRATIONS_COBRANZAS + MIGRATIONS_MAQUINA_FICHA_COLORES
 
     aplicadas = 0
     salteadas = 0

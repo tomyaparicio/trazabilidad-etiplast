@@ -23,6 +23,8 @@ interface MaquinaRow {
   nombre: string
   tipo: string
   activa: boolean
+  /** Espacios de color de la hoja de papel de esta impresora. */
+  ficha_colores: number | null
 }
 
 const TIPOS: { value: TipoMaquina; label: string }[] = [
@@ -49,6 +51,11 @@ function MaquinaFormDialog({
   const [nombre, setNombre] = useState(maquina?.nombre ?? "")
   const [tipo, setTipo] = useState<TipoMaquina>((maquina?.tipo as TipoMaquina) || "impresion")
   const [activa, setActiva] = useState(maquina?.activa ?? true)
+  /* Texto y no number: vacío tiene que poder distinguirse de 0, y un `number`
+     controlado convierte "" en NaN apenas se borra el último dígito. */
+  const [colores, setColores] = useState(
+    maquina?.ficha_colores != null ? String(maquina.ficha_colores) : "",
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -59,10 +66,17 @@ function MaquinaFormDialog({
     setLoading(true)
     setError("")
     try {
+      /* Sólo las impresoras tienen hoja con colores. Si alguien cambia el tipo
+         a extrusión, el número se manda en null para no dejar un dato colgado
+         que no significa nada en una troqueladora. */
+      const fichaColores =
+        tipo === "impresion" && colores.trim() !== "" ? Number(colores) : null
       if (isEdit) {
-        await api.admin.maquinas.update(maquina.id, { nombre: n, tipo, activa })
+        await api.admin.maquinas.update(maquina.id, {
+          nombre: n, tipo, activa, ficha_colores: fichaColores,
+        })
       } else {
-        await api.admin.maquinas.create({ nombre: n, tipo })
+        await api.admin.maquinas.create({ nombre: n, tipo, ficha_colores: fichaColores })
       }
       toast.success(isEdit ? "Máquina actualizada" : "Máquina creada")
       onSaved()
@@ -100,6 +114,26 @@ function MaquinaFormDialog({
               ))}
             </Select>
           </div>
+          {/* La hoja de papel. Sólo tiene sentido en una impresora: la orden de
+              trabajo de ReinaFlex trae ocho espacios de color y la de las otras
+              no son iguales, así que el número vive acá —lo carga la empresa— y
+              la ficha impresa lo lee. Vacío = la ficha usa su valor por defecto. */}
+          {tipo === "impresion" && (
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+                Colores de la hoja
+              </label>
+              <Input
+                type="number" min={1} max={12} placeholder="Ej. 8"
+                value={colores}
+                onChange={(e) => setColores(e.target.value)}
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Cuántos espacios de color trae la orden de trabajo impresa de esta
+                máquina. Si se deja vacío, la ficha usa 6.
+              </p>
+            </div>
+          )}
           {isEdit && (
             <label className="flex items-center gap-2 cursor-pointer text-sm">
               <input type="checkbox" checked={activa} onChange={(e) => setActiva(e.target.checked)} className="rounded border-border" />

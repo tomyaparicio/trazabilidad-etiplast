@@ -3,7 +3,7 @@
  */
 import { apiFetchServer } from "@/lib/api/server"
 import { nombreDeProducto } from "@/lib/producto"
-import type { OrdenTrabajo } from "@/lib/api/types"
+import type { Maquina, OrdenTrabajo } from "@/lib/api/types"
 import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import QRCode from "qrcode"
@@ -11,6 +11,43 @@ import { PrintButtons } from "./print-buttons"
 import "./print.css"
 
 interface Props { params: Promise<{ id: string }> }
+
+/**
+ * Cuántos espacios de color trae la hoja de papel de esta impresora.
+ *
+ * LA EMPRESA NO TIENE UNA ORDEN DE TRABAJO: TIENE UNA POR MÁQUINA. Son casi
+ * la misma hoja —mismas tres etapas, mismas tablas— pero no idénticas: la de
+ * ReinaFlex trae OCHO espacios de color, numerados 1 a 8 en dos filas de
+ * cuatro, y la ficha del sistema imprimía seis para todas. Un trabajo de siete
+ * u ocho colores no entraba en el papel.
+ *
+ * El número sale del CATÁLOGO, no de un `if` con nombres de máquina adentro.
+ * `ordenes_trabajo.impresion_maquina` guarda el nombre como texto suelto —no
+ * hay FK— así que se cruza por nombre normalizado, que es lo mismo que ya hace
+ * el selector de máquina del alta.
+ */
+const COLORES_POR_DEFECTO = 6
+
+function normalizarNombre(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "")
+}
+
+function coloresDeLaHoja(maquinas: Maquina[], nombreEnLaOrden?: string | null): number {
+  const buscado = normalizarNombre(nombreEnLaOrden?.trim() ?? "")
+  if (!buscado) return COLORES_POR_DEFECTO
+  const maquina = maquinas.find((m) => {
+    const nombre = normalizarNombre(m.nombre ?? "")
+    // `includes` en los dos sentidos: en producción la misma máquina figura
+    // como «Venus» y como «IMP-001 (Venus)», y la orden guarda cualquiera de
+    // las dos formas según cuándo se cargó.
+    return nombre === buscado || nombre.includes(buscado) || buscado.includes(nombre)
+  })
+  return maquina?.ficha_colores ?? COLORES_POR_DEFECTO
+}
 
 /**
  * De dónde sale la URL que lleva el QR.
@@ -150,6 +187,17 @@ export default async function PrintOrdenPage({ params }: Props) {
     return notFound()
   }
 
+  // El catálogo de máquinas, para saber cómo es la hoja de ESTA impresora.
+  // Si no se puede leer, la ficha sale igual con el default: una orden que no
+  // se imprime porque el catálogo no contestó es peor que una con seis
+  // renglones de color en vez de ocho.
+  let maquinas: Maquina[] = []
+  try {
+    maquinas = await apiFetchServer<Maquina[]>("/api/maquinas")
+  } catch {
+    maquinas = []
+  }
+
   // UN solo QR para toda la orden. Tres (uno por sección) era ensuciar la hoja
   // para ahorrarle un toque al operario: la pantalla le pregunta qué paso va a
   // hacer y listo.
@@ -175,7 +223,15 @@ export default async function PrintOrdenPage({ params }: Props) {
     color: { dark: "#000000", light: "#ffffff" },
   })
 
-  const colores   = Array.from({ length: 6 }, (_, i) => orden.impresion_colores?.[i] ?? "")
+  // Los colores los escribe A MANO el operario en la máquina: el alta no los
+  // pide y acá salen en blanco. Lo que cambia por máquina es CUÁNTOS renglones
+  // hay que dejarle.
+  const cantidadColores = coloresDeLaHoja(maquinas, orden.impresion_maquina)
+  const colores   = Array.from({ length: cantidadColores }, (_, i) => orden.impresion_colores?.[i] ?? "")
+  // Siempre DOS FILAS, como el papel: seis salen 3+3 y ocho salen 4+4. Un
+  // número fijo de columnas dejaría los ocho en 3+3+2, con la última fila
+  // coja, que no es como está impresa ninguna de las hojas.
+  const columnasColores = Math.ceil(cantidadColores / 2)
   const bobinas   = orden.bobinas ?? []
   // 16 casilleros en una grilla de 4×4, como el «KG/BOB.» del papel: ahí no
   // hay encabezados ni numeración, son rayas sueltas donde se anota el peso de
@@ -332,12 +388,18 @@ export default async function PrintOrdenPage({ params }: Props) {
                   volumen_cantidad: orden.producto_volumen_cantidad,
                   volumen_unidad: orden.producto_volumen_unidad,
                 })}
-                {/* La muestra del producto. NOOK significa que está rechazada:
-                    imprimir 20.000 etiquetas así es tirar el trabajo. */}
-                {muestra && (
-                  <b style={{ marginLeft: 12 }}>
-                    {muestraMal ? `· MUESTRA ${muestra} ·` : "· Muestra OK"}
-                  </b>
+                {/* La muestra del producto, SÓLO CUANDO ESTÁ MAL. NOOK
+                    significa que está rechazada: imprimir 20.000 etiquetas así
+                    es tirar el trabajo, y eso tiene que saltar a la vista.
+
+                    «Muestra OK» NO SE IMPRIME MÁS. Era el estado normal —casi
+                    todos los productos están aprobados—, así que aparecía en
+                    casi todas las fichas, y un cartel que está siempre deja de
+                    leerse: cuando de verdad dice otra cosa, el ojo ya aprendió
+                    a saltearlo. El renglón de PRODUCTO es para el producto; la
+                    tinta va donde está la excepción. */}
+                {muestraMal && (
+                  <b style={{ marginLeft: 12 }}>{`· MUESTRA ${muestra} ·`}</b>
                 )}
               </span>
             </div>
@@ -467,7 +529,10 @@ export default async function PrintOrdenPage({ params }: Props) {
                     />
                   </div>
                   <span className="ot-mano-rotulo" style={{ display: "block", margin: "9px 0 5px" }}>Colores</span>
-                  <div className="ot-colores">
+                  <div
+                    className="ot-colores"
+                    style={{ gridTemplateColumns: `repeat(${columnasColores}, 1fr)` }}
+                  >
                     {colores.map((c, i) => (
                       <span key={i} className="ot-color">
                         <span className="ot-color-num">{i + 1}.</span>

@@ -22,6 +22,13 @@ export interface Maquina {
   nombre: string
   tipo: string
   activa: boolean
+  /**
+   * Cuántos espacios de color tiene la ORDEN DE TRABAJO EN PAPEL de esta
+   * impresora. La empresa no tiene una hoja: tiene una POR MÁQUINA, y no son
+   * iguales — la de ReinaFlex trae ocho y el sistema imprimía seis para todas.
+   * `null` = todavía no lo cargaron, y la ficha usa su valor por defecto.
+   */
+  ficha_colores: number | null
 }
 
 export interface RazonSocial {

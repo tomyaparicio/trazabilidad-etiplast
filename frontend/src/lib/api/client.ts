@@ -193,15 +193,15 @@ export const api = {
       delete: (id: number) => del<{ ok: boolean }>(`/api/admin/envases/${id}`),
     },
     maquinas: {
-      list: (tipo?: string) => get<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }[]>("/api/admin/maquinas", tipo ? { tipo } : undefined),
-      create: (data: { nombre: string; tipo?: string }) => post<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }>("/api/admin/maquinas", data),
-      update: (id: number, data: { nombre?: string; tipo?: string; activa?: boolean }) => put<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean }>(`/api/admin/maquinas/${id}`, data),
+      list: (tipo?: string) => get<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean; ficha_colores: number | null }[]>("/api/admin/maquinas", tipo ? { tipo } : undefined),
+      create: (data: { nombre: string; tipo?: string; ficha_colores?: number | null }) => post<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean; ficha_colores: number | null }>("/api/admin/maquinas", data),
+      update: (id: number, data: { nombre?: string; tipo?: string; activa?: boolean; ficha_colores?: number | null }) => put<{ id: number; codigo: string; nombre: string; tipo: string; activa: boolean; ficha_colores: number | null }>(`/api/admin/maquinas/${id}`, data),
       /** Qué se lleva puesto borrarla: productos que la usan y pases de producción. */
       uso: (id: number) => get<{
-        maquina: { id: number; codigo: string; nombre: string; tipo: string; activa: boolean }
+        maquina: { id: number; codigo: string; nombre: string; tipo: string; activa: boolean; ficha_colores: number | null }
         productos: number
         pases: number
-        destinos: { id: number; codigo: string; nombre: string; tipo: string; activa: boolean }[]
+        destinos: { id: number; codigo: string; nombre: string; tipo: string; activa: boolean; ficha_colores: number | null }[]
       }>(`/api/admin/maquinas/${id}/uso`),
       /**
        * `reasignarA` es a qué máquina pasan los productos que usaban ésta. Sin

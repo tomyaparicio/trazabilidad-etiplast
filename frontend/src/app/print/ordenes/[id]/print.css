@@ -435,6 +435,13 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  /* Centrado SOBRE la raya. La raya se estira hasta el margen, así que con el
+     dato pegado a la izquierda quedaban diez centímetros de raya vacía a la
+     derecha y el nombre colgando de una punta. Centrado, el dato ocupa el
+     renglón que le corresponde. Sólo lo usan estos dos renglones —Cliente N° y
+     Producto—, que son los únicos con raya larga; las grillas de abajo siguen
+     alineadas a la izquierda, que es como se leen en columna. */
+  text-align: center;
 }
 
 /* ══ SEPARADOR PUNTEADO ══════════════════════════════════════ */
