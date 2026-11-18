@@ -253,7 +253,22 @@ export function ElegirMaquina({ actual = null, onElegir, onCancelar }: Props) {
 
         <div className="mx-auto grid max-w-4xl grid-cols-1 gap-5 sm:grid-cols-3">
           {opciones.map((o) => {
-            const elegida = actual?.id === o.id
+            /* Por NOMBRE, no por id. Los ids de las tarjetas los arma
+               `armarOpciones` —"venus", "reinaflex", "autoadhesiva" o
+               `maquina-${id}`— pero la máquina vigente casi siempre llega
+               desde `maquinaDesdeNombre`, que no conoce esos ids y pone el
+               nombre crudo del catálogo: "Venus" !== "venus", y ninguna
+               tarjeta quedaba marcada. El operario tocaba «Cambiar» para
+               confirmar en qué máquina va y se encontraba las tres iguales,
+               sin forma de saber cuál estaba puesta. Se compara contra el
+               valor y contra los alias, que es lo que de verdad identifica a
+               la máquina; el id se deja primero porque cuando SÍ viene de
+               `onElegir` es exacto. */
+            const elegida = !!actual && (
+              actual.id === o.id ||
+              normalizar(actual.valor) === normalizar(o.valor) ||
+              o.alias.some((a) => normalizar(a) === normalizar(actual.valor))
+            )
             return (
               <button
                 key={o.id}

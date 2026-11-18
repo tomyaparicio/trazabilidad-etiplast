@@ -505,9 +505,21 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
      si el producto no tiene ninguna, la que se eligió acá le queda grabada al
      guardar la orden. Editar una orden vieja no abre nada: ya tiene la suya. */
   const [eligiendoMaquina, setEligiendoMaquina] = useState(!orden)
-  /** La impresora que vale, en orden de prioridad: la elegida, la que vino por
-      prop (alta desde el agente de voz), o lo que haya quedado en el campo. */
-  const maquinaValor = maquinaElegida?.valor ?? impresionMaquina ?? form.impresion_maquina ?? ""
+  /**
+   * La impresora que vale, en orden de prioridad: la elegida, la que vino por
+   * prop (alta desde el agente de voz), o lo que haya quedado en el campo.
+   *
+   * UN SOLO OBJETO, no un string acá y un flag allá. Antes el selector decidía
+   * su botón de salida mirando `maquinaElegida` —«Volver al formulario» si
+   * había, «Volver a órdenes» si no, y lo segundo ABANDONA la orden— mientras
+   * la barra de arriba mostraba `maquinaValor`, que incluye lo que vino en el
+   * campo. Con una impresora que no salió del selector, la barra decía que
+   * había máquina y el botón de volver te sacaba perdiendo todo lo cargado.
+   */
+  const maquinaActual = maquinaElegida
+    ?? maquinaDesdeNombre(impresionMaquina)
+    ?? maquinaDesdeNombre(form.impresion_maquina)
+  const maquinaValor = maquinaActual?.valor ?? ""
   const [step, setStep]                         = useState(1)
   // Dirección del último movimiento (avanzar = entra desde la derecha).
   const [dir, setDir]                           = useState<1 | -1>(1)
@@ -625,6 +637,24 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
   const set = (key: keyof Form, value: unknown) => setForm((f) => ({ ...f, [key]: value }))
   const num = (v: string) => (v === "" ? null : Number(v))
 
+  /**
+   * El producto APORTA su impresora; nunca la pregunta.
+   *
+   * Si el producto tiene máquina cargada, ésa gana: es la autoridad sobre en
+   * qué máquina va ese producto. Si no la tiene, la orden se queda con la que
+   * ya venía, y el backend se la graba al producto al guardar
+   * (`_aprender_maquina_del_producto`), así la próxima ya la sabe.
+   *
+   * Lo llaman los DOS caminos que asignan producto. Antes sólo lo hacía el
+   * selector, así que un cliente con un solo producto —que se autoselecciona
+   * en `handleSelectCliente`— no heredaba la máquina guardada ni aprendía
+   * ninguna: se perdía justo la función que repuebla el dato que se borró.
+   */
+  const adoptarImpresoraDelProducto = (p: ClienteProducto) => {
+    const guardada = maquinaDesdeNombre(p.maquina_impresora_nombre)
+    if (guardada) setMaquinaElegida(guardada)
+  }
+
   const handleSelectCliente = (c: Cliente) => {
     const productos = c.productos ?? []
     setClienteName(c.marca || c.razon_social || "")
@@ -639,6 +669,7 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
         ...(p.envase           && { troquelado_envase: p.envase }),
         ...datosDeLamina(p.lamina),
       }))
+      adoptarImpresoraDelProducto(p)
     } else {
       setForm((f) => ({ ...f, cliente_id: c.id, cliente_producto_id: null, impresion_cilindro: null, troquelado_alto: null, troquelado_envase: "", extrusion_formulacion: "2045/208" }))
     }
@@ -655,17 +686,22 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
       ...datosDeLamina(p.lamina),
     }))
 
-    // ACÁ SE DECIDE LA IMPRESORA. Si el producto la tiene cargada, se toma y
-    // no se le pregunta nada a nadie: ése es el punto de guardarla. Si no la
-    // tiene, se abre el selector una sola vez y lo elegido queda en la ficha
-    // del producto cuando se guarde la orden.
-    const guardada = maquinaDesdeNombre(p.maquina_impresora_nombre)
-    if (guardada) {
-      setMaquinaElegida(guardada)
-      setEligiendoMaquina(false)
-    } else {
-      setEligiendoMaquina(true)
-    }
+    // ACÁ SE DECIDE LA IMPRESORA, y el selector NO SE ABRE SOLO.
+    //
+    // Antes, si el producto elegido no tenía máquina cargada, esta línea
+    // abría el selector a pantalla completa. Era un secuestro: preguntaba
+    // «¿este producto la tiene cargada?» cuando lo que importa es «¿falta
+    // impresora?», que son dos cosas distintas. En un alta el selector ya se
+    // abrió al entrar, así que al llegar al producto la impresora YA ESTÁ
+    // ELEGIDA, y el selector volvía a tapar el formulario para preguntar algo
+    // ya contestado. Con 158 de 1.211 productos con máquina cargada eso pasaba
+    // en casi todos: cambiar de producto tres veces te comía la pantalla tres
+    // veces, y el que carga perdía el lugar en el formulario cada vez.
+    //
+    // Que falte la impresora ahora se ve donde no estorba —la barra de arriba
+    // dice «sin impresora» y ofrece «Elegir»— y lo frena el guardado, que es
+    // donde el dato hace falta de verdad. El selector se abre si lo piden.
+    adoptarImpresoraDelProducto(p)
   }
 
   /**
@@ -712,6 +748,40 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
 
   const handleSubmit = async () => {
     if (saving) return
+    // SIN IMPRESORA NO SE GUARDA — PERO SÓLO EN UN ALTA EN FIRME.
+    //
+    // El backend la acepta vacía a propósito —hay un test que lo fija,
+    // `test_crear_orden_sin_maquina_sigue_andando`— pero un alta la exige: es
+    // el dato que se perdió cuando se borraron máquinas del catálogo
+    // (`ON DELETE SET NULL`, sin backup) y la única forma de reponerlo es que
+    // cada orden nueva lo traiga, porque al guardar se le graba al producto.
+    //
+    // NO APLICA AL EDITAR NI A UN BORRADOR, y no es una excepción cómoda: es la
+    // misma regla que ya fijamos para el catálogo de máquinas. La configuración
+    // se corrige; la historia no se inventa. Una orden vieja sin impresora es
+    // un hecho. Exigirla para corregirle una fecha obliga a ADIVINAR en qué
+    // máquina se hizo hace seis meses — y el PUT llama a
+    // `_aprender_maquina_del_producto`, así que esa adivinanza queda grabada
+    // como la impresora OFICIAL de ese producto, con autoridad sobre todas las
+    // órdenes que vengan. Se envenenaría justo el dato que esto vino a reponer.
+    // Y el check «Es borrador» promete que se guarda a medio cargar: exigirle
+    // la impresora es romper esa promesa.
+    //
+    // Esto antes lo «garantizaba» el selector abriéndose solo. Garantizar un
+    // dato tapando la pantalla no es validar: es tomar de rehén al que carga.
+    // Acá es una validación, que es lo que tenía que haber sido siempre. No
+    // abre el selector: el mensaje queda visible abajo y el botón está arriba.
+    if (!orden && form.estado !== "borrador" && !maquinaValor) {
+      const falta = "Falta la impresora: elegila con «Elegir», arriba a la derecha"
+      setError(falta)
+      // TAMBIÉN POR TOAST, y no es redundancia. El botón «Guardar» vive en una
+      // barra fija abajo, pero el cartel de error se pinta al final del
+      // formulario: medido, quedaba en y=1357 con una ventana de 531 px de
+      // alto. Tocabas Guardar, no pasaba nada, y la explicación estaba a 800
+      // px fuera de pantalla. Un aviso que no se ve no avisa.
+      toast.error(falta)
+      return
+    }
     setSaving(true); setError("")
     try {
       const payload = {
@@ -1031,13 +1101,22 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
                   <label>
                     <span className="ficha-rotulo">Máquina</span>
                     {/* Sale del producto o del selector, y se muestra igual para
-                        que el operario vea con qué va a imprimir. De sólo lectura
-                        cuando ya está resuelta: la fuente es el selector, no este
-                        campo, y dos fuentes para el mismo dato terminan siempre
-                        con una diciendo una cosa y la otra, otra. */}
-                    <Input placeholder="Ej: Venus" value={maquinaValor}
-                      readOnly={!!maquinaValor}
-                      onChange={(e) => set("impresion_maquina", e.target.value)} className="ficha-campo" />
+                        que el operario vea con qué va a imprimir. SIEMPRE de
+                        sólo lectura: la fuente es el selector, y dos fuentes
+                        para el mismo dato terminan con una diciendo una cosa y
+                        la otra, otra.
+
+                        Antes era `readOnly={!!maquinaValor}` con un `onChange`
+                        que escribía `form.impresion_maquina`, y `maquinaValor`
+                        cae a ese mismo campo: tipeabas «V», el valor dejaba de
+                        estar vacío, el campo se volvía de sólo lectura y no
+                        entraba ni una letra más. Nombre a medio escribir, y el
+                        backend sólo acepta nombres del catálogo (400 si no
+                        existe). El camino no estaba a medio arreglar: no
+                        servía, así que se saca y queda el selector. */}
+                    <Input readOnly value={maquinaValor}
+                      placeholder="Elegila arriba, con «Elegir»"
+                      className="ficha-campo" />
                   </label>
                   {/* Sale de la ficha del producto, pero hoy sólo 158 de 1.211
                       lo tienen cargado: por eso el rótulo avisa cuando falta. */}
@@ -1346,13 +1425,13 @@ export function OrdenFormVista({ orden = null, prefill, impresionMaquina = null,
              nada de lo cargado— y la pantalla vuelve a ser una decisión sola. */
           <div className="fixed inset-0 z-40 overflow-y-auto bg-background">
             <ElegirMaquina
-              actual={maquinaElegida}
+              actual={maquinaActual}
               onElegir={(m) => { setMaquinaElegida(m); setEligiendoMaquina(false) }}
               /* Sin máquina elegida, «volver» es volver al listado —que es lo
                que dice el botón del selector cuando no hay ninguna—. Con una
                ya elegida, es volver al formulario. El texto y lo que hace el
                botón tienen que decir lo mismo. */
-            onCancelar={() => { if (maquinaElegida) setEligiendoMaquina(false); else onDone(false) }}
+            onCancelar={() => { if (maquinaActual) setEligiendoMaquina(false); else onDone(false) }}
             />
           </div>
         )}
