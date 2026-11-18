@@ -107,7 +107,28 @@ function sinPrefijoGenerico(nombre: string): string {
  *  parcial. Ver abajo: sin esto, un nombre corto se come todas las órdenes. */
 const LARGO_MINIMO_PARA_PARCIAL = 3
 
-function hojaDeLaMaquina(maquinas: Maquina[], nombreEnLaOrden?: string | null): Hoja {
+function hojaDeLaMaquina(
+  maquinas: Maquina[],
+  idEnLaOrden?: number | null,
+  nombreEnLaOrden?: string | null,
+): Hoja {
+  // 0) POR ID, QUE ES EL ÚNICO VÍNCULO QUE NO SE ROMPE.
+  //
+  //    La orden guarda el id de la impresora además del nombre. Mientras ese
+  //    id esté, no hay nada que interpretar: renombrar la máquina, darla de
+  //    baja o deduplicar las dos filas de la autoadhesiva no le cambian la
+  //    hoja a una orden ya cargada. Todo lo de abajo es el camino viejo, para
+  //    las órdenes que se cargaron antes de que existiera la columna.
+  if (idEnLaOrden != null) {
+    const porId = maquinas.find((m) => m.id === idEnLaOrden)
+    if (porId) {
+      return {
+        colores: porId.ficha_colores ?? COLORES_POR_DEFECTO,
+        tipo: porId.ficha_tipo === "autoadhesiva" ? "autoadhesiva" : "film",
+      }
+    }
+  }
+
   const buscado = normalizarNombre(nombreEnLaOrden?.trim() ?? "")
   if (!buscado) return HOJA_POR_DEFECTO
 
@@ -388,7 +409,9 @@ export default async function PrintOrdenPage({ params }: Props) {
   // Los colores los escribe A MANO el operario en la máquina: el alta no los
   // pide y acá salen en blanco. Lo que cambia por máquina es CUÁNTOS renglones
   // hay que dejarle.
-  const hoja = hojaDeLaMaquina(maquinas, orden.impresion_maquina)
+  const hoja = hojaDeLaMaquina(
+    maquinas, orden.impresion_maquina_id, orden.impresion_maquina,
+  )
   const cantidadColores = hoja.colores
   const colores   = Array.from({ length: cantidadColores }, (_, i) => orden.impresion_colores?.[i] ?? "")
   // Siempre DOS FILAS, como el papel: seis salen 3+3 y ocho salen 4+4. Un

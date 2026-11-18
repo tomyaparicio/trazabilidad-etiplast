@@ -77,14 +77,23 @@ def _parse_date(raw) -> Optional[date]:
         return None
 
 
-def _resolver_maquina_impresion(db: Session, valor) -> Optional[str]:
-    """Paso 0 de la OT: valida la impresora elegida y devuelve su nombre del catálogo.
+def _resolver_maquina_impresion(db: Session, valor) -> Optional[Maquina]:
+    """Paso 0 de la OT: valida la impresora elegida y devuelve LA FILA del catálogo.
 
     Acepta el nombre o el código de la máquina (sin importar mayúsculas ni
-    espacios de más) y guarda siempre el nombre, que es lo que lee la gente de
-    planta. Vacío o None = todavía no eligieron, y eso se permite.
+    espacios de más). Vacío o None = todavía no eligieron, y eso se permite.
     Si la máquina no está en el catálogo, no es de impresión o está dada de
     baja, corta con 400 y un mensaje que se entiende sin ser técnico.
+
+    DEVUELVE LA FILA ENTERA Y NO SÓLO EL NOMBRE. Antes devolvía el nombre y el
+    id se descartaba acá mismo, teniéndolo en la mano. Ese descarte era el
+    origen de un problema serio: la orden quedaba atada al catálogo SÓLO por un
+    texto, y la ficha impresa cruza por ese texto para saber cómo es la hoja de
+    la máquina —cuántos colores y si es la de film o la de autoadhesiva—. Al
+    renombrar la impresora, al darla de baja o al deduplicar las dos filas de
+    la autoadhesiva, el calce se rompía y una orden YA CARGADA pasaba a
+    imprimirse con otra estructura. Ahora el que llama guarda las dos cosas: el
+    nombre, que es lo que lee la gente de planta, y el id, que es el vínculo.
     """
     if valor is None:
         return None
@@ -102,7 +111,7 @@ def _resolver_maquina_impresion(db: Session, valor) -> Optional[str]:
     for m in impresoras:
         if buscado in ((m.nombre or "").strip().casefold(),
                        (m.codigo or "").strip().casefold()):
-            return m.nombre
+            return m
 
     disponibles = ", ".join(m.nombre for m in impresoras) or "no hay ninguna cargada"
     raise HTTPException(
@@ -324,8 +333,12 @@ def crear_orden(
     # Fecha (parse defensivo; default hoy)
     fecha = _parse_date(datos.get("fecha")) or date.today()
 
-    # Paso 0: con qué impresora se hace la orden (valida contra el catálogo)
-    impresion_maquina = _resolver_maquina_impresion(db, datos.get("impresion_maquina"))
+    # Paso 0: con qué impresora se hace la orden (valida contra el catálogo).
+    # Se guardan las DOS cosas: el nombre, que es lo que lee la gente de
+    # planta, y el id, que es el vínculo que sobrevive a un rename o una baja.
+    maquina_impresion = _resolver_maquina_impresion(db, datos.get("impresion_maquina"))
+    impresion_maquina = maquina_impresion.nombre if maquina_impresion else None
+    impresion_maquina_id = maquina_impresion.id if maquina_impresion else None
 
     # Metros de film: el alto sale de la ficha del producto, salvo que en la
     # pantalla lo hayan corregido a mano (y entonces viaja en troquelado_alto).
@@ -366,6 +379,7 @@ def crear_orden(
         impresion_cilindro=_to_float(datos.get("impresion_cilindro")),
         impresion_colores=colores_json,
         impresion_maquina=impresion_maquina,
+        impresion_maquina_id=impresion_maquina_id,
         operador_impresion=datos.get("operador_impresion"),
 
         troquelado_ancho=_to_float(datos.get("troquelado_ancho")),
@@ -487,7 +501,12 @@ def actualizar_orden(
         orden.impresion_cilindro = _to_float(datos["impresion_cilindro"])
 
     if "impresion_maquina" in datos:
-        orden.impresion_maquina = _resolver_maquina_impresion(db, datos["impresion_maquina"])
+        maquina = _resolver_maquina_impresion(db, datos["impresion_maquina"])
+        # Nombre e id SIEMPRE juntos. Si se mandara el nombre y se dejara el id
+        # viejo, la orden diría una impresora y la ficha imprimiría la hoja de
+        # otra, que es peor que cualquiera de los dos errores por separado.
+        orden.impresion_maquina = maquina.nombre if maquina else None
+        orden.impresion_maquina_id = maquina.id if maquina else None
         # La impresora se puede elegir después, editando: ahí también se aprende.
         _aprender_maquina_del_producto(db, orden.cliente_producto_id, orden.impresion_maquina)
 

@@ -1307,6 +1307,60 @@ MIGRATIONS_OT_MAQUINA_IMPRESION = [
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# La orden guarda EN QUÉ IMPRESORA se hizo, por id y no sólo por nombre
+# ──────────────────────────────────────────────────────────────────────────────
+# `impresion_maquina` es texto suelto, y ese texto era lo ÚNICO que ataba la
+# orden al catálogo. La ficha impresa cruza por ahí para saber cómo es la hoja
+# de esa máquina —cuántos colores entran y si es la de film o la de
+# autoadhesiva—, así que cualquier cosa que rompa el calce le cambia la
+# ESTRUCTURA de la hoja a una orden ya cargada:
+#
+#   · renombrar la impresora,
+#   · darla de baja —que es lo que el sistema hace A PROPÓSITO cuando tiene
+#     pases de producción, para no borrar trazabilidad—,
+#   · deduplicar las dos filas de la autoadhesiva («Impresora Autoadhesiva» y
+#     «Taurus», que son la misma máquina).
+#
+# Ninguna de las tres toca la orden y las tres se la cambiaban. Con el id, el
+# vínculo sobrevive al rename y a la baja.
+#
+# NO se congela el TIPO de hoja en la orden, se guarda la MÁQUINA: la hoja es
+# una propiedad de la impresora física, no del pedido. Si mañana la empresa
+# corrige el catálogo —«che, ReinaFlex son ocho colores»—, las órdenes viejas
+# tienen que salir bien; congelado, el error quedaría grabado para siempre.
+#
+# El backfill calza por nombre normalizado contra impresoras del catálogo,
+# incluidas las dadas de baja: es la última vez que ese calce tiene que
+# funcionar, porque de acá en adelante el id se escribe en el alta.
+MIGRATIONS_OT_MAQUINA_IMPRESION_ID = [
+    ("OT: Agregar el id de la impresora a ordenes_trabajo",
+     "ALTER TABLE ordenes_trabajo "
+     "ADD COLUMN IF NOT EXISTS impresion_maquina_id INTEGER"),
+    ("OT: La orden apunta al catalogo de maquinas (ON DELETE SET NULL)",
+     "DO $$ BEGIN "
+     "  IF NOT EXISTS (SELECT 1 FROM pg_constraint "
+     "                 WHERE conname = 'ordenes_trabajo_impresion_maquina_id_fkey') THEN "
+     "    ALTER TABLE ordenes_trabajo "
+     "    ADD CONSTRAINT ordenes_trabajo_impresion_maquina_id_fkey "
+     "    FOREIGN KEY (impresion_maquina_id) REFERENCES maquinas(id) ON DELETE SET NULL; "
+     "  END IF; "
+     "END $$;"),
+    ("OT: Indice por impresora",
+     "CREATE INDEX IF NOT EXISTS ix_ordenes_trabajo_impresion_maquina_id "
+     "ON ordenes_trabajo (impresion_maquina_id)"),
+    ("OT: Backfill del id de impresora desde el nombre guardado",
+     "UPDATE ordenes_trabajo o SET impresion_maquina_id = m.id "
+     "FROM maquinas m "
+     "WHERE o.impresion_maquina_id IS NULL "
+     "AND o.impresion_maquina IS NOT NULL "
+     "AND BTRIM(o.impresion_maquina) <> '' "
+     "AND LOWER(m.tipo) = 'impresion' "
+     "AND REPLACE(LOWER(BTRIM(m.nombre)), ' ', '') "
+     "    = REPLACE(LOWER(BTRIM(o.impresion_maquina)), ' ', '')"),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Metros de film que hay que extrudar para la tirada
 # ──────────────────────────────────────────────────────────────────────────────
 # En el alta se carga la CANTIDAD de etiquetas y, con el alto del producto, sale
@@ -1569,7 +1623,7 @@ def run_migrations():
     except Exception as e:
         print(f"  ✗ create_all falló (se continúa): {e}\n")
 
-    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER + MIGRATIONS_COBRANZAS + MIGRATIONS_MAQUINA_FICHA_COLORES + MIGRATIONS_MAQUINA_FICHA_TIPO
+    all_migrations = MIGRATIONS_LEGACY + MIGRATIONS_NORMALIZACION + MIGRATIONS_RAZONES_SOCIALES + MIGRATIONS_ORDENES + MIGRATIONS_SPLIT_MARCAS + MIGRATIONS_DEDUP_RAZONES + MIGRATIONS_RESPONSABLE + MIGRATIONS_V2 + MIGRATIONS_ENVASES + MIGRATIONS_RS_NUMERO + MIGRATIONS_FUZZY + MIGRATIONS_MAQUINA_PRODUCTO + MIGRATIONS_EXPANSION_BASE + MIGRATIONS_EXPANSION_MODULOS + MIGRATIONS_EXPANSION_OT + MIGRATIONS_EXPANSION_SEEDS + MIGRATIONS_SEQ_RESYNC + MIGRATIONS_PRODUCTO_UBICACION + MIGRATIONS_FACTURAS + MIGRATIONS_RS_DATOS + MIGRATIONS_OT_MAQUINA_IMPRESION + MIGRATIONS_OT_METROS_EXTRUSION + MIGRATIONS_OT_TROQUELADO_CIERRE + MIGRATIONS_PLAN_SIN_MAQUINA + MIGRATIONS_OT_CIERRE + MIGRATIONS_OT_PLAZOS + MIGRATIONS_OT_VERIFICACION + MIGRATIONS_OT_REHACER + MIGRATIONS_COBRANZAS + MIGRATIONS_MAQUINA_FICHA_COLORES + MIGRATIONS_MAQUINA_FICHA_TIPO + MIGRATIONS_OT_MAQUINA_IMPRESION_ID
 
     aplicadas = 0
     salteadas = 0

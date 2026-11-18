@@ -63,6 +63,31 @@ class OrdenTrabajo(Base):
     impresion_cilindro           = Column(Numeric(10, 2))
     impresion_colores            = Column(Text)
     impresion_maquina            = Column(String(100))
+    # EN QUÉ IMPRESORA SE HIZO, POR ID Y NO SÓLO POR NOMBRE.
+    #
+    # `impresion_maquina` guarda el nombre como texto suelto, y ese texto es lo
+    # único que ataba la orden al catálogo. La ficha impresa cruza por ahí para
+    # saber cómo es la hoja de esa máquina —cuántos colores y si es la de film
+    # o la de autoadhesiva—, así que cualquier cosa que rompa el calce le
+    # cambia la ESTRUCTURA de la hoja a una orden ya cargada:
+    #
+    #   · renombrar la impresora en el catálogo,
+    #   · darla de baja (que es lo que el sistema hace a propósito cuando tiene
+    #     pases de producción, para no borrar trazabilidad),
+    #   · deduplicar las dos filas de la autoadhesiva.
+    #
+    # Ninguna de las tres toca la orden, y las tres se la cambiaban. Con el id
+    # el vínculo sobrevive al rename y a la baja.
+    #
+    # SE GUARDAN LOS DOS: el nombre queda como estaba —es lo que lee la gente
+    # de planta y lo que tienen las órdenes viejas— y el id es el vínculo
+    # preciso. `ON DELETE SET NULL` y no CASCADE: si alguien borra la máquina,
+    # la ORDEN NO SE BORRA; se queda sin id y vuelve a resolverse por nombre,
+    # que es el comportamiento anterior.
+    impresion_maquina_id         = Column(
+        Integer, ForeignKey("maquinas.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
     operador_impresion           = Column(String(150))
 
     # — Troquelado —
@@ -238,6 +263,10 @@ class OrdenTrabajo(Base):
             "impresion_cilindro":        float(self.impresion_cilindro) if self.impresion_cilindro else None,
             "impresion_colores":         colores,
             "impresion_maquina":         self.impresion_maquina,
+            # El vínculo preciso con el catálogo: la ficha impresa lo usa para
+            # saber cómo es la hoja de esta máquina sin depender de que el
+            # nombre guardado siga calzando con el de hoy.
+            "impresion_maquina_id":      self.impresion_maquina_id,
             "operador_impresion":        self.operador_impresion,
             # Troquelado
             "troquelado_ancho":          float(self.troquelado_ancho)  if self.troquelado_ancho  else None,

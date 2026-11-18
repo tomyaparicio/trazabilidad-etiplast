@@ -156,6 +156,16 @@ export type OrdenTrabajo = {
   operador_impresion: string | null
   /** Marca de impresora con la que se hace (paso 0 del alta): Venus, ReinaFlex, Autoadhesiva. */
   impresion_maquina: string | null
+  /** El vínculo PRECISO con el catálogo de máquinas.
+   *
+   *  `impresion_maquina` guarda el nombre como texto suelto, y con eso sola
+   *  la ficha impresa tenía que adivinar: renombrar la impresora, darla de
+   *  baja o deduplicar las dos filas de la autoadhesiva rompía el calce y a
+   *  una orden YA CARGADA le cambiaba la estructura de la hoja.
+   *
+   *  `null` en órdenes viejas que el backfill no pudo calzar: ahí se vuelve
+   *  a resolver por nombre, que es el comportamiento anterior. */
+  impresion_maquina_id: number | null
 
   // Troquelado
   troquelado_ancho: number | null
